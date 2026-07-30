@@ -56,6 +56,7 @@ import {
   describeAutomation,
   localDateTime,
 } from "./automation_model.js";
+import { FRAME_INTERVAL_MS, alignFrameTime } from "./frame_timing.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -575,7 +576,10 @@ function scheduleFrame() {
 
 async function flushFrame() {
   if (!state.frameQueued || !state.connected) return;
-  const delay = Math.max(0, 45 - (performance.now() - state.lastSentAt));
+  const delay = Math.max(
+    0,
+    FRAME_INTERVAL_MS - (performance.now() - state.lastSentAt),
+  );
   if (delay > 0) {
     setTimeout(() => void flushFrame(), delay);
     return;
@@ -583,7 +587,8 @@ async function flushFrame() {
   state.frameQueued = false;
   state.frameSending = true;
   try {
-    const status = await api("/api/frame", {
+    state.lastSentAt = performance.now();
+    await api("/api/frame", {
       method: "POST",
       body: JSON.stringify({
         width: state.width,
@@ -591,8 +596,6 @@ async function flushFrame() {
         pixels: Array.from(state.pixels),
       }),
     });
-    state.lastSentAt = performance.now();
-    applyStatus(status, { syncBrightness: false });
   } catch (error) {
     toast(error.message, true);
   } finally {
@@ -777,9 +780,9 @@ function stopMedia(showNotice = false) {
 function startMediaLoop(kind) {
   const tick = (now) => {
     if (!state.mediaElement) return;
-    if (now - state.mediaLastFrame >= 50) {
+    if (now - state.mediaLastFrame >= FRAME_INTERVAL_MS) {
       drawMediaFrame();
-      state.mediaLastFrame = now;
+      state.mediaLastFrame = alignFrameTime(state.mediaLastFrame, now);
     }
     state.mediaFrame = requestAnimationFrame(tick);
   };
@@ -957,7 +960,7 @@ async function startMicrophoneInput() {
       ) {
         return;
       }
-      if (now - state.audioLastFrame >= 50) {
+      if (now - state.audioLastFrame >= FRAME_INTERVAL_MS) {
         const settings = currentAudioControls();
         state.audioAnalyser.getByteFrequencyData(state.audioData);
         const metrics = measureAudioBands(
@@ -984,7 +987,7 @@ async function startMicrophoneInput() {
         updateAudioMeters(metrics);
         render();
         scheduleFrame();
-        state.audioLastFrame = now;
+        state.audioLastFrame = alignFrameTime(state.audioLastFrame, now);
       }
       state.animationFrame = requestAnimationFrame(tick);
     };
@@ -1021,7 +1024,7 @@ async function startScreenCapture() {
     stream = await navigator.mediaDevices.getDisplayMedia({
       audio: false,
       video: {
-        frameRate: { ideal: 20, max: 30 },
+        frameRate: 1000 / FRAME_INTERVAL_MS,
       },
     });
     permissionGranted = true;
@@ -1561,11 +1564,11 @@ function startGeneratedEffect(name, { preserveOutput = false } = {}) {
   const backdrop = state.pixels.slice();
   const primaryBuffer = new Uint8Array(state.pixels.length);
   const overlayBuffer = new Uint8Array(state.pixels.length);
-  let previousFrame = 0;
+  let previousFrame = startedAt;
 
   const tick = (now) => {
     if (state.animationName !== name) return;
-    if (now - previousFrame >= 50) {
+    if (now - previousFrame >= FRAME_INTERVAL_MS) {
       const time = ((now - startedAt) / 1000) * state.effectSpeed;
       renderGeneratedFrame(
         name,
@@ -1577,7 +1580,7 @@ function startGeneratedEffect(name, { preserveOutput = false } = {}) {
       );
       render();
       scheduleFrame();
-      previousFrame = now;
+      previousFrame = alignFrameTime(previousFrame, now);
     }
     state.animationFrame = requestAnimationFrame(tick);
   };

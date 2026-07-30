@@ -140,7 +140,7 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 30 Python and 38 browser-model tests. It covers
+The current suite contains 32 Python and 40 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media
@@ -148,12 +148,10 @@ controls, scene organization, and playlists.
 
 ## Frame-rate notes
 
-The browser currently renders generated and captured input at 20 FPS, coalesces
-frame uploads to roughly 22 FPS, and refreshes the controller stream at 25 FPS.
-The controller reports a 40 FPS capability, but the lower working cadence is an
-intentional software limit rather than a CPU or GPU limit. See
-[docs/PERFORMANCE.md](docs/PERFORMANCE.md) for measurements and the safe 40 FPS
-optimization path.
+The browser and controller relay now share a 25 ms frame clock. Actual-device
+testing raised new browser frames from 18.17 to 37.3 FPS and the panel-bound
+relay from 25 to 40 FPS without a new runtime dependency or transport protocol.
+See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for the measurements.
 
 ## How it works
 

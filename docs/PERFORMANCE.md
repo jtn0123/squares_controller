@@ -3,15 +3,28 @@
 Squares Controller has four independent timing stages:
 
 1. Procedural effects, uploaded media, microphone visuals, and screen capture
-   sample at most once every 50 ms (20 FPS).
-2. The browser coalesces HTTP frame uploads to at most once every 45 ms
-   (approximately 22 FPS).
-3. The Python relay repeats the most recent complete frame every 40 ms (25 FPS).
-4. The tested Twinkly Squares master reports a 40 FPS device capability.
+   use a phase-aligned 25 ms clock.
+2. The browser keeps only the latest pending frame, permits one HTTP upload at
+   a time, and starts uploads at most once every 25 ms.
+3. The Python relay repeats the most recent complete frame on a 25 ms deadline
+   clock. Missed deadlines are skipped instead of sent as catch-up bursts.
+4. The connected Twinkly Squares master reports a 40 FPS device capability.
 
-The current visible frame rate is therefore limited by deliberate browser and
-relay timers. It is not limited by the number of panels in a supported
-installation.
+## Actual-device measurements
+
+Signal Sweep was measured through the browser and over the Mac's Wi-Fi socket
+to a 768-LED, 12-panel Squares installation:
+
+| Measurement | Before | Optimized |
+| --- | ---: | ---: |
+| New browser frames | 18.17 FPS | 37.3 FPS |
+| Panel-bound relay frames | 25 FPS | 40 FPS |
+| UDP payload and protocol bytes | 58,500 B/s | 93,600 B/s |
+
+The optimized relay held 93,600 B/s in each steady one-second sample, reported
+no controller error, and used approximately 4.3% CPU and 22 MB of memory on the
+local Python process. The relay repeats the newest frame when browser timing
+does not supply a new one for a particular 25 ms deadline.
 
 ## Software-only measurements
 
@@ -31,15 +44,10 @@ one millisecond per frame. Moving from 12 to 16 panels increases raw RGB data
 from 2,304 to 3,072 bytes per frame, which is not enough to force a lower
 cadence on a modern Mac or ordinary local Wi-Fi.
 
-## Safe optimization sequence
+## Further optimization threshold
 
-1. Add observable browser render, upload, relay, and dropped-frame counters.
-2. Align browser generation and upload with the current 25 FPS relay.
-3. Add an optional binary frame endpoint to reduce JSON bandwidth and parsing.
-4. Trial a synchronized 25 ms cadence for 40 FPS with packet-loss and thermal
-   monitoring.
-5. Keep adaptive fallback to 25 or 20 FPS when upload latency or dropped frames
-   cross a defined threshold.
-
-The 40 FPS trial requires deliberate physical-display validation, so it was not
-performed during the hardware-isolated feature work documented here.
+The present transport reaches the device's reported native cadence without a
+new dependency or protocol. A binary endpoint, persistent socket, or permanent
+telemetry layer should only be added if longer trials or larger layouts show a
+measured regression. Server-side procedural rendering remains the larger option
+if animations must continue at full speed while the browser is suspended.

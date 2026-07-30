@@ -14,10 +14,15 @@ from typing import Any
 API_PREFIX = "/xled/v1"
 UDP_PORT = 7777
 FRAME_CHUNK_SIZE = 900
-STREAM_INTERVAL_SECONDS = 0.04
+STREAM_INTERVAL_SECONDS = 0.025
 REQUEST_TIMEOUT_SECONDS = 4
 TOKEN_MAX_AGE_SECONDS = 3 * 60 * 60
 SUPPORTED_ROTATIONS = (0, 90, 180, 270)
+
+
+def next_stream_deadline(previous: float, now: float) -> float:
+    target = previous + STREAM_INTERVAL_SECONDS
+    return now + STREAM_INTERVAL_SECONDS if target <= now else target
 
 
 @dataclass(frozen=True)
@@ -407,12 +412,11 @@ class TwinklyClient:
         return self.status()
 
     def _stream_loop(self) -> None:
-        next_frame = time.monotonic()
+        deadline = time.monotonic()
         while not self._stream_stop.is_set():
             self._send_last_frame()
-            next_frame += STREAM_INTERVAL_SECONDS
-            delay = max(0.0, next_frame - time.monotonic())
-            self._stream_stop.wait(delay)
+            deadline = next_stream_deadline(deadline, time.monotonic())
+            self._stream_stop.wait(max(0.0, deadline - time.monotonic()))
 
     def _send_last_frame(self) -> None:
         try:

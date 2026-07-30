@@ -4,10 +4,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from src.twinkly_client import (
+    STREAM_INTERVAL_SECONDS,
     Layout,
     TwinklyClient,
     build_realtime_packets,
     calculate_layout,
+    next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
     raster_to_device_frame,
@@ -28,6 +30,13 @@ def rectangular_coordinates(width: int, height: int) -> list[dict[str, float]]:
 
 
 class TwinklyClientTests(unittest.TestCase):
+    def test_relay_targets_device_native_frame_rate(self) -> None:
+        self.assertEqual(STREAM_INTERVAL_SECONDS, 0.025)
+
+    def test_relay_skips_missed_deadlines_without_bursting(self) -> None:
+        self.assertEqual(next_stream_deadline(1.0, 1.01), 1.025)
+        self.assertEqual(next_stream_deadline(1.0, 1.04), 1.065)
+
     @staticmethod
     def connected_client() -> TwinklyClient:
         client = TwinklyClient("192.168.1.100")
