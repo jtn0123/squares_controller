@@ -224,6 +224,32 @@
               <button id="applyGradientButton" type="button">USE CUSTOM</button>
             </div>
           </div>
+          <div class="zone-studio">
+            <div class="zone-heading">
+              <label for="zoneType">TARGET ZONE</label>
+              <select id="zoneType">
+                <option value="all">WHOLE WALL</option>
+                <option value="panel">ONE PANEL</option>
+                <option value="row">ONE PIXEL ROW</option>
+                <option value="column">ONE PIXEL COLUMN</option>
+                <option value="custom">CUSTOM RECTANGLE</option>
+              </select>
+            </div>
+            <div class="panel-zone-grid" id="panelZoneGrid" hidden></div>
+            <div class="zone-axis-editor" id="zoneAxisEditor" hidden>
+              <label>
+                <span id="zoneIndexLabel">ROW NUMBER</span>
+                <input id="zoneIndex" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div class="zone-rect-editor" id="zoneRectEditor" hidden>
+              <label><span>X</span><input id="zoneX" type="number" min="1" value="1" /></label>
+              <label><span>Y</span><input id="zoneY" type="number" min="1" value="1" /></label>
+              <label><span>W</span><input id="zoneWidth" type="number" min="1" value="8" /></label>
+              <label><span>H</span><input id="zoneHeight" type="number" min="1" value="8" /></label>
+            </div>
+            <output class="zone-readout" id="zoneReadout">WHOLE WALL</output>
+          </div>
         </section>
 
         <section class="rack-section">

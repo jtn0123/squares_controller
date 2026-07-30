@@ -801,6 +801,99 @@ h1 {
   letter-spacing: 0.1em;
 }
 
+.zone-studio {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.zone-studio [hidden] {
+  display: none !important;
+}
+
+.zone-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.zone-heading label,
+.zone-axis-editor span,
+.zone-rect-editor span {
+  color: var(--muted);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.zone-heading select,
+.zone-axis-editor input,
+.zone-rect-editor input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.panel-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--panel-columns), 1fr);
+  gap: 4px;
+}
+
+.panel-zone-grid button {
+  aspect-ratio: 1;
+  color: #656d61;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(rgba(238, 232, 217, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(238, 232, 217, 0.045) 1px, transparent 1px),
+    #090b09;
+  background-size: 25% 25%;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+}
+
+.panel-zone-grid button.active {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+}
+
+.zone-axis-editor label {
+  display: grid;
+  grid-template-columns: 1fr 70px;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-rect-editor {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.zone-rect-editor label {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+}
+
+.zone-readout {
+  padding: 7px 8px;
+  color: var(--acid);
+  border-left: 2px solid var(--acid);
+  background: rgba(217, 255, 91, 0.035);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+}
+
 .input-label {
   display: block;
   margin-bottom: 8px;

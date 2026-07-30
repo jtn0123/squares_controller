@@ -25,6 +25,7 @@ SCENE_FIELDS = {
     "brightness",
     "palette",
     "layers",
+    "zone",
     "zones",
     "text",
     "font",

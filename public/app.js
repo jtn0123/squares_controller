@@ -12,6 +12,13 @@ import {
   normalizePalette,
   sampleGradient,
 } from "./palette_model.js";
+import {
+  describeZone,
+  normalizeZone,
+  panelGrid,
+  zoneBounds,
+  zoneContains,
+} from "./zone_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -59,6 +66,7 @@ const state = {
   playlistTimer: null,
   activePlaylistId: null,
   palette: normalizePalette(null),
+  zone: { type: "all" },
 };
 
 function toast(message, error = false) {
@@ -143,6 +151,8 @@ function applyStatus(status, { syncBrightness = true } = {}) {
       "aria-label",
       `Interactive ${status.width} by ${status.height} LED canvas`,
     );
+    state.zone = normalizeZone(state.zone, status.width, status.height);
+    renderZoneControls();
     render();
   }
 }
@@ -234,6 +244,7 @@ function hslToRgb(h, s, l) {
 
 function setPixel(x, y, rgb) {
   if (x < 0 || y < 0 || x >= state.width || y >= state.height) return;
+  if (!zoneContains(state.zone, x, y, state.width, state.height)) return;
   const offset = (y * state.width + x) * 3;
   state.pixels[offset] = rgb[0];
   state.pixels[offset + 1] = rgb[1];
@@ -291,6 +302,21 @@ function render() {
     context.moveTo(0, y * cellHeight);
     context.lineTo(canvas.width, y * cellHeight);
     context.stroke();
+  }
+  if (state.zone.type !== "all") {
+    const bounds = zoneBounds(state.zone, state.width, state.height);
+    context.strokeStyle = "rgba(217, 255, 91, 0.95)";
+    context.lineWidth = Math.max(2, Math.min(cellWidth, cellHeight) * 0.12);
+    context.setLineDash([
+      Math.max(6, cellWidth * 0.35),
+      Math.max(4, cellWidth * 0.18),
+    ]);
+    context.strokeRect(
+      bounds.x * cellWidth + context.lineWidth / 2,
+      bounds.y * cellHeight + context.lineWidth / 2,
+      bounds.width * cellWidth - context.lineWidth,
+      bounds.height * cellHeight - context.lineWidth,
+    );
   }
   context.restore();
 }
@@ -403,8 +429,10 @@ document.querySelector("#eraserButton").addEventListener("click", (event) => {
 document.querySelector("#fillButton").addEventListener("click", () => {
   stopAnimation();
   const color = hexToRgb(colorPicker.value);
-  for (let index = 0; index < state.width * state.height; index += 1) {
-    state.pixels.set(color, index * 3);
+  for (let y = 0; y < state.height; y += 1) {
+    for (let x = 0; x < state.width; x += 1) {
+      setPixel(x, y, color);
+    }
   }
   render();
   scheduleFrame();
@@ -412,7 +440,11 @@ document.querySelector("#fillButton").addEventListener("click", () => {
 
 document.querySelector("#clearButton").addEventListener("click", () => {
   stopAnimation();
-  state.pixels.fill(0);
+  for (let y = 0; y < state.height; y += 1) {
+    for (let x = 0; x < state.width; x += 1) {
+      setPixel(x, y, [0, 0, 0]);
+    }
+  }
   render();
   scheduleFrame();
 });
@@ -430,10 +462,15 @@ document.querySelector("#imageInput").addEventListener("change", (event) => {
     bufferContext.imageSmoothingEnabled = true;
     bufferContext.drawImage(image, 0, 0, state.width, state.height);
     const data = bufferContext.getImageData(0, 0, state.width, state.height).data;
-    for (let index = 0; index < state.width * state.height; index += 1) {
-      state.pixels[index * 3] = data[index * 4];
-      state.pixels[index * 3 + 1] = data[index * 4 + 1];
-      state.pixels[index * 3 + 2] = data[index * 4 + 2];
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const index = y * state.width + x;
+        setPixel(x, y, [
+          data[index * 4],
+          data[index * 4 + 1],
+          data[index * 4 + 2],
+        ]);
+      }
     }
     render();
     scheduleFrame();
@@ -521,6 +558,113 @@ function initializePalettes() {
     );
   });
   updatePaletteControls();
+}
+
+function applyZone(zone, announce = false) {
+  state.zone = normalizeZone(zone, state.width, state.height);
+  renderZoneControls();
+  render();
+  if (announce) toast(`Target: ${describeZone(state.zone)}.`);
+}
+
+function renderZoneControls() {
+  const typeSelect = document.querySelector("#zoneType");
+  if (!typeSelect) return;
+  typeSelect.value = state.zone.type;
+  const panelEditor = document.querySelector("#panelZoneGrid");
+  const axisEditor = document.querySelector("#zoneAxisEditor");
+  const rectEditor = document.querySelector("#zoneRectEditor");
+  panelEditor.hidden = state.zone.type !== "panel";
+  axisEditor.hidden = !["row", "column"].includes(state.zone.type);
+  rectEditor.hidden = state.zone.type !== "custom";
+
+  panelEditor.replaceChildren();
+  if (state.zone.type === "panel") {
+    const panels = panelGrid(state.width, state.height);
+    panelEditor.style.setProperty(
+      "--panel-columns",
+      String(Math.ceil(state.width / 8)),
+    );
+    panels.forEach((panel, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = String(index + 1).padStart(2, "0");
+      button.setAttribute(
+        "aria-label",
+        `Panel column ${panel.column + 1}, row ${panel.row + 1}`,
+      );
+      button.classList.toggle(
+        "active",
+        panel.column === state.zone.column && panel.row === state.zone.row,
+      );
+      button.addEventListener("click", () =>
+        applyZone(
+          { type: "panel", column: panel.column, row: panel.row },
+          true,
+        ),
+      );
+      panelEditor.append(button);
+    });
+  }
+
+  if (["row", "column"].includes(state.zone.type)) {
+    const input = document.querySelector("#zoneIndex");
+    const isRow = state.zone.type === "row";
+    document.querySelector("#zoneIndexLabel").textContent =
+      isRow ? "ROW NUMBER" : "COLUMN NUMBER";
+    input.max = String(isRow ? state.height : state.width);
+    input.value = String(state.zone.index + 1);
+  }
+
+  if (state.zone.type === "custom") {
+    const values = {
+      zoneX: state.zone.x + 1,
+      zoneY: state.zone.y + 1,
+      zoneWidth: state.zone.width,
+      zoneHeight: state.zone.height,
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      document.querySelector(`#${id}`).value = value;
+    });
+    document.querySelector("#zoneX").max = state.width;
+    document.querySelector("#zoneY").max = state.height;
+    document.querySelector("#zoneWidth").max = state.width - state.zone.x;
+    document.querySelector("#zoneHeight").max = state.height - state.zone.y;
+  }
+  document.querySelector("#zoneReadout").textContent = describeZone(state.zone);
+}
+
+function initializeZones() {
+  document.querySelector("#zoneType").addEventListener("change", (event) => {
+    const type = event.target.value;
+    if (type === "panel") applyZone({ type, column: 0, row: 0 }, true);
+    else if (type === "row" || type === "column") {
+      applyZone({ type, index: 0 }, true);
+    } else if (type === "custom") {
+      applyZone({ type, x: 0, y: 0, width: 8, height: 8 }, true);
+    } else applyZone({ type: "all" }, true);
+  });
+  document.querySelector("#zoneIndex").addEventListener("input", (event) => {
+    applyZone(
+      { type: state.zone.type, index: Number(event.target.value) - 1 },
+      true,
+    );
+  });
+  ["zoneX", "zoneY", "zoneWidth", "zoneHeight"].forEach((id) => {
+    document.querySelector(`#${id}`).addEventListener("input", () => {
+      applyZone(
+        {
+          type: "custom",
+          x: Number(document.querySelector("#zoneX").value) - 1,
+          y: Number(document.querySelector("#zoneY").value) - 1,
+          width: Number(document.querySelector("#zoneWidth").value),
+          height: Number(document.querySelector("#zoneHeight").value),
+        },
+        true,
+      );
+    });
+  });
+  renderZoneControls();
 }
 
 let brightnessTimer;
@@ -755,6 +899,9 @@ function startTextMode(text, clock = false) {
       const image = sampleContext.getImageData(0, 0, state.width, state.height).data;
       const color = hexToRgb(colorPicker.value);
       for (let index = 0; index < state.width * state.height; index += 1) {
+        const x = index % state.width;
+        const y = Math.floor(index / state.width);
+        if (!zoneContains(state.zone, x, y, state.width, state.height)) continue;
         const intensity = image[index * 4 + 3] / 255;
         state.pixels[index * 3] = clampByte(color[0] * intensity);
         state.pixels[index * 3 + 1] = clampByte(color[1] * intensity);
@@ -818,6 +965,7 @@ async function loadPreset(preset) {
   effectIntensity.value = preset.intensity ?? 75;
   updateModulationVisuals();
   if (preset.palette) applyPalette(preset.palette);
+  if (preset.zone) applyZone(preset.zone);
 
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
@@ -922,6 +1070,7 @@ async function saveCurrentPreset() {
     intensity: Number(effectIntensity.value),
     brightness: Number(brightnessSlider.value),
     palette: state.palette,
+    zone: state.zone,
   });
   if (existing) preset.id = existing.id;
 
@@ -1211,6 +1360,7 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
 render();
 updateModulationVisuals();
 initializePalettes();
+initializeZones();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();
