@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { brightnessFromStatus } from "../public/status_sync.js";
+import {
+  brightnessFromStatus,
+  statusOptionsForSource,
+} from "../public/status_sync.js";
 
 test("live frame status cannot overwrite a brightness edit", () => {
   assert.equal(
@@ -23,4 +26,13 @@ test("authoritative status refreshes can update brightness", () => {
     }),
     20,
   );
+});
+
+test("frame broadcasts preserve brightness edits", () => {
+  assert.deepEqual(statusOptionsForSource("frame"), {
+    syncBrightness: false,
+  });
+  assert.deepEqual(statusOptionsForSource("brightness"), {
+    syncBrightness: true,
+  });
 });

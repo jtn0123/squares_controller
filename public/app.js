@@ -1,4 +1,7 @@
-import { brightnessFromStatus } from "./status_sync.js";
+import {
+  brightnessFromStatus,
+  statusOptionsForSource,
+} from "./status_sync.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -39,6 +42,7 @@ const state = {
   effectIntensity: 0.75,
   rotation: 0,
   backendWarningShown: false,
+  stateEvents: null,
 };
 
 function toast(message, error = false) {
@@ -162,6 +166,23 @@ async function loadStatus() {
     setConnection(null, error.message);
     toast(error.message, true);
   }
+}
+
+function startStateSync() {
+  if (!("EventSource" in window) || state.stateEvents) return;
+  const stateEvents = new EventSource("/api/events");
+  stateEvents.addEventListener("state", (event) => {
+    try {
+      const message = JSON.parse(event.data);
+      applyStatus(
+        message.status,
+        statusOptionsForSource(message.source),
+      );
+    } catch {
+      // The periodic status refresh remains available as a safe fallback.
+    }
+  });
+  state.stateEvents = stateEvents;
 }
 
 function clampByte(value) {
@@ -842,6 +863,7 @@ render();
 updateModulationVisuals();
 renderPresets();
 void loadStatus();
+startStateSync();
 setInterval(() => {
   if (!state.animationName) void loadStatus();
-}, 15_000);
+}, 60_000);

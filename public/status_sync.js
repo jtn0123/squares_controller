@@ -5,3 +5,9 @@ export function brightnessFromStatus({
 }) {
   return syncBrightness ? Number(statusBrightness) : Number(currentBrightness);
 }
+
+export function statusOptionsForSource(source) {
+  return {
+    syncBrightness: source !== "frame",
+  };
+}
