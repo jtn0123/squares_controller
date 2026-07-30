@@ -8,6 +8,8 @@ from src.twinkly_client import (
     TwinklyClient,
     build_realtime_packets,
     calculate_layout,
+    oriented_dimensions,
+    oriented_raster_to_device_frame,
     raster_to_device_frame,
     scale_frame_brightness,
 )
@@ -41,6 +43,50 @@ class TwinklyClientTests(unittest.TestCase):
             bytes([255, 0, 0, 0, 0, 255]), layout
         )
         self.assertEqual(frame, bytes([0, 0, 255, 255, 0, 0]))
+
+    def test_reports_oriented_dimensions(self) -> None:
+        layout = Layout(3, 2, 6, tuple(range(6)))
+
+        self.assertEqual(oriented_dimensions(layout, 0), (3, 2))
+        self.assertEqual(oriented_dimensions(layout, 90), (2, 3))
+        self.assertEqual(oriented_dimensions(layout, 180), (3, 2))
+        self.assertEqual(oriented_dimensions(layout, 270), (2, 3))
+
+    def test_rotates_entire_raster_before_device_mapping(self) -> None:
+        layout = Layout(3, 2, 6, tuple(range(6)))
+        landscape = bytes(
+            channel
+            for pixel_id in range(1, 7)
+            for channel in (pixel_id, 0, 0)
+        )
+        portrait = bytes(
+            channel
+            for pixel_id in range(1, 7)
+            for channel in (pixel_id, 0, 0)
+        )
+
+        self.assertEqual(
+            oriented_raster_to_device_frame(landscape, 3, 2, layout, 0)[::3],
+            bytes([1, 2, 3, 4, 5, 6]),
+        )
+        self.assertEqual(
+            oriented_raster_to_device_frame(portrait, 2, 3, layout, 90)[::3],
+            bytes([2, 4, 6, 1, 3, 5]),
+        )
+        self.assertEqual(
+            oriented_raster_to_device_frame(landscape, 3, 2, layout, 180)[::3],
+            bytes([6, 5, 4, 3, 2, 1]),
+        )
+        self.assertEqual(
+            oriented_raster_to_device_frame(portrait, 2, 3, layout, 270)[::3],
+            bytes([5, 3, 1, 6, 4, 2]),
+        )
+
+    def test_rejects_invalid_display_rotation(self) -> None:
+        layout = Layout(3, 2, 6, tuple(range(6)))
+
+        with self.assertRaisesRegex(ValueError, "0, 90, 180, or 270"):
+            oriented_dimensions(layout, 45)
 
     def test_splits_768_pixel_frame_into_protocol_v3_fragments(self) -> None:
         token = base64.b64encode(b"12345678").decode("ascii")

@@ -858,6 +858,54 @@ h1 {
     #0b0e0b;
 }
 
+.rotation-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.rotation-line > span {
+  color: #656d61;
+  font: 600 8px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+}
+
+.rotation-control {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--line);
+}
+
+.rotation-control button {
+  min-width: 43px;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--muted);
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: #090b09;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.rotation-control button:last-child {
+  border-right: 0;
+}
+
+.rotation-control button:hover {
+  color: var(--paper);
+  background: var(--panel-raised);
+}
+
+.rotation-control button.active {
+  color: var(--black);
+  background: var(--acid);
+}
+
 .system-list {
   display: grid;
   gap: 8px;

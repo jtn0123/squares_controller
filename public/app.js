@@ -9,6 +9,7 @@ const effectSpeed = document.querySelector("#effectSpeed");
 const effectIntensity = document.querySelector("#effectIntensity");
 const toastElement = document.querySelector("#toast");
 const PRESET_STORAGE_KEY = "squares-controller.presets.v1";
+const ROTATION_STORAGE_KEY = "squares-controller.rotation.v1";
 const MAX_SAVED_PRESETS = 12;
 
 const builtInPresets = [
@@ -34,6 +35,7 @@ const state = {
   toastTimer: null,
   effectSpeed: 1,
   effectIntensity: 0.75,
+  rotation: 0,
 };
 
 function toast(message, error = false) {
@@ -84,17 +86,58 @@ function applyStatus(status) {
     ? " LIVE"
     : " PREVIEW";
 
+  const rotation = Number(status.rotation ?? 0);
+  state.rotation = rotation;
+  document.querySelectorAll("[data-rotation]").forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.rotation) === rotation);
+  });
+
   if (status.width !== state.width || status.height !== state.height) {
     state.width = status.width;
     state.height = status.height;
     state.pixels = new Uint8Array(status.width * status.height * 3);
+    canvas.width = status.width * 30;
+    canvas.height = status.height * 30;
+    canvas.style.aspectRatio = `${status.width} / ${status.height}`;
+    canvas.setAttribute(
+      "aria-label",
+      `Interactive ${status.width} by ${status.height} LED canvas`,
+    );
     render();
+  }
+}
+
+function readSavedRotation() {
+  try {
+    const rotation = Number(localStorage.getItem(ROTATION_STORAGE_KEY) ?? 0);
+    return [0, 90, 180, 270].includes(rotation) ? rotation : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveRotation(rotation) {
+  try {
+    localStorage.setItem(ROTATION_STORAGE_KEY, String(rotation));
+  } catch {
+    // Rotation still works when browser storage is disabled.
   }
 }
 
 async function loadStatus() {
   try {
-    applyStatus(await api("/api/status"));
+    let status = await api("/api/status");
+    const savedRotation = readSavedRotation();
+    if (
+      Object.hasOwn(status, "rotation") &&
+      savedRotation !== status.rotation
+    ) {
+      status = await api("/api/rotation", {
+        method: "POST",
+        body: JSON.stringify({ degrees: savedRotation }),
+      });
+    }
+    applyStatus(status);
   } catch (error) {
     setConnection(null, error.message);
     toast(error.message, true);
@@ -408,6 +451,29 @@ document.querySelector("#stockButton").addEventListener("click", () => void setM
 document
   .querySelector("#stopMotionButton")
   .addEventListener("click", () => stopAnimation(true));
+
+document.querySelectorAll("[data-rotation]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const degrees = Number(button.dataset.rotation);
+    if (degrees === state.rotation) return;
+    stopAnimation();
+    state.frameQueued = false;
+    try {
+      const status = await api("/api/rotation", {
+        method: "POST",
+        body: JSON.stringify({ degrees }),
+      });
+      saveRotation(degrees);
+      applyStatus(status);
+      state.pixels.fill(0);
+      render();
+      scheduleFrame();
+      toast(`Display rotated to ${degrees}°.`);
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
+});
 
 function startGeneratedEffect(name, painter) {
   stopAnimation();

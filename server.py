@@ -123,6 +123,8 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 )
             elif self.path == "/api/brightness":
                 result = get_client().set_brightness(body["value"])
+            elif self.path == "/api/rotation":
+                result = get_client().set_rotation(body["degrees"])
             elif self.path == "/api/mode":
                 result = get_client().set_mode(str(body["mode"]))
             else:

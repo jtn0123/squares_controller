@@ -10,6 +10,7 @@ open, or solder.
 - Realtime generated effects with speed and intensity controls
 - Scrolling text and a local clock
 - Browser-local presets
+- Whole-display rotation at 0°, 90°, 180°, or 270°
 - Realtime software brightness that works while frames are streaming
 - Off and return-to-stock controls
 - No cloud service and no third-party runtime packages

@@ -17,6 +17,7 @@ FRAME_CHUNK_SIZE = 900
 STREAM_INTERVAL_SECONDS = 0.04
 REQUEST_TIMEOUT_SECONDS = 4
 TOKEN_MAX_AGE_SECONDS = 3 * 60 * 60
+SUPPORTED_ROTATIONS = (0, 90, 180, 270)
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,69 @@ def raster_to_device_frame(pixels: bytes | bytearray | list[int], layout: Layout
     return bytes(output)
 
 
+def validate_rotation(value: int | float | str) -> int:
+    try:
+        rotation = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Rotation must be 0, 90, 180, or 270 degrees.") from error
+    if rotation not in SUPPORTED_ROTATIONS:
+        raise ValueError("Rotation must be 0, 90, 180, or 270 degrees.")
+    return rotation
+
+
+def oriented_dimensions(layout: Layout, rotation: int | float | str) -> tuple[int, int]:
+    normalized = validate_rotation(rotation)
+    if normalized in {90, 270}:
+        return layout.height, layout.width
+    return layout.width, layout.height
+
+
+def oriented_raster_to_device_frame(
+    pixels: bytes | bytearray | list[int],
+    width: int,
+    height: int,
+    layout: Layout,
+    rotation: int | float | str,
+) -> bytes:
+    normalized = validate_rotation(rotation)
+    expected_width, expected_height = oriented_dimensions(layout, normalized)
+    if int(width) != expected_width or int(height) != expected_height:
+        raise ValueError(
+            f"Frame must be {expected_width}x{expected_height} pixels "
+            f"at {normalized} degrees."
+        )
+
+    source = bytes(pixels)
+    expected_channels = layout.led_count * 3
+    if len(source) != expected_channels:
+        raise ValueError(
+            f"Expected {expected_channels} RGB values; received {len(source)}."
+        )
+
+    native = bytearray(expected_channels)
+    for display_y in range(expected_height):
+        for display_x in range(expected_width):
+            if normalized == 0:
+                native_x, native_y = display_x, display_y
+            elif normalized == 90:
+                native_x = display_y
+                native_y = layout.height - 1 - display_x
+            elif normalized == 180:
+                native_x = layout.width - 1 - display_x
+                native_y = layout.height - 1 - display_y
+            else:
+                native_x = layout.width - 1 - display_y
+                native_y = display_x
+
+            source_offset = (display_y * expected_width + display_x) * 3
+            native_offset = (native_y * layout.width + native_x) * 3
+            native[native_offset : native_offset + 3] = source[
+                source_offset : source_offset + 3
+            ]
+
+    return raster_to_device_frame(native, layout)
+
+
 def scale_frame_brightness(frame: bytes, brightness: int | float) -> bytes:
     """Apply the controller's logical brightness to a realtime RGB frame."""
     percent = max(0, min(100, round(float(brightness))))
@@ -112,6 +176,7 @@ class TwinklyClient:
         self.firmware: str | None = None
         self.mode: str | None = None
         self.brightness: int | None = None
+        self.rotation = 0
         self.last_frame: bytes | None = None
         self.last_error: str | None = None
         self._lock = threading.RLock()
@@ -227,6 +292,7 @@ class TwinklyClient:
         with self._lock:
             if self.device is None or self.layout is None:
                 raise ConnectionError("The Twinkly controller has not been connected.")
+            width, height = oriented_dimensions(self.layout, self.rotation)
             return {
                 "connected": True,
                 "ip": self.ip,
@@ -234,8 +300,9 @@ class TwinklyClient:
                 "productCode": self.device["product_code"],
                 "firmware": self.firmware,
                 "ledCount": self.layout.led_count,
-                "width": self.layout.width,
-                "height": self.layout.height,
+                "width": width,
+                "height": height,
+                "rotation": self.rotation,
                 "frameRate": self.device["frame_rate"],
                 "mode": self.mode,
                 "brightness": self.brightness,
@@ -275,6 +342,13 @@ class TwinklyClient:
             )
         return self.status()
 
+    def set_rotation(self, value: int | float | str) -> dict[str, Any]:
+        rotation = validate_rotation(value)
+        self.stop_stream()
+        with self._lock:
+            self.rotation = rotation
+        return self.status()
+
     def set_mode(self, mode: str) -> dict[str, Any]:
         if mode not in {"movie", "off", "demo"}:
             raise ValueError("Unsupported panel mode.")
@@ -300,11 +374,13 @@ class TwinklyClient:
         if self.layout is None:
             self.connect()
         assert self.layout is not None
-        if int(width) != self.layout.width or int(height) != self.layout.height:
-            raise ValueError(
-                f"Frame must be {self.layout.width}x{self.layout.height} pixels."
-            )
-        frame = raster_to_device_frame(pixels, self.layout)
+        frame = oriented_raster_to_device_frame(
+            pixels,
+            width,
+            height,
+            self.layout,
+            self.rotation,
+        )
         with self._lock:
             self.last_frame = frame
 
