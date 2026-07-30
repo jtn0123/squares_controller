@@ -1,0 +1,19 @@
+{
+  "name": "squares-controller",
+  "version": "0.2.0",
+  "private": false,
+  "description": "Local-first browser controller for Twinkly Squares",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jtn0123/squares_controller.git"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "python3 server.py",
+    "test": "python3 -m unittest discover -s test -p 'test_*.py'"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

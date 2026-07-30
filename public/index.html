@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="An open, local-first control surface for Twinkly Squares."
+    />
+    <title>Squares Controller</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <a class="brand" href="/" aria-label="Squares Controller home">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </span>
+        <span>
+          <strong>SQUARES</strong>
+          <small>OPEN / LOCAL CONTROL</small>
+        </span>
+      </a>
+
+      <div class="connection" id="connectionBadge" data-state="loading">
+        <span class="connection-light"></span>
+        <span>
+          <strong id="connectionLabel">CONTACTING PANEL</strong>
+          <small id="connectionDetail">Checking local controller…</small>
+        </span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="display-module" aria-labelledby="displayTitle">
+        <div class="module-heading">
+          <div>
+            <span class="eyebrow">LIVE PIXEL STAGE</span>
+            <h1 id="displayTitle">Light, without the cloud.</h1>
+          </div>
+          <div class="telemetry" aria-label="Panel information">
+            <span><b id="resolutionReadout">32×24</b> MATRIX</span>
+            <span><b id="pixelReadout">768</b> NODES</span>
+            <span><b id="fpsReadout">40</b> FPS CAP</span>
+          </div>
+        </div>
+
+        <div class="stage-frame">
+          <div class="stage-corner stage-corner--tl"></div>
+          <div class="stage-corner stage-corner--tr"></div>
+          <div class="stage-corner stage-corner--bl"></div>
+          <div class="stage-corner stage-corner--br"></div>
+          <canvas
+            id="pixelCanvas"
+            width="960"
+            height="720"
+            aria-label="Interactive 32 by 24 LED canvas"
+          ></canvas>
+          <div class="stage-scan" aria-hidden="true"></div>
+          <div class="live-flag" id="liveFlag">
+            <span></span>
+            PREVIEW
+          </div>
+        </div>
+
+        <div class="draw-tools" aria-label="Drawing tools">
+          <div class="color-well">
+            <input
+              id="colorPicker"
+              type="color"
+              value="#d9ff5b"
+              aria-label="Drawing color"
+            />
+            <div>
+              <small>INK</small>
+              <strong id="colorValue">#D9FF5B</strong>
+            </div>
+          </div>
+
+          <div class="tool-cluster" role="group" aria-label="Brush size">
+            <button class="tool-button active" data-brush="1" type="button">
+              <span class="brush-dot brush-dot--1"></span>1
+            </button>
+            <button class="tool-button" data-brush="2" type="button">
+              <span class="brush-dot brush-dot--2"></span>2
+            </button>
+            <button class="tool-button" data-brush="3" type="button">
+              <span class="brush-dot brush-dot--3"></span>3
+            </button>
+            <button class="tool-button" id="eraserButton" type="button">
+              ERASE
+            </button>
+          </div>
+
+          <div class="tool-cluster">
+            <button class="text-button" id="fillButton" type="button">FILL</button>
+            <button class="text-button" id="clearButton" type="button">
+              CLEAR
+            </button>
+            <label class="text-button upload-button">
+              IMAGE
+              <input id="imageInput" type="file" accept="image/*" />
+            </label>
+          </div>
+        </div>
+
+        <div class="palette-strip" aria-label="Quick colors">
+          <button data-color="#d9ff5b" style="--swatch: #d9ff5b" aria-label="Acid green"></button>
+          <button data-color="#ff6b3d" style="--swatch: #ff6b3d" aria-label="Signal orange"></button>
+          <button data-color="#ffcf54" style="--swatch: #ffcf54" aria-label="Warm yellow"></button>
+          <button data-color="#57e6d5" style="--swatch: #57e6d5" aria-label="Aqua"></button>
+          <button data-color="#4b83ff" style="--swatch: #4b83ff" aria-label="Electric blue"></button>
+          <button data-color="#ec5fff" style="--swatch: #ec5fff" aria-label="Magenta"></button>
+          <button data-color="#fff6df" style="--swatch: #fff6df" aria-label="Warm white"></button>
+          <button data-color="#181818" style="--swatch: #181818" aria-label="Near black"></button>
+          <span>DRAG ON THE MATRIX TO PAINT</span>
+        </div>
+      </section>
+
+      <aside class="control-rack" aria-label="Panel controls">
+        <section class="rack-section power-section">
+          <div class="rack-title">
+            <span>01 / OUTPUT</span>
+            <strong id="modeReadout">—</strong>
+          </div>
+          <div class="brightness-line">
+            <label for="brightnessSlider">MASTER INTENSITY</label>
+            <output id="brightnessValue" for="brightnessSlider">—</output>
+          </div>
+          <input
+            class="range"
+            id="brightnessSlider"
+            type="range"
+            min="1"
+            max="100"
+            value="30"
+            aria-label="Panel brightness"
+          />
+          <div class="power-actions">
+            <button class="action-button danger" id="offButton" type="button">
+              <span>○</span> OFF
+            </button>
+            <button class="action-button" id="stockButton" type="button">
+              ↩ RETURN TO STOCK
+            </button>
+          </div>
+        </section>
+
+        <section class="rack-section">
+          <div class="rack-title">
+            <span>02 / MOTION STUDIES</span>
+            <button class="stop-link" id="stopMotionButton" type="button">STOP</button>
+          </div>
+          <div class="effect-grid">
+            <button class="effect-card effect-card--tide" data-effect="tide" type="button">
+              <span class="effect-visual"></span>
+              <strong>CHROMA TIDE</strong>
+              <small>LIQUID SPECTRUM</small>
+            </button>
+            <button class="effect-card effect-card--radar" data-effect="radar" type="button">
+              <span class="effect-visual"></span>
+              <strong>NIGHT RADAR</strong>
+              <small>PHOSPHOR SWEEP</small>
+            </button>
+            <button class="effect-card effect-card--ember" data-effect="ember" type="button">
+              <span class="effect-visual"></span>
+              <strong>EMBER FIELD</strong>
+              <small>LOW FIRE</small>
+            </button>
+            <button class="effect-card effect-card--orbit" data-effect="orbit" type="button">
+              <span class="effect-visual"></span>
+              <strong>ORBITAL</strong>
+              <small>DUAL PULSE</small>
+            </button>
+          </div>
+          <div class="modulation-grid">
+            <label for="effectSpeed">
+              <span>SPEED</span>
+              <output id="effectSpeedValue" for="effectSpeed">1.0×</output>
+            </label>
+            <input
+              class="range range--compact"
+              id="effectSpeed"
+              type="range"
+              min="10"
+              max="200"
+              value="100"
+            />
+            <label for="effectIntensity">
+              <span>EFFECT LEVEL</span>
+              <output id="effectIntensityValue" for="effectIntensity">75%</output>
+            </label>
+            <input
+              class="range range--compact"
+              id="effectIntensity"
+              type="range"
+              min="10"
+              max="100"
+              value="75"
+            />
+          </div>
+        </section>
+
+        <section class="rack-section">
+          <div class="rack-title">
+            <span>03 / MESSAGE LINE</span>
+            <strong>LOCAL</strong>
+          </div>
+          <label class="input-label" for="messageInput">SCROLL A MESSAGE</label>
+          <div class="message-composer">
+            <input
+              id="messageInput"
+              type="text"
+              maxlength="80"
+              value="HELLO"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="scrollButton" type="button" aria-label="Scroll message">→</button>
+          </div>
+          <button class="wide-button" id="clockButton" type="button">
+            <span>◷</span>
+            RUN LOCAL CLOCK
+          </button>
+        </section>
+
+        <section class="rack-section">
+          <div class="rack-title">
+            <span>04 / PRESET BANK</span>
+            <strong>BROWSER LOCAL</strong>
+          </div>
+          <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
+          <div class="preset-composer">
+            <input
+              id="presetName"
+              type="text"
+              maxlength="32"
+              placeholder="SCENE NAME"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="savePresetButton" type="button">SAVE</button>
+          </div>
+          <div class="preset-list" id="presetList"></div>
+          <small class="local-note">Stored only in this browser.</small>
+        </section>
+
+        <section class="rack-section system-section">
+          <div class="rack-title">
+            <span>05 / SYSTEM</span>
+            <strong id="firmwareReadout">FW —</strong>
+          </div>
+          <dl class="system-list">
+            <div><dt>ROUTE</dt><dd id="routeReadout">—</dd></div>
+            <div><dt>TRANSPORT</dt><dd>LOCAL UDP / 7777</dd></div>
+            <div><dt>CLOUD</dt><dd class="good">NOT REQUIRED</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
