@@ -14,6 +14,12 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from src.automation_store import AutomationStore
+from src.command_api import (
+    API_VERSION,
+    capability_payload,
+    execute_command,
+    validate_bind_security,
+)
 from src.library_store import LibraryStore
 from src.state_broker import StateBroker, StateEvent
 from src.twinkly_client import TwinklyClient
@@ -29,12 +35,19 @@ AUTOMATION_PATH = Path(
 )
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
+ALLOW_UNAUTHENTICATED_LAN = (
+    os.environ.get("ALLOW_UNAUTHENTICATED_LAN", "0") == "1"
+)
 MAX_BODY_BYTES = 2_000_000
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
 automation_store = AutomationStore(AUTOMATION_PATH)
+validate_bind_security(
+    HOST,
+    allow_unauthenticated_lan=ALLOW_UNAUTHENTICATED_LAN,
+)
 
 
 def load_device_ip() -> str:
@@ -177,6 +190,48 @@ class SquaresHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/v1/health":
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "apiVersion": API_VERSION,
+                    "controllerVersion": APP_VERSION,
+                    "deviceConfigured": client is not None,
+                },
+            )
+            return
+        if path == "/api/v1/capabilities":
+            self.send_json(HTTPStatus.OK, capability_payload())
+            return
+        if path == "/api/v1/state":
+            try:
+                status = get_client().refresh_status()
+                publish_controller_state(status, "api")
+                library = library_store.snapshot()
+                automations = automation_store.snapshot()
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "apiVersion": API_VERSION,
+                        "controller": controller_payload(status),
+                        "library": {
+                            "sceneCount": len(library["scenes"]),
+                            "playlistCount": len(library["playlists"]),
+                        },
+                        "automations": {
+                            "count": len(automations),
+                            "enabledCount": sum(
+                                1 for item in automations if item["enabled"]
+                            ),
+                        },
+                    },
+                )
+            except (ConnectionError, KeyError, ValueError) as error:
+                self.send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
+                )
+            return
         if path in {"/api/library", "/api/library/export"}:
             self.send_json(HTTPStatus.OK, library_store.snapshot())
             return
@@ -227,6 +282,15 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             if path == "/api/automations":
                 automation = automation_store.upsert(body)
                 self.send_json(HTTPStatus.OK, {"automation": automation})
+                return
+            if path == "/api/v1/command":
+                action = str(body.get("action", "unknown"))
+                result = execute_command(get_client(), body)
+                publish_controller_state(result, f"api:{action}")
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"apiVersion": API_VERSION, "result": result},
+                )
                 return
             if path == "/api/frame":
                 raw_pixels = body.get("pixels")

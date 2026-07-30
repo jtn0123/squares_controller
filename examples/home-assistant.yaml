@@ -1,0 +1,21 @@
+# Replace SQUARES_HOST with the Mac running Squares Controller.
+# LAN binding is disabled by default; read docs/INTEGRATIONS.md before enabling it.
+rest_command:
+  squares_off:
+    url: "http://SQUARES_HOST:4312/api/v1/command"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action":"mode","mode":"off"}'
+
+  squares_stock:
+    url: "http://SQUARES_HOST:4312/api/v1/command"
+    method: POST
+    content_type: "application/json"
+    payload: '{"action":"mode","mode":"movie"}'
+
+  squares_brightness:
+    url: "http://SQUARES_HOST:4312/api/v1/command"
+    method: POST
+    content_type: "application/json"
+    payload: >
+      {"action":"brightness","value":{{ brightness | int }}}

@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euo pipefail
+
+controller_url="${SQUARES_URL:-http://127.0.0.1:4312}"
+
+usage() {
+  printf '%s\n' \
+    "Usage: squaresctl status|health|off|stock|brightness VALUE|rotate DEGREES" \
+    "Set SQUARES_URL to override http://127.0.0.1:4312."
+}
+
+json_command() {
+  curl --fail --silent --show-error \
+    -H "Content-Type: application/json" \
+    --data "${1}" \
+    "${controller_url}/api/v1/command"
+  printf '\n'
+}
+
+command_name="${1:-}"
+case "${command_name}" in
+  status)
+    curl --fail --silent --show-error "${controller_url}/api/v1/state"
+    printf '\n'
+    ;;
+  health)
+    curl --fail --silent --show-error "${controller_url}/api/v1/health"
+    printf '\n'
+    ;;
+  off)
+    json_command '{"action":"mode","mode":"off"}'
+    ;;
+  stock|on)
+    json_command '{"action":"mode","mode":"movie"}'
+    ;;
+  brightness)
+    value="${2:-}"
+    if [[ ! "${value}" =~ ^([1-9]|[1-9][0-9]|100)$ ]]; then
+      printf '%s\n' "Brightness must be a whole number from 1 to 100." >&2
+      exit 2
+    fi
+    json_command "{\"action\":\"brightness\",\"value\":${value}}"
+    ;;
+  rotate)
+    degrees="${2:-}"
+    if [[ ! "${degrees}" =~ ^(0|90|180|270)$ ]]; then
+      printf '%s\n' "Rotation must be 0, 90, 180, or 270." >&2
+      exit 2
+    fi
+    json_command "{\"action\":\"rotation\",\"degrees\":${degrees}}"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac

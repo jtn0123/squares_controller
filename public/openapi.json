@@ -1,0 +1,116 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Squares Controller Local API",
+    "version": "1.0",
+    "description": "Loopback-first JSON control for a local Twinkly Squares controller."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4312"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Check the local controller process",
+        "responses": {
+          "200": {
+            "description": "Controller process health"
+          }
+        }
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "summary": "List versioned API capabilities",
+        "responses": {
+          "200": {
+            "description": "Capability metadata"
+          }
+        }
+      }
+    },
+    "/api/v1/state": {
+      "get": {
+        "summary": "Read panel and library state",
+        "responses": {
+          "200": {
+            "description": "Current state"
+          },
+          "503": {
+            "description": "Panel is unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/command": {
+      "post": {
+        "summary": "Run one local panel command",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["action", "mode"],
+                    "properties": {
+                      "action": { "const": "mode" },
+                      "mode": { "enum": ["off", "movie"] }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action", "value"],
+                    "properties": {
+                      "action": { "const": "brightness" },
+                      "value": { "type": "number", "minimum": 1, "maximum": 100 }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action", "degrees"],
+                    "properties": {
+                      "action": { "const": "rotation" },
+                      "degrees": { "enum": [0, 90, 180, 270] }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                      "action": { "const": "status" }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["action", "width", "height", "pixels"],
+                    "properties": {
+                      "action": { "const": "frame" },
+                      "width": { "type": "integer", "minimum": 1 },
+                      "height": { "type": "integer", "minimum": 1 },
+                      "pixels": {
+                        "type": "array",
+                        "items": { "type": "number", "minimum": 0, "maximum": 255 }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command result"
+          },
+          "400": {
+            "description": "Invalid command"
+          }
+        }
+      }
+    }
+  }
+}
