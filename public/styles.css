@@ -1475,6 +1475,137 @@ h1 {
   border-color: var(--acid);
 }
 
+.timer-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.timer-card {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  background: #090b09;
+}
+
+.timer-card label,
+.daily-automation-heading,
+.daily-automation-grid span {
+  color: #656d61;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.11em;
+}
+
+.timer-card > div {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 5px;
+}
+
+.timer-card input,
+.daily-automation input,
+.daily-automation select {
+  min-width: 0;
+  height: 32px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #070907;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+}
+
+.timer-card button,
+.daily-automation > button {
+  color: var(--acid);
+  border: 1px solid #4a5831;
+  background: rgba(217, 255, 91, 0.04);
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.daily-automation {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: #090b09;
+}
+
+.daily-automation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.daily-automation-grid label {
+  display: grid;
+  gap: 4px;
+}
+
+.daily-automation > button {
+  min-height: 32px;
+}
+
+.automation-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.automation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 32px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  background: #090b09;
+}
+
+.automation-row.inactive {
+  opacity: 0.48;
+}
+
+.automation-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.automation-copy strong,
+.automation-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-copy strong {
+  color: var(--paper);
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.09em;
+}
+
+.automation-copy small {
+  color: #656d61;
+  font: 600 7px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.automation-row button {
+  color: var(--muted);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.automation-row button:hover {
+  color: var(--acid);
+}
+
 .wide-button {
   width: 100%;
 }

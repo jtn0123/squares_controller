@@ -485,9 +485,67 @@
           <small class="local-note">Playback runs while this page is open.</small>
         </section>
 
+        <section class="rack-section">
+          <div class="rack-title">
+            <span>06 / AUTOMATION</span>
+            <strong>SERVER CLOCK</strong>
+          </div>
+          <div class="timer-pair">
+            <div class="timer-card">
+              <label for="sleepMinutes">SLEEP IN MINUTES</label>
+              <div>
+                <input id="sleepMinutes" type="number" min="1" max="1440" value="30" />
+                <button id="scheduleSleepButton" type="button">ARM SLEEP</button>
+              </div>
+            </div>
+            <div class="timer-card">
+              <label for="wakeAt">WAKE AT / LOCAL</label>
+              <input id="wakeAt" type="datetime-local" />
+              <div>
+                <input id="wakeBrightness" type="number" min="1" max="100" value="25" aria-label="Wake brightness" />
+                <button id="scheduleWakeButton" type="button">ARM WAKE</button>
+              </div>
+            </div>
+          </div>
+          <div class="daily-automation">
+            <div class="daily-automation-heading">RECURRING ACTION</div>
+            <input id="automationName" type="text" maxlength="48" placeholder="AUTOMATION NAME" />
+            <div class="daily-automation-grid">
+              <label>
+                <span>TIME</span>
+                <input id="automationTime" type="time" value="07:30" />
+              </label>
+              <label>
+                <span>DAYS</span>
+                <select id="automationDays">
+                  <option value="daily">DAILY</option>
+                  <option value="weekdays">WEEKDAYS</option>
+                  <option value="weekends">WEEKENDS</option>
+                </select>
+              </label>
+              <label>
+                <span>ACTION</span>
+                <select id="automationAction">
+                  <option value="wake">WAKE</option>
+                  <option value="off">OFF</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="brightness">SET BRIGHTNESS</option>
+                </select>
+              </label>
+              <label>
+                <span>LEVEL</span>
+                <input id="automationValue" type="number" min="1" max="100" value="25" />
+              </label>
+            </div>
+            <button id="saveAutomationButton" type="button">SAVE DAILY ACTION</button>
+          </div>
+          <div class="automation-list" id="automationList"></div>
+          <small class="local-note">Runs from this Mac while the controller server is open.</small>
+        </section>
+
         <section class="rack-section system-section">
           <div class="rack-title">
-            <span>06 / SYSTEM</span>
+            <span>07 / SYSTEM</span>
             <strong id="firmwareReadout">FW —</strong>
           </div>
           <div class="rotation-line">

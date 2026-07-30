@@ -6,12 +6,14 @@ import os
 import signal
 import sys
 import threading
+from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from src.automation_store import AutomationStore
 from src.library_store import LibraryStore
 from src.state_broker import StateBroker, StateEvent
 from src.twinkly_client import TwinklyClient
@@ -22,13 +24,17 @@ CONFIG_PATH = Path(os.environ.get("SQUARES_CONFIG", ROOT / "config.json"))
 LIBRARY_PATH = Path(
     os.environ.get("SQUARES_LIBRARY", ROOT / ".squares" / "library.json")
 )
+AUTOMATION_PATH = Path(
+    os.environ.get("SQUARES_AUTOMATIONS", ROOT / ".squares" / "automations.json")
+)
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
 MAX_BODY_BYTES = 2_000_000
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.6.0"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
+automation_store = AutomationStore(AUTOMATION_PATH)
 
 
 def load_device_ip() -> str:
@@ -174,6 +180,12 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         if path in {"/api/library", "/api/library/export"}:
             self.send_json(HTTPStatus.OK, library_store.snapshot())
             return
+        if path == "/api/automations":
+            self.send_json(
+                HTTPStatus.OK,
+                {"automations": automation_store.snapshot()},
+            )
+            return
         if path == "/api/events":
             try:
                 self.serve_state_events()
@@ -211,6 +223,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                     body.get("library"), merge=bool(body.get("merge", True))
                 )
                 self.send_json(HTTPStatus.OK, imported)
+                return
+            if path == "/api/automations":
+                automation = automation_store.upsert(body)
+                self.send_json(HTTPStatus.OK, {"automation": automation})
                 return
             if path == "/api/frame":
                 raw_pixels = body.get("pixels")
@@ -258,6 +274,9 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             elif path.startswith("/api/playlists/"):
                 item_id = path.removeprefix("/api/playlists/")
                 deleted = library_store.delete_playlist(item_id)
+            elif path.startswith("/api/automations/"):
+                item_id = path.removeprefix("/api/automations/")
+                deleted = automation_store.delete(item_id)
             else:
                 self.send_json(
                     HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
@@ -275,6 +294,41 @@ class SquaresHandler(SimpleHTTPRequestHandler):
 
 server = ThreadingHTTPServer((HOST, PORT), SquaresHandler)
 shutting_down = threading.Event()
+
+
+def execute_automation(item: dict[str, Any]) -> None:
+    panel = get_client()
+    action = item["action"]
+    if action == "off":
+        result = panel.set_mode("off")
+    elif action == "stock":
+        result = panel.set_mode("movie")
+    elif action == "brightness":
+        result = panel.set_brightness(item["value"])
+    elif action == "wake":
+        panel.set_mode("movie")
+        result = panel.set_brightness(item["value"])
+    else:
+        raise ValueError(f"Unknown automation action: {action}")
+    publish_controller_state(result, "automation")
+
+
+def automation_loop() -> None:
+    while not shutting_down.wait(5):
+        try:
+            due = automation_store.claim_due(datetime.now())
+        except (OSError, ValueError) as error:
+            print(f"Automation check failed: {error}", file=sys.stderr)
+            continue
+        for item in due:
+            try:
+                execute_automation(item)
+                print(f"Automation ran: {item['name']}")
+            except (ConnectionError, KeyError, OSError, ValueError) as error:
+                print(
+                    f"Automation failed ({item['name']}): {error}",
+                    file=sys.stderr,
+                )
 
 
 def shutdown(signum: int, _frame: Any) -> None:
@@ -303,6 +357,13 @@ else:
     except (ConnectionError, KeyError, ValueError) as error:
         print(f"Initial connection failed: {error}", file=sys.stderr)
         print("The web interface will retry when opened.", file=sys.stderr)
+
+automation_thread = threading.Thread(
+    target=automation_loop,
+    name="squares-automation",
+    daemon=True,
+)
+automation_thread.start()
 
 try:
     server.serve_forever()

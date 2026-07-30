@@ -38,6 +38,12 @@ import {
   fitRect,
   normalizeMediaControls,
 } from "./media_model.js";
+import {
+  buildSleepAutomation,
+  daysForPreset,
+  describeAutomation,
+  localDateTime,
+} from "./automation_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -109,6 +115,7 @@ const state = {
   textFont: FONT_STACKS.condensed,
   textSize: 13,
   textDirection: "left",
+  automations: [],
 };
 
 function toast(message, error = false) {
@@ -1915,6 +1922,161 @@ function renderPlaylists() {
   });
 }
 
+function renderAutomations() {
+  const list = document.querySelector("#automationList");
+  list.replaceChildren();
+  state.automations.forEach((automation) => {
+    const row = document.createElement("div");
+    row.className = "automation-row";
+    row.classList.toggle("inactive", !automation.enabled);
+    const copy = document.createElement("div");
+    copy.className = "automation-copy";
+    const name = document.createElement("strong");
+    name.textContent = automation.name;
+    const detail = document.createElement("small");
+    detail.textContent = describeAutomation(automation);
+    copy.append(name, detail);
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = automation.enabled ? "PAUSE" : "ARM";
+    toggle.setAttribute(
+      "aria-label",
+      `${automation.enabled ? "Pause" : "Arm"} ${automation.name}`,
+    );
+    toggle.addEventListener("click", async () => {
+      try {
+        await api("/api/automations", {
+          method: "POST",
+          body: JSON.stringify({ ...automation, enabled: !automation.enabled }),
+        });
+        await loadAutomations();
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete ${automation.name}`);
+    remove.addEventListener("click", async () => {
+      try {
+        await api(`/api/automations/${encodeURIComponent(automation.id)}`, {
+          method: "DELETE",
+        });
+        await loadAutomations();
+        toast(`Deleted ${automation.name}.`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+    row.append(copy, toggle, remove);
+    list.append(row);
+  });
+}
+
+async function loadAutomations() {
+  const response = await api("/api/automations");
+  state.automations = Array.isArray(response.automations)
+    ? response.automations
+    : [];
+  renderAutomations();
+}
+
+async function saveAutomation(automation) {
+  await api("/api/automations", {
+    method: "POST",
+    body: JSON.stringify(automation),
+  });
+  await loadAutomations();
+}
+
+function updateAutomationValueState() {
+  const action = document.querySelector("#automationAction").value;
+  const input = document.querySelector("#automationValue");
+  input.disabled = !["wake", "brightness"].includes(action);
+}
+
+function initializeAutomations() {
+  document.querySelector("#wakeAt").value = localDateTime(
+    new Date(Date.now() + 8 * 60 * 60 * 1000),
+  );
+  document
+    .querySelector("#automationAction")
+    .addEventListener("change", updateAutomationValueState);
+  updateAutomationValueState();
+
+  document
+    .querySelector("#scheduleSleepButton")
+    .addEventListener("click", async () => {
+      try {
+        const automation = buildSleepAutomation(
+          document.querySelector("#sleepMinutes").value,
+        );
+        await saveAutomation(automation);
+        toast(`${automation.name} armed.`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+  document
+    .querySelector("#scheduleWakeButton")
+    .addEventListener("click", async () => {
+      const runAt = document.querySelector("#wakeAt").value;
+      const value = Number(document.querySelector("#wakeBrightness").value);
+      if (!runAt || new Date(runAt).getTime() <= Date.now()) {
+        toast("Choose a future wake time.", true);
+        return;
+      }
+      try {
+        await saveAutomation({
+          name: "WAKE",
+          kind: "once",
+          runAt,
+          action: "wake",
+          value,
+        });
+        toast("Wake action armed.");
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+  document
+    .querySelector("#saveAutomationButton")
+    .addEventListener("click", async () => {
+      const action = document.querySelector("#automationAction").value;
+      const time = document.querySelector("#automationTime").value;
+      const nameInput = document.querySelector("#automationName");
+      const name =
+        nameInput.value.trim().toUpperCase() ||
+        `DAILY ${action.toUpperCase()}`;
+      const automation = {
+        name,
+        kind: "daily",
+        time,
+        days: daysForPreset(document.querySelector("#automationDays").value),
+        action,
+        ...(["wake", "brightness"].includes(action)
+          ? { value: Number(document.querySelector("#automationValue").value) }
+          : {}),
+      };
+      try {
+        await saveAutomation(automation);
+        nameInput.value = "";
+        toast(`Saved ${name}.`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+  void loadAutomations().catch((error) =>
+    toast(`Automation unavailable: ${error.message}`, true),
+  );
+}
+
 async function loadLibrary() {
   const library = normalizeLibrary(await api("/api/library"));
   state.library = library;
@@ -2036,6 +2198,7 @@ initializeLayers();
 initializeTransitions();
 initializeMediaControls();
 initializeTextStudio();
+initializeAutomations();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();
@@ -2043,4 +2206,5 @@ void initializeLibrary();
 startStateSync();
 setInterval(() => {
   if (!state.animationName) void loadStatus();
+  void loadAutomations().catch(() => {});
 }, 60_000);
