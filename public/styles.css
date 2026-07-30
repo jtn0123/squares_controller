@@ -1707,6 +1707,30 @@ h1 {
   color: var(--acid);
 }
 
+.project-credit {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px 24px 24px;
+  color: #5f675c;
+  border-top: 1px solid var(--line);
+  font: 600 8px/1.4 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+  text-align: center;
+}
+
+.project-credit a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid #596253;
+}
+
+.project-credit a:hover,
+.project-credit a:focus-visible {
+  color: var(--acid);
+  border-color: var(--acid);
+}
+
 .toast {
   position: fixed;
   z-index: 30;
@@ -1822,6 +1846,16 @@ h1 {
 
   .rack-section:last-child {
     border-bottom: 0;
+  }
+
+  .project-credit {
+    align-items: center;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .project-credit > span[aria-hidden="true"] {
+    display: none;
   }
 }
 
