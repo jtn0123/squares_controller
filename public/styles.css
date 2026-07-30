@@ -858,6 +858,10 @@ h1 {
     #0b0e0b;
 }
 
+.system-list .warning {
+  color: var(--signal);
+}
+
 .rotation-line {
   display: flex;
   align-items: center;

@@ -36,6 +36,7 @@ const state = {
   effectSpeed: 1,
   effectIntensity: 0.75,
   rotation: 0,
+  backendWarningShown: false,
 };
 
 function toast(message, error = false) {
@@ -71,6 +72,18 @@ function setConnection(status, errorMessage = "") {
 
 function applyStatus(status) {
   setConnection(status);
+  const controllerVersion = status.controllerVersion;
+  const controllerReadout = document.querySelector("#controllerReadout");
+  controllerReadout.textContent = controllerVersion
+    ? `V${controllerVersion}`
+    : "RESTART REQUIRED";
+  controllerReadout.classList.toggle("warning", !controllerVersion);
+  document.querySelector("#dimmingReadout").textContent =
+    status.brightnessControl === "realtime-rgb" ? "REALTIME RGB" : "DEVICE";
+  if (!controllerVersion && !state.backendWarningShown) {
+    state.backendWarningShown = true;
+    toast("Controller restart required for rotation and live brightness.", true);
+  }
   document.querySelector("#resolutionReadout").textContent = `${status.width}×${status.height}`;
   document.querySelector("#pixelReadout").textContent = status.ledCount;
   document.querySelector("#fpsReadout").textContent = status.frameRate;

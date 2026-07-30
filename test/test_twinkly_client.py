@@ -1,7 +1,7 @@
 import base64
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from src.twinkly_client import (
     Layout,
@@ -28,6 +28,20 @@ def rectangular_coordinates(width: int, height: int) -> list[dict[str, float]]:
 
 
 class TwinklyClientTests(unittest.TestCase):
+    @staticmethod
+    def connected_client() -> TwinklyClient:
+        client = TwinklyClient("192.168.1.100")
+        client.device = {
+            "device_name": "Test Squares",
+            "product_code": "TST",
+            "frame_rate": 25,
+        }
+        client.firmware = "2.9.1"
+        client.layout = Layout(1, 1, 1, (0,))
+        client.mode = "movie"
+        client.brightness = 100
+        return client
+
     def test_calculates_32_by_24_geometry_and_flips_device_y(self) -> None:
         layout = calculate_layout(rectangular_coordinates(32, 24))
         self.assertEqual(layout.width, 32)
@@ -138,6 +152,35 @@ class TwinklyClientTests(unittest.TestCase):
             client._send_last_frame()
 
         self.assertEqual(sent_packets, [bytes([5, 50, 128])])
+
+    def test_streaming_brightness_stays_in_software(self) -> None:
+        client = self.connected_client()
+        stream_thread = Mock()
+        stream_thread.is_alive.return_value = True
+        client._stream_thread = stream_thread
+
+        with patch.object(client, "request") as request:
+            status = client.set_brightness(17)
+
+        request.assert_not_called()
+        self.assertEqual(status["brightness"], 17)
+        self.assertEqual(status["brightnessControl"], "realtime-rgb")
+        client.close(restore_movie=False)
+
+    def test_stock_mode_brightness_uses_device_endpoint(self) -> None:
+        client = self.connected_client()
+
+        with patch.object(client, "request", return_value={}) as request:
+            status = client.set_brightness(42)
+
+        request.assert_called_once_with(
+            "/led/out/brightness",
+            method="POST",
+            body={"mode": "enabled", "type": "A", "value": 42},
+        )
+        self.assertEqual(status["brightness"], 42)
+        self.assertEqual(status["brightnessControl"], "device")
+        client.close(restore_movie=False)
 
 
 if __name__ == "__main__":

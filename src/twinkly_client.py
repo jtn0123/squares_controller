@@ -293,6 +293,10 @@ class TwinklyClient:
             if self.device is None or self.layout is None:
                 raise ConnectionError("The Twinkly controller has not been connected.")
             width, height = oriented_dimensions(self.layout, self.rotation)
+            is_streaming = (
+                self._stream_thread is not None
+                and self._stream_thread.is_alive()
+            )
             return {
                 "connected": True,
                 "ip": self.ip,
@@ -306,8 +310,8 @@ class TwinklyClient:
                 "frameRate": self.device["frame_rate"],
                 "mode": self.mode,
                 "brightness": self.brightness,
-                "streaming": self._stream_thread is not None
-                and self._stream_thread.is_alive(),
+                "brightnessControl": "realtime-rgb" if is_streaming else "device",
+                "streaming": is_streaming,
                 "lastError": self.last_error,
             }
 

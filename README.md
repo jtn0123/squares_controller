@@ -48,6 +48,8 @@ Or without Node:
 python3 server.py
 ```
 
+On macOS, you can also double-click `scripts/start.command`.
+
 Open [http://127.0.0.1:4312](http://127.0.0.1:4312). Press `Control-C` to stop;
 a graceful shutdown returns the panel to its saved Twinkly animation.
 

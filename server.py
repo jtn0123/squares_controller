@@ -19,6 +19,7 @@ CONFIG_PATH = Path(os.environ.get("SQUARES_CONFIG", ROOT / "config.json"))
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
 MAX_BODY_BYTES = 256_000
+APP_VERSION = "0.3.0"
 
 
 def load_device_ip() -> str:
@@ -62,7 +63,7 @@ def get_client() -> TwinklyClient:
 
 
 class SquaresHandler(SimpleHTTPRequestHandler):
-    server_version = "SquaresController/0.2"
+    server_version = f"SquaresController/{APP_VERSION}"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(PUBLIC_DIR), **kwargs)
@@ -72,7 +73,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             super().log_message(format, *args)
 
     def send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        response_payload = dict(payload)
+        if response_payload.get("connected"):
+            response_payload["controllerVersion"] = APP_VERSION
+        body = json.dumps(response_payload, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
