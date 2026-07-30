@@ -32,6 +32,9 @@ SCENE_FIELDS = {
     "font",
     "media",
     "transition",
+    "folder",
+    "tags",
+    "favorite",
 }
 
 
@@ -112,6 +115,41 @@ class LibraryStore:
             not isinstance(effect, str) or not ID_PATTERN.fullmatch(effect)
         ):
             raise ValueError("Scene effect is invalid.")
+
+        folder = scene.get("folder")
+        if folder is not None:
+            if not isinstance(folder, str):
+                raise ValueError("Scene folder must be text.")
+            folder = " ".join(folder.split()).upper()
+            if len(folder) > 32:
+                raise ValueError("Scene folder must be 32 characters or fewer.")
+            if folder:
+                scene["folder"] = folder
+            else:
+                scene.pop("folder", None)
+
+        tags = scene.get("tags")
+        if tags is not None:
+            if not isinstance(tags, list) or len(tags) > 8:
+                raise ValueError("A scene may have at most 8 tags.")
+            clean_tags: list[str] = []
+            for tag in tags:
+                if not isinstance(tag, str):
+                    raise ValueError("Scene tags must be text.")
+                clean_tag = " ".join(tag.split()).upper()
+                if not clean_tag or len(clean_tag) > 20:
+                    raise ValueError(
+                        "Scene tags must be from 1 to 20 characters."
+                    )
+                if clean_tag not in clean_tags:
+                    clean_tags.append(clean_tag)
+            if clean_tags:
+                scene["tags"] = clean_tags
+            else:
+                scene.pop("tags", None)
+
+        if "favorite" in scene:
+            scene["favorite"] = bool(scene["favorite"])
 
         width = scene.get("width")
         height = scene.get("height")

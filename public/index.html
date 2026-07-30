@@ -121,8 +121,60 @@
 
         <div class="media-deck">
           <div class="media-heading">
-            <span>MEDIA SAMPLER / GIF + VIDEO</span>
+            <span>MEDIA LAB / FILE + LIVE INPUTS</span>
             <strong id="mediaModeReadout">IDLE</strong>
+          </div>
+          <div class="live-input-console">
+            <div class="live-input-actions">
+              <button id="startMicrophoneButton" type="button">
+                <span>◉</span>
+                MICROPHONE
+              </button>
+              <button id="startScreenButton" type="button">
+                <span>▣</span>
+                SHARE SCREEN
+              </button>
+              <small>PERMISSION STAYS IN THIS BROWSER SESSION</small>
+            </div>
+            <div class="audio-controls">
+              <label>
+                <span>AUDIO VISUAL</span>
+                <select id="audioMode">
+                  <option value="spectrum">SPECTRUM</option>
+                  <option value="halo">BASS HALO</option>
+                  <option value="bands">3-BAND FIELD</option>
+                </select>
+              </label>
+              <label>
+                <span>SENSITIVITY</span>
+                <output id="audioSensitivityValue" for="audioSensitivity">1.00×</output>
+                <input
+                  class="range range--compact"
+                  id="audioSensitivity"
+                  type="range"
+                  min="25"
+                  max="400"
+                  value="100"
+                />
+              </label>
+              <label>
+                <span>SMOOTHING</span>
+                <output id="audioSmoothingValue" for="audioSmoothing">72%</output>
+                <input
+                  class="range range--compact"
+                  id="audioSmoothing"
+                  type="range"
+                  min="0"
+                  max="95"
+                  value="72"
+                />
+              </label>
+              <div class="audio-meter" aria-label="Microphone frequency levels">
+                <span>BASS<i id="audioBassMeter"></i></span>
+                <span>MID<i id="audioMidMeter"></i></span>
+                <span>HIGH<i id="audioTrebleMeter"></i></span>
+              </div>
+            </div>
           </div>
           <div class="media-controls">
             <label>
@@ -161,7 +213,7 @@
               <input class="range range--compact" id="mediaSpeed" type="range" min="25" max="200" value="100" />
             </label>
           </div>
-          <button class="media-stop" id="stopMediaButton" type="button">STOP MEDIA / HOLD LAST FRAME</button>
+          <button class="media-stop" id="stopMediaButton" type="button">STOP INPUT / HOLD LAST FRAME</button>
         </div>
       </section>
 
@@ -431,6 +483,34 @@
             />
             <button id="savePresetButton" type="button">SAVE</button>
           </div>
+          <div class="scene-save-metadata">
+            <label>
+              <span>FOLDER</span>
+              <input
+                id="sceneFolder"
+                type="text"
+                maxlength="32"
+                placeholder="UNFILED"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <label>
+              <span>TAGS / COMMA SEPARATED</span>
+              <input
+                id="sceneTags"
+                type="text"
+                maxlength="175"
+                placeholder="AMBIENT, NIGHT"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <label class="scene-favorite-save">
+              <input id="sceneFavorite" type="checkbox" />
+              <span>★ FAVORITE</span>
+            </label>
+          </div>
           <div class="scene-transition-control">
             <label>
               <span>LOAD TRANSITION</span>
@@ -455,15 +535,44 @@
               />
             </label>
           </div>
+          <div class="scene-library-toolbar">
+            <label class="scene-search">
+              <span>SEARCH LIBRARY</span>
+              <input
+                id="sceneSearch"
+                type="search"
+                placeholder="NAME, TAG, FOLDER"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>FOLDER</span>
+              <select id="sceneFolderFilter">
+                <option value="ALL">ALL FOLDERS</option>
+              </select>
+            </label>
+            <button
+              id="sceneFavoritesFilter"
+              type="button"
+              aria-pressed="false"
+            >
+              ☆ FAVORITES
+            </button>
+            <output id="sceneFilterCount">4 CORE / 0 SAVED</output>
+          </div>
           <div class="preset-list" id="presetList"></div>
           <div class="library-actions">
-            <button id="exportLibraryButton" type="button">EXPORT JSON</button>
+            <button id="exportLibraryButton" type="button">BACK UP ALL</button>
+            <select id="importLibraryMode" aria-label="Library restore mode">
+              <option value="merge">MERGE RESTORE</option>
+              <option value="replace">REPLACE LIBRARY</option>
+            </select>
             <label>
-              IMPORT JSON
+              RESTORE JSON
               <input id="importLibraryInput" type="file" accept="application/json,.json" />
             </label>
           </div>
-          <small class="local-note">Saved locally beside the controller. Browser presets migrate once.</small>
+          <small class="local-note">Folders, tags, favorites, scenes, and playlists are included in each backup.</small>
         </section>
 
         <section class="rack-section">

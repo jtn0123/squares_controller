@@ -4,8 +4,12 @@ import test from "node:test";
 import {
   advancePlaylist,
   createSceneSnapshot,
+  duplicateScene,
+  filterScenes,
   normalizeLibrary,
+  parseSceneTags,
   playlistStepProgress,
+  sceneFolders,
 } from "../public/library_model.js";
 
 test("normalizes a server library and drops malformed records", () => {
@@ -73,4 +77,76 @@ test("advances and stops or repeats at the playlist boundary", () => {
   assert.deepEqual(advancePlaylist(0, 3, false), { index: 1, done: false });
   assert.deepEqual(advancePlaylist(2, 3, false), { index: 2, done: true });
   assert.deepEqual(advancePlaylist(2, 3, true), { index: 0, done: false });
+});
+
+test("parses unique scene tags and discovers folders", () => {
+  assert.deepEqual(parseSceneTags("ambient, NIGHT, ambient, party"), [
+    "AMBIENT",
+    "NIGHT",
+    "PARTY",
+  ]);
+  assert.deepEqual(
+    sceneFolders([
+      { folder: "Studio" },
+      { folder: "bedroom" },
+      { folder: "Studio" },
+      {},
+    ]),
+    ["BEDROOM", "STUDIO"],
+  );
+});
+
+test("filters scenes across names, folders, tags, and favorites", () => {
+  const scenes = [
+    {
+      id: "one",
+      name: "Night Radar",
+      folder: "Studio",
+      tags: ["AMBIENT", "GREEN"],
+      favorite: true,
+    },
+    {
+      id: "two",
+      name: "Warm Hearth",
+      folder: "Bedroom",
+      tags: ["CALM"],
+      favorite: false,
+    },
+  ];
+
+  assert.deepEqual(
+    filterScenes(scenes, {
+      query: "green",
+      folder: "STUDIO",
+      favoritesOnly: true,
+    }).map((scene) => scene.id),
+    ["one"],
+  );
+  assert.deepEqual(
+    filterScenes(scenes, { query: "warm", folder: "ALL" }).map(
+      (scene) => scene.id,
+    ),
+    ["two"],
+  );
+});
+
+test("duplicates a scene with a unique name and preserved organization", () => {
+  const copy = duplicateScene(
+    {
+      id: "one",
+      name: "Night Radar",
+      effect: "radar",
+      folder: "Studio",
+      tags: ["GREEN"],
+      favorite: true,
+    },
+    ["Night Radar", "Night Radar Copy"],
+  );
+
+  assert.equal(copy.id, undefined);
+  assert.equal(copy.name, "NIGHT RADAR COPY 2");
+  assert.equal(copy.effect, "radar");
+  assert.equal(copy.folder, "Studio");
+  assert.deepEqual(copy.tags, ["GREEN"]);
+  assert.equal(copy.favorite, false);
 });

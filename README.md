@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.8.1-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-60%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.9.0-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-68%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -13,6 +13,10 @@ solder.
 - Paint, erase, fill, and preview the entire matrix in real time
 - Import still images, animated GIFs, and video with fit, sampling, saturation,
   contrast, gamma, and playback controls
+- Turn a browser microphone into Spectrum, Bass Halo, or 3-Band Field visuals
+  with sensitivity, smoothing, and live frequency meters
+- Mirror a screen, window, or browser tab through the same media sampling and
+  color-correction pipeline
 - Run ten procedural 2D and particle effects with speed and intensity controls
 - Select curated palettes or create a custom three-color gradient
 - Compose two effect layers with opacity and five blend modes
@@ -21,6 +25,8 @@ solder.
   or dissolve transitions
 - See real scene thumbnails, an exact live-output monitor, active-scene state,
   and playlist step progress in the controller UI
+- Organize scenes with folders, tags, favorites, search, filters, duplication,
+  inline metadata editing, and merge-or-replace JSON backups
 - Display scrolling text, a clock, and locally loaded fonts
 - Schedule sleep, wake, brightness, stock-mode, and off actions
 - Rotate the complete display to 0°, 90°, 180°, or 270°
@@ -134,10 +140,20 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 29 Python and 31 browser-model tests. It covers
+The current suite contains 30 Python and 38 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
-blending, transitions, effects, media controls, scenes, and playlists.
+blending, transitions, effects, audio analysis, live-input rendering, media
+controls, scene organization, and playlists.
+
+## Frame-rate notes
+
+The browser currently renders generated and captured input at 20 FPS, coalesces
+frame uploads to roughly 22 FPS, and refreshes the controller stream at 25 FPS.
+The controller reports a 40 FPS capability, but the lower working cadence is an
+intentional software limit rather than a CPU or GPU limit. See
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md) for measurements and the safe 40 FPS
+optimization path.
 
 ## How it works
 

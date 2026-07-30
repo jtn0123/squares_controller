@@ -92,6 +92,30 @@ class LibraryStoreTests(unittest.TestCase):
         replaced = self.store.import_library(imported, merge=False)
         self.assertEqual([scene["id"] for scene in replaced["scenes"]], ["imported"])
 
+    def test_sanitizes_scene_folders_tags_and_favorites(self) -> None:
+        scene = self.store.upsert_scene(
+            {
+                "name": "Organized",
+                "effect": "tide",
+                "folder": "  Studio  ",
+                "tags": [" ambient ", "NIGHT", "AMBIENT"],
+                "favorite": 1,
+            }
+        )
+
+        self.assertEqual(scene["folder"], "STUDIO")
+        self.assertEqual(scene["tags"], ["AMBIENT", "NIGHT"])
+        self.assertIs(scene["favorite"], True)
+
+        with self.assertRaisesRegex(ValueError, "at most 8"):
+            self.store.upsert_scene(
+                {
+                    "name": "Too many tags",
+                    "effect": "tide",
+                    "tags": [f"tag-{index}" for index in range(9)],
+                }
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

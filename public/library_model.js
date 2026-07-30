@@ -21,6 +21,79 @@ export function normalizeLibrary(value) {
   return { scenes, playlists };
 }
 
+function normalizeFolder(value) {
+  return typeof value === "string"
+    ? value.trim().replace(/\s+/g, " ").slice(0, 32).toUpperCase()
+    : "";
+}
+
+export function parseSceneTags(value) {
+  const raw = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const tags = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const tag = item.trim().replace(/\s+/g, " ").slice(0, 20).toUpperCase();
+    if (tag && !tags.includes(tag)) tags.push(tag);
+    if (tags.length === 8) break;
+  }
+  return tags;
+}
+
+export function sceneFolders(scenes) {
+  return Array.from(
+    new Set(
+      (Array.isArray(scenes) ? scenes : [])
+        .map((scene) => normalizeFolder(scene?.folder))
+        .filter(Boolean),
+    ),
+  ).sort((first, second) => first.localeCompare(second));
+}
+
+export function filterScenes(scenes, filters = {}) {
+  const query = String(filters.query ?? "").trim().toUpperCase();
+  const folder = normalizeFolder(filters.folder);
+  const favoritesOnly = Boolean(filters.favoritesOnly);
+  return (Array.isArray(scenes) ? scenes : []).filter((scene) => {
+    const sceneFolder = normalizeFolder(scene?.folder);
+    const tags = parseSceneTags(scene?.tags);
+    const searchable = [
+      String(scene?.name ?? ""),
+      sceneFolder,
+      ...tags,
+    ]
+      .join(" ")
+      .toUpperCase();
+    return (
+      (!query || searchable.includes(query)) &&
+      (!folder || folder === "ALL" || sceneFolder === folder) &&
+      (!favoritesOnly || Boolean(scene?.favorite))
+    );
+  });
+}
+
+export function duplicateScene(scene, existingNames = []) {
+  const { id: _id, ...portable } = structuredClone(scene ?? {});
+  const sourceName = String(portable.name ?? "SCENE").trim().toUpperCase();
+  const usedNames = new Set(
+    (Array.isArray(existingNames) ? existingNames : []).map((name) =>
+      String(name).trim().toUpperCase(),
+    ),
+  );
+  let suffix = " COPY";
+  let index = 1;
+  let name = `${sourceName.slice(0, 48 - suffix.length)}${suffix}`;
+  while (usedNames.has(name)) {
+    index += 1;
+    suffix = ` COPY ${index}`;
+    name = `${sourceName.slice(0, 48 - suffix.length)}${suffix}`;
+  }
+  return {
+    ...portable,
+    name,
+    favorite: false,
+  };
+}
+
 export function createSceneSnapshot({
   name,
   effect,

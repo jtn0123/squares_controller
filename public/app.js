@@ -5,8 +5,12 @@ import {
 import {
   advancePlaylist,
   createSceneSnapshot,
+  duplicateScene,
+  filterScenes,
   normalizeLibrary,
+  parseSceneTags,
   playlistStepProgress,
+  sceneFolders,
 } from "./library_model.js";
 import {
   CURATED_PALETTES,
@@ -40,6 +44,12 @@ import {
   fitRect,
   normalizeMediaControls,
 } from "./media_model.js";
+import {
+  detectAudioBeat,
+  measureAudioBands,
+  normalizeAudioControls,
+  renderAudioFrame,
+} from "./live_input_model.js";
 import {
   buildSleepAutomation,
   daysForPreset,
@@ -122,7 +132,20 @@ const state = {
   mediaElement: null,
   mediaFrame: null,
   mediaUrl: null,
+  mediaStream: null,
   mediaLastFrame: 0,
+  audioStream: null,
+  audioContext: null,
+  audioSource: null,
+  audioAnalyser: null,
+  audioData: null,
+  audioBeatState: null,
+  audioLastFrame: 0,
+  sceneFilters: {
+    query: "",
+    folder: "ALL",
+    favoritesOnly: false,
+  },
   textFont: FONT_STACKS.condensed,
   textSize: 13,
   textDirection: "left",
@@ -533,10 +556,12 @@ function render() {
 }
 
 function stopAnimation(showNotice = false) {
+  const wasAudio = state.animationName === "audio";
   state.transitionToken += 1;
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
   state.animationName = null;
+  if (wasAudio) releaseAudioResources();
   document
     .querySelectorAll(".effect-card")
     .forEach((button) => button.classList.remove("active"));
@@ -733,6 +758,12 @@ function stopMedia(showNotice = false) {
   if (state.mediaFrame) cancelAnimationFrame(state.mediaFrame);
   state.mediaFrame = null;
   state.mediaElement?.pause?.();
+  if (state.mediaElement instanceof HTMLVideoElement) {
+    state.mediaElement.srcObject = null;
+  }
+  const mediaStream = state.mediaStream;
+  state.mediaStream = null;
+  mediaStream?.getTracks().forEach((track) => track.stop());
   if (state.mediaUrl) URL.revokeObjectURL(state.mediaUrl);
   state.mediaUrl = null;
   state.mediaElement = null;
@@ -771,7 +802,10 @@ function updateMediaControls() {
     "mediaGamma",
     "mediaSpeed",
   ].forEach((id) => updateRangeFill(document.querySelector(`#${id}`)));
-  if (state.mediaElement instanceof HTMLVideoElement) {
+  if (
+    state.mediaElement instanceof HTMLVideoElement &&
+    !state.mediaStream
+  ) {
     state.mediaElement.playbackRate =
       Number(document.querySelector("#mediaSpeed").value) / 100;
   }
@@ -794,8 +828,260 @@ function initializeMediaControls() {
   });
   document
     .querySelector("#stopMediaButton")
-    .addEventListener("click", () => stopMedia(true));
+    .addEventListener("click", () => {
+      if (state.animationName === "audio") {
+        stopAnimation();
+        document.querySelector("#mediaModeReadout").textContent = "FRAME HELD";
+        toast("Audio input stopped. The last frame remains live.");
+      } else {
+        stopMedia(true);
+      }
+    });
   updateMediaControls();
+}
+
+function currentAudioControls() {
+  return normalizeAudioControls({
+    mode: document.querySelector("#audioMode").value,
+    sensitivity:
+      Number(document.querySelector("#audioSensitivity").value) / 100,
+    smoothing: Number(document.querySelector("#audioSmoothing").value) / 100,
+  });
+}
+
+function updateAudioMeters(metrics = { bass: 0, mid: 0, treble: 0 }) {
+  [
+    ["audioBassMeter", metrics.bass],
+    ["audioMidMeter", metrics.mid],
+    ["audioTrebleMeter", metrics.treble],
+  ].forEach(([id, value]) => {
+    document
+      .querySelector(`#${id}`)
+      .style.setProperty("--level", `${Math.round(value * 100)}%`);
+  });
+}
+
+function updateAudioControls() {
+  const settings = currentAudioControls();
+  document.querySelector("#audioSensitivityValue").textContent =
+    `${settings.sensitivity.toFixed(2)}×`;
+  document.querySelector("#audioSmoothingValue").textContent =
+    `${Math.round(settings.smoothing * 100)}%`;
+  updateRangeFill(document.querySelector("#audioSensitivity"));
+  updateRangeFill(document.querySelector("#audioSmoothing"));
+  if (state.audioAnalyser) {
+    state.audioAnalyser.smoothingTimeConstant = settings.smoothing;
+  }
+}
+
+function releaseAudioResources() {
+  const stream = state.audioStream;
+  state.audioStream = null;
+  stream?.getTracks().forEach((track) => track.stop());
+  try {
+    state.audioSource?.disconnect();
+  } catch {
+    // The source may already be detached by the browser.
+  }
+  state.audioSource = null;
+  state.audioAnalyser = null;
+  state.audioData = null;
+  state.audioBeatState = null;
+  state.audioLastFrame = 0;
+  const audioContext = state.audioContext;
+  state.audioContext = null;
+  if (audioContext && audioContext.state !== "closed") {
+    void audioContext.close().catch(() => {});
+  }
+  updateAudioMeters();
+  document.querySelector("#mediaModeReadout").textContent = "IDLE";
+}
+
+async function startMicrophoneInput() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast("Microphone capture is not available in this browser.", true);
+    return;
+  }
+  const modeReadout = document.querySelector("#mediaModeReadout");
+  const previousMode = modeReadout.textContent;
+  let stream = null;
+  let permissionGranted = false;
+  modeReadout.textContent = "REQUESTING MIC";
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        autoGainControl: false,
+        echoCancellation: false,
+        noiseSuppression: false,
+      },
+      video: false,
+    });
+    permissionGranted = true;
+    const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioContextClass) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw new Error("Web Audio is not available in this browser.");
+    }
+    stopMedia();
+    stopAnimation();
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    const controls = currentAudioControls();
+    analyser.fftSize = 256;
+    analyser.minDecibels = -90;
+    analyser.maxDecibels = -10;
+    analyser.smoothingTimeConstant = controls.smoothing;
+    source.connect(analyser);
+    state.audioStream = stream;
+    state.audioContext = audioContext;
+    state.audioSource = source;
+    state.audioAnalyser = analyser;
+    state.audioData = new Uint8Array(analyser.frequencyBinCount);
+    state.audioBeatState = null;
+    state.audioLastFrame = 0;
+    await audioContext.resume();
+
+    state.animationName = "audio";
+    setOutputContext({
+      kind: "audio",
+      name: `MIC / ${controls.mode.toUpperCase()}`,
+    });
+
+    const startedAt = performance.now();
+    const tick = (now) => {
+      if (
+        state.animationName !== "audio" ||
+        !state.audioAnalyser ||
+        !state.audioData
+      ) {
+        return;
+      }
+      if (now - state.audioLastFrame >= 50) {
+        const settings = currentAudioControls();
+        state.audioAnalyser.getByteFrequencyData(state.audioData);
+        const metrics = measureAudioBands(
+          state.audioData,
+          settings.sensitivity,
+        );
+        state.audioBeatState = detectAudioBeat(
+          state.audioBeatState,
+          metrics.bass,
+          now,
+        );
+        state.pixels.set(
+          renderAudioFrame({
+            width: state.width,
+            height: state.height,
+            bins: state.audioData,
+            mode: settings.mode,
+            sensitivity: settings.sensitivity,
+            palette: state.palette.colors,
+            time: (now - startedAt) / 1000,
+            beatPulse: state.audioBeatState.pulse,
+          }),
+        );
+        updateAudioMeters(metrics);
+        render();
+        scheduleFrame();
+        state.audioLastFrame = now;
+      }
+      state.animationFrame = requestAnimationFrame(tick);
+    };
+    document.querySelector("#mediaModeReadout").textContent = "MIC LIVE";
+    state.animationFrame = requestAnimationFrame(tick);
+    toast("Microphone visualizer is live.");
+  } catch (error) {
+    if (state.audioStream === stream) {
+      releaseAudioResources();
+    } else {
+      stream?.getTracks().forEach((track) => track.stop());
+    }
+    modeReadout.textContent = permissionGranted ? "IDLE" : previousMode;
+    toast(
+      error?.name === "NotAllowedError"
+        ? "Microphone permission was not granted."
+        : error.message,
+      true,
+    );
+  }
+}
+
+async function startScreenCapture() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    toast("Screen capture is not available in this browser.", true);
+    return;
+  }
+  const modeReadout = document.querySelector("#mediaModeReadout");
+  const previousMode = modeReadout.textContent;
+  let stream = null;
+  let permissionGranted = false;
+  modeReadout.textContent = "CHOOSE SCREEN";
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      audio: false,
+      video: {
+        frameRate: { ideal: 20, max: 30 },
+      },
+    });
+    permissionGranted = true;
+    stopMedia();
+    stopAnimation();
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    state.mediaStream = stream;
+    state.mediaElement = video;
+    state.animationName = "media";
+    setOutputContext({ kind: "screen", name: "SCREEN MIRROR" });
+    stream.getVideoTracks()[0]?.addEventListener(
+      "ended",
+      () => {
+        if (state.mediaStream === stream) stopMedia(true);
+      },
+      { once: true },
+    );
+    await video.play();
+    startMediaLoop("SCREEN LIVE");
+    toast("Screen mirror is live.");
+  } catch (error) {
+    if (state.mediaStream === stream) {
+      stopMedia();
+    } else {
+      stream?.getTracks().forEach((track) => track.stop());
+    }
+    modeReadout.textContent = permissionGranted ? "IDLE" : previousMode;
+    toast(
+      error?.name === "NotAllowedError"
+        ? "Screen sharing was cancelled."
+        : error.message,
+      true,
+    );
+  }
+}
+
+function initializeLiveInputs() {
+  document
+    .querySelector("#startMicrophoneButton")
+    .addEventListener("click", () => void startMicrophoneInput());
+  document
+    .querySelector("#startScreenButton")
+    .addEventListener("click", () => void startScreenCapture());
+  document.querySelector("#audioMode").addEventListener("change", () => {
+    updateAudioControls();
+    if (state.animationName === "audio") {
+      const mode = currentAudioControls().mode.toUpperCase();
+      setOutputContext({ kind: "audio", name: `MIC / ${mode}` });
+    }
+  });
+  ["audioSensitivity", "audioSmoothing"].forEach((id) => {
+    document
+      .querySelector(`#${id}`)
+      .addEventListener("input", updateAudioControls);
+  });
+  updateAudioControls();
+  updateAudioMeters();
 }
 
 document.querySelector("#imageInput").addEventListener("change", (event) => {
@@ -1845,6 +2131,26 @@ async function loadPreset(preset, options = {}) {
   }
 }
 
+async function upsertOrganizedScene(scene, successMessage) {
+  await api("/api/scenes", {
+    method: "POST",
+    body: JSON.stringify(scene),
+  });
+  await loadLibrary();
+  toast(successMessage);
+}
+
+function createPresetTool(label, text, { active = false, danger = false } = {}) {
+  const button = document.createElement("button");
+  button.className = "preset-tool";
+  button.classList.toggle("active", active);
+  button.classList.toggle("danger", danger);
+  button.type = "button";
+  button.setAttribute("aria-label", label);
+  button.textContent = text;
+  return button;
+}
+
 function createPresetRow(preset, saved = false) {
   const row = document.createElement("div");
   row.className = "preset-row";
@@ -1894,7 +2200,19 @@ function createPresetRow(preset, saved = false) {
   details.textContent =
     `${effectName} / ${Math.round(Number(preset.brightness ?? 25))}%` +
     ` / ${describeZone(preset.zone ?? { type: "all" })}`;
-  copy.append(name, details);
+  const tags = document.createElement("span");
+  tags.className = "scene-card-tags";
+  const metadata = [
+    ...(preset.favorite ? ["★ FAVORITE"] : []),
+    ...(preset.folder ? [preset.folder] : []),
+    ...parseSceneTags(preset.tags),
+  ];
+  metadata.forEach((label) => {
+    const chip = document.createElement("i");
+    chip.textContent = label;
+    tags.append(chip);
+  });
+  copy.append(name, details, tags);
   loadButton.append(preview, copy);
   loadButton.addEventListener("click", () => {
     stopPlaylist();
@@ -1906,11 +2224,55 @@ function createPresetRow(preset, saved = false) {
   row.append(loadButton);
 
   if (saved) {
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "preset-delete";
-    deleteButton.type = "button";
-    deleteButton.setAttribute("aria-label", `Delete ${preset.name}`);
-    deleteButton.textContent = "×";
+    const tools = document.createElement("div");
+    tools.className = "preset-tools";
+    const favoriteButton = createPresetTool(
+      `${preset.favorite ? "Remove" : "Add"} ${preset.name} ${
+        preset.favorite ? "from" : "to"
+      } favorites`,
+      preset.favorite ? "★" : "☆",
+      { active: Boolean(preset.favorite) },
+    );
+    favoriteButton.addEventListener("click", async () => {
+      try {
+        await upsertOrganizedScene(
+          { ...preset, favorite: !preset.favorite },
+          `${preset.name} ${preset.favorite ? "removed from" : "added to"} favorites.`,
+        );
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+    const duplicateButton = createPresetTool(
+      `Duplicate ${preset.name}`,
+      "COPY",
+    );
+    duplicateButton.addEventListener("click", async () => {
+      try {
+        const duplicate = duplicateScene(
+          preset,
+          state.library.scenes.map((scene) => scene.name),
+        );
+        await upsertOrganizedScene(
+          duplicate,
+          `Created ${duplicate.name}.`,
+        );
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+
+    const editButton = createPresetTool(
+      `Edit folder and tags for ${preset.name}`,
+      "EDIT",
+    );
+
+    const deleteButton = createPresetTool(
+      `Delete ${preset.name}`,
+      "DEL",
+      { danger: true },
+    );
     deleteButton.addEventListener("click", async () => {
       try {
         await api(`/api/scenes/${encodeURIComponent(preset.id)}`, {
@@ -1928,7 +2290,55 @@ function createPresetRow(preset, saved = false) {
         toast(error.message, true);
       }
     });
-    row.append(deleteButton);
+
+    tools.append(
+      favoriteButton,
+      duplicateButton,
+      editButton,
+      deleteButton,
+    );
+    row.append(tools);
+
+    const editor = document.createElement("div");
+    editor.className = "scene-metadata-editor";
+    const folderInput = document.createElement("input");
+    folderInput.type = "text";
+    folderInput.maxLength = 32;
+    folderInput.placeholder = "FOLDER / UNFILED";
+    folderInput.setAttribute("aria-label", `Folder for ${preset.name}`);
+    folderInput.value = preset.folder ?? "";
+    const tagsInput = document.createElement("input");
+    tagsInput.type = "text";
+    tagsInput.maxLength = 175;
+    tagsInput.placeholder = "TAGS / COMMA SEPARATED";
+    tagsInput.setAttribute("aria-label", `Tags for ${preset.name}`);
+    tagsInput.value = parseSceneTags(preset.tags).join(", ");
+    const saveMetadata = document.createElement("button");
+    saveMetadata.type = "button";
+    saveMetadata.textContent = "SAVE ORGANIZATION";
+    saveMetadata.addEventListener("click", async () => {
+      try {
+        await upsertOrganizedScene(
+          {
+            ...preset,
+            folder: folderInput.value,
+            tags: parseSceneTags(tagsInput.value),
+          },
+          `Updated ${preset.name}.`,
+        );
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+    editor.append(folderInput, tagsInput, saveMetadata);
+    row.append(editor);
+    editButton.addEventListener("click", () => {
+      const open = !editor.classList.contains("open");
+      editor.classList.toggle("open", open);
+      editButton.classList.toggle("active", open);
+      editButton.setAttribute("aria-expanded", String(open));
+      if (open) folderInput.focus();
+    });
   }
 
   return row;
@@ -1937,12 +2347,34 @@ function createPresetRow(preset, saved = false) {
 function renderPresets() {
   const presetList = document.querySelector("#presetList");
   presetList.replaceChildren();
-  builtInPresets.forEach((preset) => {
+  const showCore =
+    state.sceneFilters.folder === "ALL" &&
+    !state.sceneFilters.favoritesOnly;
+  const coreScenes = showCore
+    ? filterScenes(builtInPresets, {
+        query: state.sceneFilters.query,
+        folder: "ALL",
+      })
+    : [];
+  const savedScenes = filterScenes(
+    state.library.scenes,
+    state.sceneFilters,
+  );
+  coreScenes.forEach((preset) => {
     presetList.append(createPresetRow(preset));
   });
-  state.library.scenes.forEach((preset) => {
+  savedScenes.forEach((preset) => {
     presetList.append(createPresetRow(preset, true));
   });
+  if (!coreScenes.length && !savedScenes.length) {
+    const empty = document.createElement("small");
+    empty.className = "local-note";
+    empty.textContent = "NO SCENES MATCH THIS VIEW.";
+    presetList.append(empty);
+  }
+  document.querySelector("#sceneFilterCount").textContent =
+    `${coreScenes.length} CORE / ${savedScenes.length}` +
+    `${savedScenes.length === state.library.scenes.length ? "" : ` OF ${state.library.scenes.length}`} SAVED`;
 }
 
 async function saveCurrentPreset() {
@@ -1972,6 +2404,11 @@ async function saveCurrentPreset() {
     layers: { overlay: state.overlay },
     transition: state.transition,
   });
+  const folder = document.querySelector("#sceneFolder").value.trim();
+  const tags = parseSceneTags(document.querySelector("#sceneTags").value);
+  if (folder) preset.folder = folder;
+  if (tags.length) preset.tags = tags;
+  preset.favorite = document.querySelector("#sceneFavorite").checked;
   if (existing) preset.id = existing.id;
 
   try {
@@ -1980,6 +2417,9 @@ async function saveCurrentPreset() {
       body: JSON.stringify(preset),
     });
     input.value = "";
+    document.querySelector("#sceneFolder").value = "";
+    document.querySelector("#sceneTags").value = "";
+    document.querySelector("#sceneFavorite").checked = false;
     await loadLibrary();
     const savedScene =
       sceneForId(response.scene?.id) ??
@@ -2340,10 +2780,58 @@ async function loadLibrary() {
   const library = normalizeLibrary(await api("/api/library"));
   state.library = library;
   state.playlistDraft = state.playlistDraft.filter((step) => sceneForId(step.sceneId));
+  updateSceneFolderFilter();
   renderPresets();
   populatePlaylistSceneSelect();
   renderPlaylistDraft();
   renderPlaylists();
+}
+
+function updateSceneFolderFilter() {
+  const select = document.querySelector("#sceneFolderFilter");
+  const folders = sceneFolders(state.library.scenes);
+  const selected = folders.includes(state.sceneFilters.folder)
+    ? state.sceneFilters.folder
+    : "ALL";
+  select.replaceChildren();
+  const all = document.createElement("option");
+  all.value = "ALL";
+  all.textContent = "ALL FOLDERS";
+  select.append(all);
+  folders.forEach((folder) => {
+    const option = document.createElement("option");
+    option.value = folder;
+    option.textContent = folder;
+    select.append(option);
+  });
+  select.value = selected;
+  state.sceneFilters.folder = selected;
+}
+
+function initializeSceneOrganizer() {
+  document.querySelector("#sceneSearch").addEventListener("input", (event) => {
+    state.sceneFilters.query = event.target.value;
+    renderPresets();
+  });
+  document
+    .querySelector("#sceneFolderFilter")
+    .addEventListener("change", (event) => {
+      state.sceneFilters.folder = event.target.value;
+      renderPresets();
+    });
+  document
+    .querySelector("#sceneFavoritesFilter")
+    .addEventListener("click", (event) => {
+      state.sceneFilters.favoritesOnly = !state.sceneFilters.favoritesOnly;
+      event.currentTarget.setAttribute(
+        "aria-pressed",
+        String(state.sceneFilters.favoritesOnly),
+      );
+      event.currentTarget.textContent = state.sceneFilters.favoritesOnly
+        ? "★ FAVORITES"
+        : "☆ FAVORITES";
+      renderPresets();
+    });
 }
 
 async function initializeLibrary() {
@@ -2434,13 +2922,22 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
   const [file] = event.target.files;
   if (!file) return;
   try {
+    const merge = document.querySelector("#importLibraryMode").value === "merge";
+    if (
+      !merge &&
+      !window.confirm(
+        "Replace every saved scene and playlist with this backup?",
+      )
+    ) {
+      return;
+    }
     const library = JSON.parse(await file.text());
     await api("/api/library/import", {
       method: "POST",
-      body: JSON.stringify({ library, merge: true }),
+      body: JSON.stringify({ library, merge }),
     });
     await loadLibrary();
-    toast(`Imported ${file.name}.`);
+    toast(`${merge ? "Merged" : "Restored"} ${file.name}.`);
   } catch (error) {
     toast(error.message, true);
   } finally {
@@ -2457,8 +2954,10 @@ initializeZones();
 initializeLayers();
 initializeTransitions();
 initializeMediaControls();
+initializeLiveInputs();
 initializeTextStudio();
 initializeAutomations();
+initializeSceneOrganizer();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();
