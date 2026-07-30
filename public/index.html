@@ -101,8 +101,8 @@
               CLEAR
             </button>
             <label class="text-button upload-button">
-              IMAGE
-              <input id="imageInput" type="file" accept="image/*" />
+              MEDIA
+              <input id="imageInput" type="file" accept="image/*,video/*" />
             </label>
           </div>
         </div>
@@ -117,6 +117,51 @@
           <button data-color="#fff6df" style="--swatch: #fff6df" aria-label="Warm white"></button>
           <button data-color="#181818" style="--swatch: #181818" aria-label="Near black"></button>
           <span>DRAG ON THE MATRIX TO PAINT</span>
+        </div>
+
+        <div class="media-deck">
+          <div class="media-heading">
+            <span>MEDIA SAMPLER / GIF + VIDEO</span>
+            <strong id="mediaModeReadout">IDLE</strong>
+          </div>
+          <div class="media-controls">
+            <label>
+              <span>FIT</span>
+              <select id="mediaFit">
+                <option value="cover">COVER</option>
+                <option value="contain">CONTAIN</option>
+                <option value="stretch">STRETCH</option>
+              </select>
+            </label>
+            <label>
+              <span>SAMPLING</span>
+              <select id="mediaSampling">
+                <option value="smooth">SMOOTH</option>
+                <option value="pixel">PIXEL / NEAREST</option>
+              </select>
+            </label>
+            <label>
+              <span>SATURATION</span>
+              <output id="mediaSaturationValue" for="mediaSaturation">100%</output>
+              <input class="range range--compact" id="mediaSaturation" type="range" min="0" max="200" value="100" />
+            </label>
+            <label>
+              <span>CONTRAST</span>
+              <output id="mediaContrastValue" for="mediaContrast">100%</output>
+              <input class="range range--compact" id="mediaContrast" type="range" min="0" max="200" value="100" />
+            </label>
+            <label>
+              <span>GAMMA</span>
+              <output id="mediaGammaValue" for="mediaGamma">1.00</output>
+              <input class="range range--compact" id="mediaGamma" type="range" min="20" max="200" value="100" />
+            </label>
+            <label>
+              <span>PLAYBACK</span>
+              <output id="mediaSpeedValue" for="mediaSpeed">1.00×</output>
+              <input class="range range--compact" id="mediaSpeed" type="range" min="25" max="200" value="100" />
+            </label>
+          </div>
+          <button class="media-stop" id="stopMediaButton" type="button">STOP MEDIA / HOLD LAST FRAME</button>
         </div>
       </section>
 
@@ -313,6 +358,32 @@
             <span>◷</span>
             RUN LOCAL CLOCK
           </button>
+          <div class="text-studio">
+            <label>
+              <span>TYPEFACE</span>
+              <select id="fontSelect">
+                <option value="condensed">CONDENSED</option>
+                <option value="pixel">PIXEL MONO</option>
+                <option value="serif">EDITORIAL SERIF</option>
+              </select>
+            </label>
+            <label>
+              <span>SIZE</span>
+              <output id="fontSizeValue" for="fontSize">13px</output>
+              <input class="range range--compact" id="fontSize" type="range" min="6" max="24" value="13" />
+            </label>
+            <label>
+              <span>DIRECTION</span>
+              <select id="textDirection">
+                <option value="left">← LEFT</option>
+                <option value="right">RIGHT →</option>
+              </select>
+            </label>
+            <label class="font-upload">
+              LOAD FONT
+              <input id="fontInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/*" />
+            </label>
+          </div>
         </section>
 
         <section class="rack-section">

@@ -33,9 +33,16 @@ import {
   effectById,
   hashUnit,
 } from "./effect_catalog.js";
+import {
+  adjustRgb,
+  fitRect,
+  normalizeMediaControls,
+} from "./media_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
+const mediaCanvas = document.createElement("canvas");
+const mediaContext = mediaCanvas.getContext("2d", { alpha: false });
 const stage = document.querySelector(".stage-frame");
 const colorPicker = document.querySelector("#colorPicker");
 const colorValue = document.querySelector("#colorValue");
@@ -48,6 +55,11 @@ const PRESET_STORAGE_KEY = "squares-controller.presets.v1";
 const PRESET_MIGRATION_KEY = "squares-controller.presets-migrated.v1";
 const ROTATION_STORAGE_KEY = "squares-controller.rotation.v1";
 const MAX_SAVED_PRESETS = 12;
+const FONT_STACKS = {
+  condensed: '"Avenir Next Condensed", "Arial Narrow", sans-serif',
+  pixel: '"Courier New", ui-monospace, monospace',
+  serif: 'Georgia, "Times New Roman", serif',
+};
 
 const builtInPresets = [
   { id: "aurora", name: "AURORA DRIFT", effect: "tide", speed: 74, intensity: 70, brightness: 28 },
@@ -90,6 +102,13 @@ const state = {
   }),
   transition: normalizeTransition({ type: "crossfade", duration: 800 }),
   transitionToken: 0,
+  mediaElement: null,
+  mediaFrame: null,
+  mediaUrl: null,
+  mediaLastFrame: 0,
+  textFont: FONT_STACKS.condensed,
+  textSize: 13,
+  textDirection: "left",
 };
 
 function toast(message, error = false) {
@@ -406,6 +425,7 @@ function paintAtEvent(event) {
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  stopMedia();
   stopAnimation();
   state.drawing = true;
   canvas.setPointerCapture(event.pointerId);
@@ -451,6 +471,7 @@ document.querySelector("#eraserButton").addEventListener("click", (event) => {
 });
 
 document.querySelector("#fillButton").addEventListener("click", () => {
+  stopMedia();
   stopAnimation();
   const color = hexToRgb(colorPicker.value);
   for (let y = 0; y < state.height; y += 1) {
@@ -463,6 +484,7 @@ document.querySelector("#fillButton").addEventListener("click", () => {
 });
 
 document.querySelector("#clearButton").addEventListener("click", () => {
+  stopMedia();
   stopAnimation();
   for (let y = 0; y < state.height; y += 1) {
     for (let x = 0; x < state.width; x += 1) {
@@ -473,35 +495,197 @@ document.querySelector("#clearButton").addEventListener("click", () => {
   scheduleFrame();
 });
 
+function currentMediaControls() {
+  return normalizeMediaControls({
+    fit: document.querySelector("#mediaFit").value,
+    sampling: document.querySelector("#mediaSampling").value,
+    saturation: Number(document.querySelector("#mediaSaturation").value) / 100,
+    contrast: Number(document.querySelector("#mediaContrast").value) / 100,
+    brightness: 1,
+    gamma: Number(document.querySelector("#mediaGamma").value) / 100,
+  });
+}
+
+function drawMediaFrame() {
+  const media = state.mediaElement;
+  if (!media) return;
+  const sourceWidth = media.videoWidth || media.naturalWidth || media.width;
+  const sourceHeight = media.videoHeight || media.naturalHeight || media.height;
+  if (!sourceWidth || !sourceHeight) return;
+
+  const controls = currentMediaControls();
+  mediaCanvas.width = state.width;
+  mediaCanvas.height = state.height;
+  mediaContext.imageSmoothingEnabled = controls.sampling === "smooth";
+  mediaContext.imageSmoothingQuality = "high";
+  mediaContext.fillStyle = "#000";
+  mediaContext.fillRect(0, 0, state.width, state.height);
+  const rectangle = fitRect(
+    sourceWidth,
+    sourceHeight,
+    state.width,
+    state.height,
+    controls.fit,
+  );
+  mediaContext.drawImage(
+    media,
+    rectangle.x,
+    rectangle.y,
+    rectangle.width,
+    rectangle.height,
+  );
+  const data = mediaContext.getImageData(
+    0,
+    0,
+    state.width,
+    state.height,
+  ).data;
+  for (let y = 0; y < state.height; y += 1) {
+    for (let x = 0; x < state.width; x += 1) {
+      const index = y * state.width + x;
+      setPixel(
+        x,
+        y,
+        adjustRgb(
+          [data[index * 4], data[index * 4 + 1], data[index * 4 + 2]],
+          controls,
+        ),
+      );
+    }
+  }
+  render();
+  scheduleFrame();
+}
+
+function stopMedia(showNotice = false) {
+  if (state.mediaFrame) cancelAnimationFrame(state.mediaFrame);
+  state.mediaFrame = null;
+  state.mediaElement?.pause?.();
+  if (state.mediaUrl) URL.revokeObjectURL(state.mediaUrl);
+  state.mediaUrl = null;
+  state.mediaElement = null;
+  state.mediaLastFrame = 0;
+  if (state.animationName === "media") state.animationName = null;
+  document.querySelector("#mediaModeReadout").textContent =
+    showNotice ? "FRAME HELD" : "IDLE";
+  if (showNotice) toast("Media stopped. The last frame remains live.");
+}
+
+function startMediaLoop(kind) {
+  const tick = (now) => {
+    if (!state.mediaElement) return;
+    if (now - state.mediaLastFrame >= 50) {
+      drawMediaFrame();
+      state.mediaLastFrame = now;
+    }
+    state.mediaFrame = requestAnimationFrame(tick);
+  };
+  document.querySelector("#mediaModeReadout").textContent = kind;
+  state.mediaFrame = requestAnimationFrame(tick);
+}
+
+function updateMediaControls() {
+  document.querySelector("#mediaSaturationValue").textContent =
+    `${document.querySelector("#mediaSaturation").value}%`;
+  document.querySelector("#mediaContrastValue").textContent =
+    `${document.querySelector("#mediaContrast").value}%`;
+  document.querySelector("#mediaGammaValue").textContent =
+    (Number(document.querySelector("#mediaGamma").value) / 100).toFixed(2);
+  document.querySelector("#mediaSpeedValue").textContent =
+    `${(Number(document.querySelector("#mediaSpeed").value) / 100).toFixed(2)}×`;
+  [
+    "mediaSaturation",
+    "mediaContrast",
+    "mediaGamma",
+    "mediaSpeed",
+  ].forEach((id) => updateRangeFill(document.querySelector(`#${id}`)));
+  if (state.mediaElement instanceof HTMLVideoElement) {
+    state.mediaElement.playbackRate =
+      Number(document.querySelector("#mediaSpeed").value) / 100;
+  }
+  if (state.mediaElement && !state.mediaFrame) drawMediaFrame();
+}
+
+function initializeMediaControls() {
+  ["mediaFit", "mediaSampling"].forEach((id) => {
+    document.querySelector(`#${id}`).addEventListener("change", () => {
+      if (state.mediaElement) drawMediaFrame();
+    });
+  });
+  [
+    "mediaSaturation",
+    "mediaContrast",
+    "mediaGamma",
+    "mediaSpeed",
+  ].forEach((id) => {
+    document.querySelector(`#${id}`).addEventListener("input", updateMediaControls);
+  });
+  document
+    .querySelector("#stopMediaButton")
+    .addEventListener("click", () => stopMedia(true));
+  updateMediaControls();
+}
+
 document.querySelector("#imageInput").addEventListener("change", (event) => {
   const [file] = event.target.files;
   if (!file) return;
-  const image = new Image();
-  image.onload = () => {
-    stopAnimation();
-    const buffer = document.createElement("canvas");
-    buffer.width = state.width;
-    buffer.height = state.height;
-    const bufferContext = buffer.getContext("2d");
-    bufferContext.imageSmoothingEnabled = true;
-    bufferContext.drawImage(image, 0, 0, state.width, state.height);
-    const data = bufferContext.getImageData(0, 0, state.width, state.height).data;
-    for (let y = 0; y < state.height; y += 1) {
-      for (let x = 0; x < state.width; x += 1) {
-        const index = y * state.width + x;
-        setPixel(x, y, [
-          data[index * 4],
-          data[index * 4 + 1],
-          data[index * 4 + 2],
-        ]);
-      }
-    }
-    render();
-    scheduleFrame();
-    URL.revokeObjectURL(image.src);
-    toast(`Loaded ${file.name} onto the 32×24 stage.`);
-  };
-  image.src = URL.createObjectURL(file);
+  stopMedia();
+  stopAnimation();
+  state.animationName = "media";
+  const url = URL.createObjectURL(file);
+  state.mediaUrl = url;
+
+  if (file.type.startsWith("video/")) {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.addEventListener(
+      "loadeddata",
+      () => {
+        if (state.mediaElement !== video) return;
+        video.playbackRate =
+          Number(document.querySelector("#mediaSpeed").value) / 100;
+        void video.play();
+        startMediaLoop("VIDEO LIVE");
+        toast(`Playing ${file.name} on the pixel stage.`);
+      },
+      { once: true },
+    );
+    video.addEventListener(
+      "error",
+      () => {
+        stopMedia();
+        toast("That video could not be decoded by this browser.", true);
+      },
+      { once: true },
+    );
+    state.mediaElement = video;
+    video.src = url;
+  } else {
+    const image = new Image();
+    image.addEventListener(
+      "load",
+      () => {
+        if (state.mediaElement !== image) return;
+        drawMediaFrame();
+        if (file.type === "image/gif") startMediaLoop("GIF LIVE");
+        else document.querySelector("#mediaModeReadout").textContent = "IMAGE";
+        toast(`Loaded ${file.name} onto the pixel stage.`);
+      },
+      { once: true },
+    );
+    image.addEventListener(
+      "error",
+      () => {
+        stopMedia();
+        toast("That image could not be decoded by this browser.", true);
+      },
+      { once: true },
+    );
+    state.mediaElement = image;
+    image.src = url;
+  }
   event.target.value = "";
 });
 
@@ -796,6 +980,7 @@ effectSpeed.addEventListener("input", updateModulationVisuals);
 effectIntensity.addEventListener("input", updateModulationVisuals);
 
 async function setMode(mode) {
+  stopMedia();
   stopAnimation();
   try {
     applyStatus(
@@ -820,6 +1005,7 @@ document.querySelectorAll("[data-rotation]").forEach((button) => {
   button.addEventListener("click", async () => {
     const degrees = Number(button.dataset.rotation);
     if (degrees === state.rotation) return;
+    stopMedia();
     stopAnimation();
     state.frameQueued = false;
     try {
@@ -894,6 +1080,7 @@ function renderGeneratedFrame(
 }
 
 function startGeneratedEffect(name) {
+  stopMedia();
   stopAnimation();
   state.animationName = name;
   document
@@ -1199,7 +1386,56 @@ function initializeEffectCatalog() {
   });
 }
 
+function readTextControls() {
+  const select = document.querySelector("#fontSelect");
+  const selectedOption = select.selectedOptions[0];
+  state.textFont =
+    selectedOption?.dataset.family ??
+    FONT_STACKS[select.value] ??
+    FONT_STACKS.condensed;
+  state.textSize = Number(document.querySelector("#fontSize").value);
+  state.textDirection = document.querySelector("#textDirection").value;
+  document.querySelector("#fontSizeValue").textContent = `${state.textSize}px`;
+  updateRangeFill(document.querySelector("#fontSize"));
+}
+
+function initializeTextStudio() {
+  const fontSelect = document.querySelector("#fontSelect");
+  Object.entries(FONT_STACKS).forEach(([id, family]) => {
+    fontSelect.querySelector(`option[value="${id}"]`).dataset.family = family;
+  });
+  fontSelect.addEventListener("change", readTextControls);
+  document.querySelector("#fontSize").addEventListener("input", readTextControls);
+  document
+    .querySelector("#textDirection")
+    .addEventListener("change", readTextControls);
+  document.querySelector("#fontInput").addEventListener("change", async (event) => {
+    const [file] = event.target.files;
+    if (!file) return;
+    try {
+      const family = `SquaresCustom${Date.now()}`;
+      const face = new FontFace(family, await file.arrayBuffer());
+      await face.load();
+      document.fonts.add(face);
+      const option = document.createElement("option");
+      option.value = family;
+      option.dataset.family = `"${family}", sans-serif`;
+      option.textContent = `CUSTOM / ${file.name.toUpperCase()}`;
+      fontSelect.append(option);
+      fontSelect.value = family;
+      readTextControls();
+      toast(`Loaded font ${file.name} for this browser session.`);
+    } catch {
+      toast("That font could not be loaded.", true);
+    } finally {
+      event.target.value = "";
+    }
+  });
+  readTextControls();
+}
+
 function startTextMode(text, clock = false) {
+  stopMedia();
   stopAnimation();
   state.animationName = clock ? "clock" : "message";
   const textCanvas = document.createElement("canvas");
@@ -1208,12 +1444,12 @@ function startTextMode(text, clock = false) {
   let previousFrame = 0;
 
   const drawText = (content) => {
-    textContext.font = '700 13px "Avenir Next Condensed", sans-serif';
+    textContext.font = `700 ${state.textSize}px ${state.textFont}`;
     const measured = Math.ceil(textContext.measureText(content).width);
     textCanvas.width = Math.max(measured + 8, state.width);
     textCanvas.height = state.height;
     textContext.clearRect(0, 0, textCanvas.width, textCanvas.height);
-    textContext.font = '700 13px "Avenir Next Condensed", sans-serif';
+    textContext.font = `700 ${state.textSize}px ${state.textFont}`;
     textContext.textBaseline = "middle";
     textContext.fillStyle = "white";
     textContext.fillText(content, 2, state.height / 2 + 1);
@@ -1224,6 +1460,7 @@ function startTextMode(text, clock = false) {
     ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : text.toUpperCase();
   let textWidth = drawText(currentText);
+  if (!clock && state.textDirection === "right") offset = -textWidth;
 
   const tick = (now) => {
     if (state.animationName !== (clock ? "clock" : "message")) return;
@@ -1239,8 +1476,15 @@ function startTextMode(text, clock = false) {
         }
         offset = Math.floor((state.width - textWidth) / 2);
       } else {
-        offset -= 1;
-        if (offset < -textWidth - 3) offset = state.width;
+        offset += state.textDirection === "right" ? 1 : -1;
+        if (state.textDirection === "right" && offset > state.width + 3) {
+          offset = -textWidth;
+        } else if (
+          state.textDirection === "left" &&
+          offset < -textWidth - 3
+        ) {
+          offset = state.width;
+        }
       }
 
       const sampleContext = document.createElement("canvas").getContext("2d");
@@ -1353,6 +1597,7 @@ function transitionToFrame(target, transition) {
 }
 
 async function loadPreset(preset, options = {}) {
+  stopMedia();
   effectSpeed.value = preset.speed ?? 100;
   effectIntensity.value = preset.intensity ?? 75;
   updateModulationVisuals();
@@ -1789,6 +2034,8 @@ initializePalettes();
 initializeZones();
 initializeLayers();
 initializeTransitions();
+initializeMediaControls();
+initializeTextStudio();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();

@@ -498,6 +498,80 @@ h1 {
   letter-spacing: 0.14em;
 }
 
+.media-deck {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(115deg, rgba(87, 230, 213, 0.025), transparent 45%),
+    rgba(10, 12, 10, 0.72);
+}
+
+.media-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.media-heading span,
+.media-heading strong,
+.media-controls span,
+.media-controls output {
+  color: var(--muted);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+}
+
+.media-heading strong {
+  color: var(--acid);
+}
+
+.media-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px 13px;
+}
+
+.media-controls label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.media-controls select {
+  grid-column: 1 / -1;
+  height: 32px;
+  padding: 0 8px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #070907;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.media-controls .range {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.media-stop {
+  height: 34px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: #090b09;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+}
+
+.media-stop:hover {
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
 .control-rack {
   align-self: start;
   border: 1px solid var(--line);
@@ -1050,6 +1124,55 @@ h1 {
   font-size: 20px;
 }
 
+.text-studio {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.text-studio label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.text-studio select {
+  grid-column: 1 / -1;
+  height: 30px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+}
+
+.text-studio .range {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.font-upload {
+  display: grid !important;
+  place-items: center;
+  min-height: 30px;
+  color: var(--acid) !important;
+  border: 1px solid #4a5831;
+  background: rgba(217, 255, 91, 0.04);
+  cursor: pointer;
+}
+
+.font-upload input {
+  display: none;
+}
+
 .preset-composer {
   grid-template-columns: 1fr 62px;
 }
@@ -1548,6 +1671,10 @@ h1 {
 
   .palette-strip span {
     display: none;
+  }
+
+  .media-controls {
+    grid-template-columns: 1fr 1fr;
   }
 
   .control-rack {
