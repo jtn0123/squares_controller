@@ -698,6 +698,52 @@ h1 {
   transform: rotate(-14deg);
 }
 
+.effect-card--plasma .effect-visual {
+  background:
+    radial-gradient(circle at 22% 35%, #00f5d4, transparent 32%),
+    radial-gradient(circle at 78% 64%, #9b5de5, transparent 35%),
+    conic-gradient(from 70deg, #ff4fa3, #07111f, #ffca3a, #07111f);
+  filter: blur(7px) saturate(1.4);
+}
+
+.effect-card--confetti .effect-visual {
+  background:
+    radial-gradient(circle, #ff4fa3 0 2px, transparent 3px),
+    radial-gradient(circle, #ffca3a 0 2px, transparent 3px),
+    radial-gradient(circle, #5ce1e6 0 2px, transparent 3px),
+    #100c15;
+  background-position: 5px 8px, 18px 2px, 27px 17px;
+  background-size: 31px 27px, 37px 31px, 41px 35px;
+}
+
+.effect-card--rain .effect-visual {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10px, rgba(99, 168, 78, 0.22) 11px 12px),
+    repeating-linear-gradient(180deg, #e5ff9b 0 2px, #347038 3px 8px, transparent 9px 21px),
+    #030803;
+  background-size: auto, 14px 32px, auto;
+}
+
+.effect-card--fireworks .effect-visual {
+  background:
+    repeating-radial-gradient(circle at 25% 68%, #ffcf54 0 1px, transparent 2px 7px),
+    repeating-radial-gradient(circle at 73% 34%, #ec5fff 0 1px, transparent 2px 9px),
+    linear-gradient(#080818, #170921);
+}
+
+.effect-card--ripples .effect-visual {
+  background:
+    repeating-radial-gradient(circle at 28% 40%, transparent 0 8px, rgba(87, 230, 213, 0.65) 9px 10px),
+    repeating-radial-gradient(circle at 74% 65%, transparent 0 10px, rgba(75, 131, 255, 0.55) 11px 12px),
+    #061018;
+}
+
+.effect-card--vortex .effect-visual {
+  background:
+    repeating-conic-gradient(from 25deg at center, #4a00e0 0 10deg, #00f5d4 11deg 19deg, #0b0b0b 20deg 33deg);
+  filter: blur(2px) saturate(1.25);
+}
+
 .modulation-grid {
   display: grid;
   grid-template-columns: 1fr;

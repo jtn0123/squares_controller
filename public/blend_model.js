@@ -6,7 +6,7 @@ export const BLEND_MODES = Object.freeze([
   { id: "difference", name: "DIFFERENCE" },
 ]);
 
-const EFFECTS = new Set(["tide", "radar", "ember", "orbit"]);
+const EFFECTS = new Set(EFFECT_CATALOG.map((effect) => effect.id));
 const MODES = new Set(BLEND_MODES.map((mode) => mode.id));
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -44,3 +44,4 @@ export function normalizeLayer(raw) {
         : "acid",
   };
 }
+import { EFFECT_CATALOG } from "./effect_catalog.js";

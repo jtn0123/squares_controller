@@ -28,6 +28,11 @@ import {
   normalizeTransition,
   transitionFrame,
 } from "./transition_model.js";
+import {
+  EFFECT_CATALOG,
+  effectById,
+  hashUnit,
+} from "./effect_catalog.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -711,6 +716,14 @@ function readLayerControls() {
 }
 
 function initializeLayers() {
+  const effectSelect = document.querySelector("#overlayEffect");
+  effectSelect.replaceChildren();
+  EFFECT_CATALOG.forEach((effect) => {
+    const option = document.createElement("option");
+    option.value = effect.id;
+    option.textContent = effect.name;
+    effectSelect.append(option);
+  });
   const paletteSelect = document.querySelector("#overlayPalette");
   CURATED_PALETTES.forEach((palette) => {
     const option = document.createElement("option");
@@ -1016,14 +1029,175 @@ const effectPainters = {
       }
     }
   },
+  plasma(time, target, paletteColors) {
+    const movingX = state.width * (0.5 + Math.cos(time * 0.37) * 0.28);
+    const movingY = state.height * (0.5 + Math.sin(time * 0.43) * 0.3);
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const field =
+          Math.sin(x * 0.34 + time * 1.4) +
+          Math.sin(y * 0.29 - time * 1.1) +
+          Math.sin(Math.hypot(x - movingX, y - movingY) * 0.42 - time * 1.8);
+        const phase = 0.5 + field / 6;
+        const color = sampleGradient(paletteColors, phase);
+        const gain = 0.65 + Math.abs(field) * 0.11;
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * gain)),
+        );
+      }
+    }
+  },
+  confetti(time, target, paletteColors) {
+    const particleCount = Math.max(36, Math.round(state.width * 1.8));
+    for (let particle = 0; particle < particleCount; particle += 1) {
+      const speed = 2.5 + hashUnit(particle * 31 + 7) * 6;
+      const x = Math.floor(hashUnit(particle * 17 + 3) * state.width);
+      const start = hashUnit(particle * 43 + 11) * state.height;
+      const y = Math.floor((start + time * speed) % (state.height + 3)) - 2;
+      const color = sampleGradient(
+        paletteColors,
+        hashUnit(particle * 59 + 13) + time * 0.015,
+      );
+      paintEffectPixel(target, x, y, color);
+      paintEffectPixel(
+        target,
+        x,
+        y - 1,
+        color.map((channel) => clampByte(channel * 0.38)),
+      );
+    }
+  },
+  rain(time, target, paletteColors) {
+    for (let x = 0; x < state.width; x += 1) {
+      const speed = 4 + hashUnit(x * 37 + 5) * 8;
+      const head = Math.floor(
+        (time * speed + hashUnit(x * 71 + 9) * state.height * 2) %
+          (state.height + 10),
+      );
+      for (let trail = 0; trail < 10; trail += 1) {
+        const y = head - trail;
+        const gain = Math.max(0, 1 - trail / 10);
+        const color = sampleGradient(
+          paletteColors,
+          x / state.width + trail * 0.025,
+        );
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * gain)),
+        );
+      }
+    }
+  },
+  fireworks(time, target, paletteColors) {
+    const maximumRadius = Math.hypot(state.width, state.height) * 0.32;
+    for (let burst = 0; burst < 4; burst += 1) {
+      const cycle = time * 0.42 + burst * 0.29;
+      const epoch = Math.floor(cycle);
+      const age = cycle - epoch;
+      const centerX =
+        (0.15 + hashUnit(epoch * 97 + burst * 17) * 0.7) * state.width;
+      const centerY =
+        (0.15 + hashUnit(epoch * 53 + burst * 31) * 0.65) * state.height;
+      const radius = age * maximumRadius;
+      const fade = Math.pow(1 - age, 1.45);
+      const color = sampleGradient(
+        paletteColors,
+        hashUnit(epoch * 113 + burst * 41),
+      );
+      for (let y = 0; y < state.height; y += 1) {
+        for (let x = 0; x < state.width; x += 1) {
+          const distance = Math.hypot(x - centerX, y - centerY);
+          const spark = Math.max(0, 1 - Math.abs(distance - radius) * 0.9);
+          if (spark <= 0) continue;
+          const offset = (y * state.width + x) * 3;
+          const current = target.subarray(offset, offset + 3);
+          paintEffectPixel(
+            target,
+            x,
+            y,
+            color.map((channel, index) =>
+              clampByte(current[index] + channel * spark * fade),
+            ),
+          );
+        }
+      }
+    }
+  },
+  ripples(time, target, paletteColors) {
+    const centers = [
+      [state.width * 0.28, state.height * 0.38],
+      [state.width * 0.72, state.height * 0.63],
+    ];
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const waves = centers.map(([centerX, centerY], index) => {
+          const distance = Math.hypot(x - centerX, y - centerY);
+          return 0.5 + 0.5 * Math.cos(distance * 1.1 - time * (2.6 + index * 0.4));
+        });
+        const value = Math.pow(Math.max(...waves), 5);
+        const color = sampleGradient(
+          paletteColors,
+          (waves[0] - waves[1]) * 0.5 + time * 0.03,
+        );
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * value)),
+        );
+      }
+    }
+  },
+  vortex(time, target, paletteColors) {
+    const centerX = (state.width - 1) / 2;
+    const centerY = (state.height - 1) / 2;
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const radius = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+        const phase = angle / (Math.PI * 2) + radius * 0.085 - time * 0.16;
+        const pulse = 0.48 + 0.52 * Math.sin(radius * 0.72 - time * 2.1 + angle * 3);
+        const color = sampleGradient(paletteColors, phase);
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * (0.32 + pulse * 0.68))),
+        );
+      }
+    }
+  },
 };
 
-document.querySelectorAll("[data-effect]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const name = button.dataset.effect;
-    startGeneratedEffect(name);
+function initializeEffectCatalog() {
+  const grid = document.querySelector(".effect-grid");
+  grid.replaceChildren();
+  EFFECT_CATALOG.forEach((effect) => {
+    const button = document.createElement("button");
+    button.className = `effect-card effect-card--${effect.id}`;
+    button.dataset.effect = effect.id;
+    button.type = "button";
+    const visual = document.createElement("span");
+    visual.className = "effect-visual";
+    const name = document.createElement("strong");
+    name.textContent = effect.name;
+    const subtitle = document.createElement("small");
+    subtitle.textContent = effect.subtitle;
+    button.append(visual, name, subtitle);
+    button.addEventListener("click", () => {
+      stopPlaylist();
+      startGeneratedEffect(effect.id);
+    });
+    grid.append(button);
   });
-});
+}
 
 function startTextMode(text, clock = false) {
   stopAnimation();
@@ -1199,7 +1373,7 @@ async function loadPreset(preset, options = {}) {
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
     let target;
-    if (preset.effect && effectPainters[preset.effect]) {
+    if (preset.effect && effectById(preset.effect) && effectPainters[preset.effect]) {
       target = new Uint8Array(state.pixels.length);
       renderGeneratedFrame(
         preset.effect,
@@ -1220,7 +1394,7 @@ async function loadPreset(preset, options = {}) {
     }
     const completed = await transitionToFrame(target, selectedTransition);
     if (!completed) return false;
-    if (preset.effect && effectPainters[preset.effect]) {
+    if (preset.effect && effectById(preset.effect) && effectPainters[preset.effect]) {
       startGeneratedEffect(preset.effect);
     }
     toast(`Loaded ${preset.name}.`);
@@ -1610,6 +1784,7 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
 
 render();
 updateModulationVisuals();
+initializeEffectCatalog();
 initializePalettes();
 initializeZones();
 initializeLayers();
