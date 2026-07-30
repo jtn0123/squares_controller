@@ -19,7 +19,7 @@ CONFIG_PATH = Path(os.environ.get("SQUARES_CONFIG", ROOT / "config.json"))
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
 MAX_BODY_BYTES = 256_000
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 
 
 def load_device_ip() -> str:

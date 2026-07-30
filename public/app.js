@@ -1,3 +1,5 @@
+import { brightnessFromStatus } from "./status_sync.js";
+
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
 const stage = document.querySelector(".stage-frame");
@@ -70,7 +72,7 @@ function setConnection(status, errorMessage = "") {
   state.connected = Boolean(status);
 }
 
-function applyStatus(status) {
+function applyStatus(status, { syncBrightness = true } = {}) {
   setConnection(status);
   const controllerVersion = status.controllerVersion;
   const controllerReadout = document.querySelector("#controllerReadout");
@@ -92,8 +94,13 @@ function applyStatus(status) {
   document.querySelector("#modeReadout").textContent = status.streaming
     ? "LIVE"
     : status.mode.toUpperCase();
-  brightnessSlider.value = status.brightness;
-  updateBrightnessVisual(status.brightness);
+  const visibleBrightness = brightnessFromStatus({
+    currentBrightness: brightnessSlider.value,
+    statusBrightness: status.brightness,
+    syncBrightness,
+  });
+  brightnessSlider.value = visibleBrightness;
+  updateBrightnessVisual(visibleBrightness);
   stage.classList.toggle("is-live", status.streaming);
   document.querySelector("#liveFlag").lastChild.textContent = status.streaming
     ? " LIVE"
@@ -285,7 +292,7 @@ async function flushFrame() {
       }),
     });
     state.lastSentAt = performance.now();
-    applyStatus(status);
+    applyStatus(status, { syncBrightness: false });
   } catch (error) {
     toast(error.message, true);
   } finally {
@@ -425,14 +432,15 @@ function updateModulationVisuals() {
 
 let brightnessTimer;
 brightnessSlider.addEventListener("input", () => {
-  updateBrightnessVisual(brightnessSlider.value);
+  const requestedBrightness = brightnessSlider.value;
+  updateBrightnessVisual(requestedBrightness);
   clearTimeout(brightnessTimer);
   brightnessTimer = setTimeout(async () => {
     try {
       applyStatus(
         await api("/api/brightness", {
           method: "POST",
-          body: JSON.stringify({ value: brightnessSlider.value }),
+          body: JSON.stringify({ value: requestedBrightness }),
         }),
       );
     } catch (error) {
