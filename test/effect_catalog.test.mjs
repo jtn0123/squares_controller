@@ -5,6 +5,7 @@ import {
   EFFECT_CATALOG,
   effectById,
   hashUnit,
+  radarLightLevel,
 } from "../public/effect_catalog.js";
 
 test("publishes a unique ten-effect 2D catalog", () => {
@@ -29,4 +30,11 @@ test("generates deterministic normalized particle seeds", () => {
     assert.ok(hashUnit(seed) >= 0);
     assert.ok(hashUnit(seed) < 1);
   }
+});
+
+test("keeps inactive radar pixels true black", () => {
+  assert.equal(radarLightLevel(Math.PI, 0, 0), 0);
+  assert.equal(radarLightLevel(0, 0, 0), 0.72);
+  assert.equal(radarLightLevel(Math.PI, 0.18, 0), 0.18);
+  assert.equal(radarLightLevel(Math.PI, 0.18, 0.9), 1);
 });

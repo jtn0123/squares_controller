@@ -24,3 +24,11 @@ export function hashUnit(seed) {
   value ^= value >>> 16;
   return (value >>> 0) / 0x100000000;
 }
+
+export function radarLightLevel(delta, ring = 0, spark = 0) {
+  const sweepLight = Math.max(0, 1 - Math.abs(Number(delta)) * 3.2);
+  return Math.min(
+    1,
+    Math.max(0, Number(ring) + sweepLight * 0.72 + Number(spark)),
+  );
+}

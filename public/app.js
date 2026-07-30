@@ -33,6 +33,7 @@ import {
   EFFECT_CATALOG,
   effectById,
   hashUnit,
+  radarLightLevel,
 } from "./effect_catalog.js";
 import {
   adjustRgb,
@@ -1341,9 +1342,8 @@ const effectPainters = {
         const angle = Math.atan2(dy, dx);
         const delta = Math.atan2(Math.sin(angle - sweep), Math.cos(angle - sweep));
         const ring = Math.abs(Math.sin(Math.hypot(dx, dy) * 1.15)) < 0.08 ? 0.18 : 0;
-        const sweepLight = Math.max(0, 1 - Math.abs(delta) * 3.2);
         const spark = ((x * 17 + y * 31) % 71 === 0) ? 0.65 : 0;
-        const value = Math.min(1, 0.025 + ring + sweepLight * 0.72 + spark);
+        const value = radarLightLevel(delta, ring, spark);
         const color = sampleGradient(
           paletteColors,
           angle / (Math.PI * 2) + time * 0.035,

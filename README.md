@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.8.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-59%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.8.1-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-60%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -134,7 +134,7 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 29 Python and 30 browser-model tests. It covers
+The current suite contains 29 Python and 31 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, media controls, scenes, and playlists.
