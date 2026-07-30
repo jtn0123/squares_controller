@@ -842,6 +842,187 @@ h1 {
   letter-spacing: 0.11em;
 }
 
+.library-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.library-actions button,
+.library-actions label {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  margin: 0;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: #090b09;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.11em;
+  cursor: pointer;
+}
+
+.library-actions button:hover,
+.library-actions label:hover {
+  color: var(--paper);
+  border-color: #485044;
+}
+
+.library-actions input {
+  display: none;
+}
+
+.playlist-step-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px;
+  gap: 7px;
+}
+
+.playlist-step-composer label {
+  display: grid;
+  gap: 5px;
+}
+
+.playlist-step-composer label span {
+  color: #656d61;
+  font: 600 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.playlist-step-composer select,
+.playlist-step-composer input,
+.playlist-save-line input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 9px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 650 9px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.playlist-step-composer > button {
+  grid-column: 1 / -1;
+  height: 31px;
+  color: var(--acid);
+  border: 1px solid #4a5831;
+  background: rgba(217, 255, 91, 0.04);
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.playlist-draft,
+.playlist-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.playlist-draft > small {
+  padding: 11px;
+  color: #656d61;
+  border: 1px dashed var(--line);
+  font: 600 7px/1.35 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.09em;
+  text-align: center;
+}
+
+.playlist-draft-row,
+.playlist-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 30px;
+  align-items: center;
+  min-height: 34px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: #090b09;
+  font: 650 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.playlist-draft-row b {
+  color: #656d61;
+  text-align: center;
+}
+
+.playlist-draft-row span,
+.playlist-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--paper);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-draft-row small,
+.playlist-row small {
+  color: #656d61;
+}
+
+.playlist-draft-row button,
+.playlist-row button {
+  align-self: stretch;
+  color: var(--muted);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+}
+
+.playlist-save-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 52px;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.playlist-save-line > button {
+  color: var(--black);
+  border: 0;
+  background: var(--acid);
+  font: 800 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.repeat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.repeat-toggle input {
+  width: 12px;
+  height: 12px;
+  accent-color: var(--acid);
+}
+
+.playlist-row {
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+}
+
+.playlist-row > button:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 9px;
+  color: var(--paper);
+  border-left: 0;
+  text-align: left;
+}
+
+.playlist-row.active {
+  border-color: var(--acid);
+}
+
 .wide-button {
   width: 100%;
 }

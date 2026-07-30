@@ -12,18 +12,23 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from src.library_store import LibraryStore
 from src.state_broker import StateBroker, StateEvent
 from src.twinkly_client import TwinklyClient
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC_DIR = ROOT / "public"
 CONFIG_PATH = Path(os.environ.get("SQUARES_CONFIG", ROOT / "config.json"))
+LIBRARY_PATH = Path(
+    os.environ.get("SQUARES_LIBRARY", ROOT / ".squares" / "library.json")
+)
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
-MAX_BODY_BYTES = 256_000
-APP_VERSION = "0.4.0"
+MAX_BODY_BYTES = 2_000_000
+APP_VERSION = "0.5.0"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
+library_store = LibraryStore(LIBRARY_PATH)
 
 
 def load_device_ip() -> str:
@@ -166,6 +171,9 @@ class SquaresHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path in {"/api/library", "/api/library/export"}:
+            self.send_json(HTTPStatus.OK, library_store.snapshot())
+            return
         if path == "/api/events":
             try:
                 self.serve_state_events()
@@ -190,6 +198,20 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         try:
             body = self.read_json()
             path = urlsplit(self.path).path
+            if path == "/api/scenes":
+                scene = library_store.upsert_scene(body)
+                self.send_json(HTTPStatus.OK, {"scene": scene})
+                return
+            if path == "/api/playlists":
+                playlist = library_store.upsert_playlist(body)
+                self.send_json(HTTPStatus.OK, {"playlist": playlist})
+                return
+            if path == "/api/library/import":
+                imported = library_store.import_library(
+                    body.get("library"), merge=bool(body.get("merge", True))
+                )
+                self.send_json(HTTPStatus.OK, imported)
+                return
             if path == "/api/frame":
                 raw_pixels = body.get("pixels")
                 if not isinstance(raw_pixels, list):
@@ -220,10 +242,34 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         except (
             ConnectionError,
             KeyError,
+            OSError,
             OverflowError,
             TypeError,
             ValueError,
         ) as error:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def do_DELETE(self) -> None:
+        try:
+            path = urlsplit(self.path).path
+            if path.startswith("/api/scenes/"):
+                item_id = path.removeprefix("/api/scenes/")
+                deleted = library_store.delete_scene(item_id)
+            elif path.startswith("/api/playlists/"):
+                item_id = path.removeprefix("/api/playlists/")
+                deleted = library_store.delete_playlist(item_id)
+            else:
+                self.send_json(
+                    HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
+                )
+                return
+            if not deleted:
+                self.send_json(
+                    HTTPStatus.NOT_FOUND, {"error": "Library item was not found."}
+                )
+                return
+            self.send_json(HTTPStatus.OK, {"deleted": item_id})
+        except (OSError, TypeError, ValueError) as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
 
 

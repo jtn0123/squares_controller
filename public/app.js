@@ -2,6 +2,11 @@ import {
   brightnessFromStatus,
   statusOptionsForSource,
 } from "./status_sync.js";
+import {
+  advancePlaylist,
+  createSceneSnapshot,
+  normalizeLibrary,
+} from "./library_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -14,6 +19,7 @@ const effectSpeed = document.querySelector("#effectSpeed");
 const effectIntensity = document.querySelector("#effectIntensity");
 const toastElement = document.querySelector("#toast");
 const PRESET_STORAGE_KEY = "squares-controller.presets.v1";
+const PRESET_MIGRATION_KEY = "squares-controller.presets-migrated.v1";
 const ROTATION_STORAGE_KEY = "squares-controller.rotation.v1";
 const MAX_SAVED_PRESETS = 12;
 
@@ -43,6 +49,10 @@ const state = {
   rotation: 0,
   backendWarningShown: false,
   stateEvents: null,
+  library: { scenes: [], playlists: [] },
+  playlistDraft: [],
+  playlistTimer: null,
+  activePlaylistId: null,
 };
 
 function toast(message, error = false) {
@@ -718,13 +728,6 @@ function readSavedPresets() {
   }
 }
 
-function writeSavedPresets(presets) {
-  localStorage.setItem(
-    PRESET_STORAGE_KEY,
-    JSON.stringify(presets.slice(0, MAX_SAVED_PRESETS)),
-  );
-}
-
 async function sendBrightness(value) {
   brightnessSlider.value = value;
   updateBrightnessVisual(value);
@@ -778,7 +781,10 @@ function createPresetRow(preset, saved = false) {
   const type = document.createElement("small");
   type.textContent = preset.effect ? preset.effect.toUpperCase() : "FRAME";
   loadButton.append(name, type);
-  loadButton.addEventListener("click", () => void loadPreset(preset));
+  loadButton.addEventListener("click", () => {
+    stopPlaylist();
+    void loadPreset(preset);
+  });
   row.append(loadButton);
 
   if (saved) {
@@ -787,14 +793,19 @@ function createPresetRow(preset, saved = false) {
     deleteButton.type = "button";
     deleteButton.setAttribute("aria-label", `Delete ${preset.name}`);
     deleteButton.textContent = "×";
-    deleteButton.addEventListener("click", () => {
-      const remaining = readSavedPresets().filter((item) => item.id !== preset.id);
+    deleteButton.addEventListener("click", async () => {
       try {
-        writeSavedPresets(remaining);
+        await api(`/api/scenes/${encodeURIComponent(preset.id)}`, {
+          method: "DELETE",
+        });
+        state.playlistDraft = state.playlistDraft.filter(
+          (step) => step.sceneId !== preset.id,
+        );
+        await loadLibrary();
         renderPresets();
         toast(`Deleted ${preset.name}.`);
-      } catch {
-        toast("Browser storage is unavailable.", true);
+      } catch (error) {
+        toast(error.message, true);
       }
     });
     row.append(deleteButton);
@@ -809,12 +820,12 @@ function renderPresets() {
   builtInPresets.forEach((preset) => {
     presetList.append(createPresetRow(preset));
   });
-  readSavedPresets().forEach((preset) => {
+  state.library.scenes.forEach((preset) => {
     presetList.append(createPresetRow(preset, true));
   });
 }
 
-function saveCurrentPreset() {
+async function saveCurrentPreset() {
   const input = document.querySelector("#presetName");
   const name = input.value.trim().toUpperCase();
   if (!name) {
@@ -823,46 +834,311 @@ function saveCurrentPreset() {
     return;
   }
 
-  const presets = readSavedPresets();
-  const existing = presets.findIndex((preset) => preset.name === name);
+  const existing = state.library.scenes.find((preset) => preset.name === name);
   const effect = Object.hasOwn(effectPainters, state.animationName)
     ? state.animationName
     : null;
-  const preset = {
-    id: existing >= 0 ? presets[existing].id : `${Date.now()}-${Math.random()}`,
+  const preset = createSceneSnapshot({
     name,
     effect,
     width: state.width,
     height: state.height,
-    pixels: effect ? null : Array.from(state.pixels),
+    pixels: state.pixels,
     speed: Number(effectSpeed.value),
     intensity: Number(effectIntensity.value),
     brightness: Number(brightnessSlider.value),
-  };
+  });
+  if (existing) preset.id = existing.id;
 
-  if (existing >= 0) presets.splice(existing, 1);
-  presets.unshift(preset);
   try {
-    writeSavedPresets(presets);
+    await api("/api/scenes", {
+      method: "POST",
+      body: JSON.stringify(preset),
+    });
     input.value = "";
-    renderPresets();
-    toast(`Saved ${name} in this browser.`);
+    await loadLibrary();
+    toast(`Saved ${name} to the controller library.`);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function migrateBrowserPresets() {
+  let alreadyMigrated = false;
+  try {
+    alreadyMigrated = localStorage.getItem(PRESET_MIGRATION_KEY) === "done";
   } catch {
-    toast("Browser storage is unavailable or full.", true);
+    return;
+  }
+  if (alreadyMigrated) return;
+
+  const browserPresets = readSavedPresets();
+  try {
+    for (const preset of browserPresets) {
+      const { id: _legacyId, ...portablePreset } = preset;
+      await api("/api/scenes", {
+        method: "POST",
+        body: JSON.stringify(portablePreset),
+      });
+    }
+    localStorage.removeItem(PRESET_STORAGE_KEY);
+    localStorage.setItem(PRESET_MIGRATION_KEY, "done");
+    if (browserPresets.length) {
+      toast(`Migrated ${browserPresets.length} browser preset${browserPresets.length === 1 ? "" : "s"}.`);
+    }
+  } catch (error) {
+    toast(`Preset migration paused: ${error.message}`, true);
+  }
+}
+
+function sceneForId(sceneId) {
+  return state.library.scenes.find((scene) => scene.id === sceneId);
+}
+
+function populatePlaylistSceneSelect() {
+  const select = document.querySelector("#playlistSceneSelect");
+  select.replaceChildren();
+  if (!state.library.scenes.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "SAVE A SCENE FIRST";
+    select.append(option);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  state.library.scenes.forEach((scene) => {
+    const option = document.createElement("option");
+    option.value = scene.id;
+    option.textContent = scene.name;
+    select.append(option);
+  });
+}
+
+function renderPlaylistDraft() {
+  const draft = document.querySelector("#playlistDraft");
+  draft.replaceChildren();
+  if (!state.playlistDraft.length) {
+    const empty = document.createElement("small");
+    empty.textContent = "ADD SAVED SCENES TO BUILD A TIMED RUN.";
+    draft.append(empty);
+    return;
+  }
+  state.playlistDraft.forEach((step, index) => {
+    const scene = sceneForId(step.sceneId);
+    const row = document.createElement("div");
+    row.className = "playlist-draft-row";
+    const order = document.createElement("b");
+    order.textContent = String(index + 1).padStart(2, "0");
+    const name = document.createElement("span");
+    name.textContent = scene?.name ?? "MISSING SCENE";
+    const duration = document.createElement("small");
+    duration.textContent = `${step.duration}s`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${name.textContent}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      state.playlistDraft.splice(index, 1);
+      renderPlaylistDraft();
+    });
+    row.append(order, name, duration, remove);
+    draft.append(row);
+  });
+}
+
+function stopPlaylist(showNotice = false) {
+  clearTimeout(state.playlistTimer);
+  state.playlistTimer = null;
+  const wasRunning = Boolean(state.activePlaylistId);
+  state.activePlaylistId = null;
+  renderPlaylists();
+  if (showNotice && wasRunning) toast("Playlist stopped.");
+}
+
+async function runPlaylistStep(playlist, index) {
+  if (state.activePlaylistId !== playlist.id) return;
+  const step = playlist.steps[index];
+  const scene = sceneForId(step.sceneId);
+  if (!scene) {
+    stopPlaylist();
+    toast("A playlist scene is missing.", true);
+    return;
+  }
+  await loadPreset(scene);
+  if (state.activePlaylistId !== playlist.id) return;
+  state.playlistTimer = setTimeout(() => {
+    const next = advancePlaylist(index, playlist.steps.length, playlist.repeat);
+    if (next.done) {
+      stopPlaylist();
+      toast(`${playlist.name} finished.`);
+      return;
+    }
+    void runPlaylistStep(playlist, next.index);
+  }, step.duration * 1000);
+}
+
+function playPlaylist(playlist) {
+  stopPlaylist();
+  state.activePlaylistId = playlist.id;
+  renderPlaylists();
+  toast(`Running ${playlist.name}.`);
+  void runPlaylistStep(playlist, 0);
+}
+
+function renderPlaylists() {
+  const list = document.querySelector("#playlistList");
+  list.replaceChildren();
+  state.library.playlists.forEach((playlist) => {
+    const row = document.createElement("div");
+    row.className = "playlist-row";
+    row.classList.toggle("active", state.activePlaylistId === playlist.id);
+    const play = document.createElement("button");
+    play.type = "button";
+    const name = document.createElement("span");
+    name.textContent = playlist.name;
+    const details = document.createElement("small");
+    details.textContent = `${playlist.steps.length} STEP${playlist.steps.length === 1 ? "" : "S"}${playlist.repeat ? " / LOOP" : ""}`;
+    play.append(name, details);
+    play.addEventListener("click", () => playPlaylist(playlist));
+    const runtime = document.createElement("small");
+    const seconds = playlist.steps.reduce((total, step) => total + step.duration, 0);
+    runtime.textContent = `${seconds}s`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Delete ${playlist.name}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", async () => {
+      try {
+        if (state.activePlaylistId === playlist.id) stopPlaylist();
+        await api(`/api/playlists/${encodeURIComponent(playlist.id)}`, {
+          method: "DELETE",
+        });
+        await loadLibrary();
+        toast(`Deleted ${playlist.name}.`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+    row.append(play, runtime, remove);
+    list.append(row);
+  });
+}
+
+async function loadLibrary() {
+  const library = normalizeLibrary(await api("/api/library"));
+  state.library = library;
+  state.playlistDraft = state.playlistDraft.filter((step) => sceneForId(step.sceneId));
+  renderPresets();
+  populatePlaylistSceneSelect();
+  renderPlaylistDraft();
+  renderPlaylists();
+}
+
+async function initializeLibrary() {
+  try {
+    await migrateBrowserPresets();
+    await loadLibrary();
+  } catch (error) {
+    toast(`Scene library unavailable: ${error.message}`, true);
+    renderPresets();
   }
 }
 
 document
   .querySelector("#savePresetButton")
-  .addEventListener("click", saveCurrentPreset);
+  .addEventListener("click", () => void saveCurrentPreset());
 document.querySelector("#presetName").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") saveCurrentPreset();
+  if (event.key === "Enter") void saveCurrentPreset();
+});
+
+document.querySelector("#addPlaylistStepButton").addEventListener("click", () => {
+  const sceneId = document.querySelector("#playlistSceneSelect").value;
+  const duration = Number(document.querySelector("#playlistDuration").value);
+  if (!sceneForId(sceneId)) {
+    toast("Save a scene before building a playlist.", true);
+    return;
+  }
+  if (!Number.isFinite(duration) || duration < 1 || duration > 86_400) {
+    toast("Step time must be from 1 to 86400 seconds.", true);
+    return;
+  }
+  state.playlistDraft.push({ sceneId, duration, transition: "cut" });
+  renderPlaylistDraft();
+});
+
+document.querySelector("#savePlaylistButton").addEventListener("click", async () => {
+  const nameInput = document.querySelector("#playlistName");
+  const name = nameInput.value.trim().toUpperCase();
+  if (!name || !state.playlistDraft.length) {
+    toast("Name the playlist and add at least one step.", true);
+    return;
+  }
+  const existing = state.library.playlists.find((playlist) => playlist.name === name);
+  try {
+    await api("/api/playlists", {
+      method: "POST",
+      body: JSON.stringify({
+        ...(existing ? { id: existing.id } : {}),
+        name,
+        repeat: document.querySelector("#playlistRepeat").checked,
+        steps: state.playlistDraft,
+      }),
+    });
+    nameInput.value = "";
+    state.playlistDraft = [];
+    await loadLibrary();
+    toast(`Saved ${name}.`);
+  } catch (error) {
+    toast(error.message, true);
+  }
+});
+
+document
+  .querySelector("#stopPlaylistButton")
+  .addEventListener("click", () => stopPlaylist(true));
+
+document.querySelector("#exportLibraryButton").addEventListener("click", async () => {
+  try {
+    const library = await api("/api/library/export");
+    const blob = new Blob([`${JSON.stringify(library, null, 2)}\n`], {
+      type: "application/json",
+    });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `squares-library-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast("Library backup exported.");
+  } catch (error) {
+    toast(error.message, true);
+  }
+});
+
+document.querySelector("#importLibraryInput").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  if (!file) return;
+  try {
+    const library = JSON.parse(await file.text());
+    await api("/api/library/import", {
+      method: "POST",
+      body: JSON.stringify({ library, merge: true }),
+    });
+    await loadLibrary();
+    toast(`Imported ${file.name}.`);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    event.target.value = "";
+  }
 });
 
 render();
 updateModulationVisuals();
 renderPresets();
+renderPlaylistDraft();
 void loadStatus();
+void initializeLibrary();
 startStateSync();
 setInterval(() => {
   if (!state.animationName) void loadStatus();

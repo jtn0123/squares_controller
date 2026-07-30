@@ -230,7 +230,7 @@
         <section class="rack-section">
           <div class="rack-title">
             <span>04 / PRESET BANK</span>
-            <strong>BROWSER LOCAL</strong>
+            <strong>SERVER LIBRARY</strong>
           </div>
           <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
           <div class="preset-composer">
@@ -245,12 +245,57 @@
             <button id="savePresetButton" type="button">SAVE</button>
           </div>
           <div class="preset-list" id="presetList"></div>
-          <small class="local-note">Stored only in this browser.</small>
+          <div class="library-actions">
+            <button id="exportLibraryButton" type="button">EXPORT JSON</button>
+            <label>
+              IMPORT JSON
+              <input id="importLibraryInput" type="file" accept="application/json,.json" />
+            </label>
+          </div>
+          <small class="local-note">Saved locally beside the controller. Browser presets migrate once.</small>
+        </section>
+
+        <section class="rack-section">
+          <div class="rack-title">
+            <span>05 / PLAYLIST RUNNER</span>
+            <button class="stop-link" id="stopPlaylistButton" type="button">STOP</button>
+          </div>
+          <div class="playlist-step-composer">
+            <label>
+              <span>SCENE</span>
+              <select id="playlistSceneSelect" aria-label="Playlist scene"></select>
+            </label>
+            <label>
+              <span>SECONDS</span>
+              <input id="playlistDuration" type="number" min="1" max="86400" value="30" />
+            </label>
+            <button id="addPlaylistStepButton" type="button">ADD STEP</button>
+          </div>
+          <div class="playlist-draft" id="playlistDraft">
+            <small>ADD SAVED SCENES TO BUILD A TIMED RUN.</small>
+          </div>
+          <div class="playlist-save-line">
+            <input
+              id="playlistName"
+              type="text"
+              maxlength="48"
+              placeholder="PLAYLIST NAME"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <label class="repeat-toggle">
+              <input id="playlistRepeat" type="checkbox" />
+              LOOP
+            </label>
+            <button id="savePlaylistButton" type="button">SAVE</button>
+          </div>
+          <div class="playlist-list" id="playlistList"></div>
+          <small class="local-note">Playback runs while this page is open.</small>
         </section>
 
         <section class="rack-section system-section">
           <div class="rack-title">
-            <span>05 / SYSTEM</span>
+            <span>06 / SYSTEM</span>
             <strong id="firmwareReadout">FW —</strong>
           </div>
           <div class="rotation-line">

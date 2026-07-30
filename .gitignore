@@ -2,5 +2,6 @@
 __pycache__/
 *.py[cod]
 config.json
+.squares/
 node_modules/
 npm-debug.log*
