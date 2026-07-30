@@ -388,8 +388,36 @@
 
         <section class="rack-section">
           <div class="rack-title">
-            <span>04 / PRESET BANK</span>
-            <strong>SERVER LIBRARY</strong>
+            <span>04 / SCENE DECK</span>
+            <strong>PROGRAM + LIBRARY</strong>
+          </div>
+          <div class="scene-monitor" id="sceneMonitor" data-state="canvas">
+            <div class="scene-monitor-screen">
+              <canvas
+                id="sceneMonitorCanvas"
+                width="32"
+                height="24"
+                aria-label="Live scene output preview"
+              ></canvas>
+              <span id="sceneMonitorBadge">LIVE OUTPUT</span>
+            </div>
+            <div class="scene-monitor-copy">
+              <small id="sceneMonitorKicker">PROGRAM MONITOR</small>
+              <strong id="sceneMonitorName">CURRENT CANVAS</strong>
+              <span id="sceneMonitorMeta">32×24 / WHOLE WALL</span>
+              <div
+                class="scene-progress"
+                id="sceneProgress"
+                role="progressbar"
+                aria-label="Playlist scene progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
+              >
+                <i id="sceneProgressFill"></i>
+              </div>
+              <small id="sceneProgressLabel">OUTPUT MIRRORS THE WALL</small>
+            </div>
           </div>
           <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
           <div class="preset-composer">

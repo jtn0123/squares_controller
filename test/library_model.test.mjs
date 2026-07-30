@@ -5,6 +5,7 @@ import {
   advancePlaylist,
   createSceneSnapshot,
   normalizeLibrary,
+  playlistStepProgress,
 } from "../public/library_model.js";
 
 test("normalizes a server library and drops malformed records", () => {
@@ -40,6 +41,7 @@ test("creates either an effect scene or a raster scene", () => {
     width: 2,
     height: 1,
     pixels: null,
+    previewPixels: [1, 2, 3, 4, 5, 6],
     speed: 90,
     intensity: 60,
     brightness: 25,
@@ -50,6 +52,21 @@ test("creates either an effect scene or a raster scene", () => {
   assert.deepEqual(createSceneSnapshot({ ...base, effect: null }).pixels, [
     1, 2, 3, 4, 5, 6,
   ]);
+});
+
+test("tracks bounded playlist step progress and remaining time", () => {
+  assert.deepEqual(playlistStepProgress(1_000, 5, 2_250), {
+    progress: 0.25,
+    remainingSeconds: 4,
+  });
+  assert.deepEqual(playlistStepProgress(1_000, 5, 8_000), {
+    progress: 1,
+    remainingSeconds: 0,
+  });
+  assert.deepEqual(playlistStepProgress(null, 5, 2_000), {
+    progress: 0,
+    remainingSeconds: 5,
+  });
 });
 
 test("advances and stops or repeats at the playlist boundary", () => {

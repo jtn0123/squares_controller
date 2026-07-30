@@ -6,6 +6,7 @@ import {
   advancePlaylist,
   createSceneSnapshot,
   normalizeLibrary,
+  playlistStepProgress,
 } from "./library_model.js";
 import {
   CURATED_PALETTES,
@@ -47,6 +48,7 @@ import {
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
+const sceneMonitorCanvas = document.querySelector("#sceneMonitorCanvas");
 const mediaCanvas = document.createElement("canvas");
 const mediaContext = mediaCanvas.getContext("2d", { alpha: false });
 const stage = document.querySelector(".stage-frame");
@@ -96,7 +98,15 @@ const state = {
   library: { scenes: [], playlists: [] },
   playlistDraft: [],
   playlistTimer: null,
+  playlistProgressTimer: null,
   activePlaylistId: null,
+  activePlaylistStep: null,
+  outputContext: {
+    kind: "canvas",
+    name: "CURRENT CANVAS",
+    sceneKey: null,
+    scene: null,
+  },
   palette: normalizePalette(null),
   zone: { type: "all" },
   overlay: normalizeLayer({
@@ -300,6 +310,156 @@ function setPixel(x, y, rgb) {
   state.pixels[offset + 2] = rgb[2];
 }
 
+function drawRgbCanvas(targetCanvas, pixels, width, height) {
+  if (
+    !targetCanvas ||
+    !pixels ||
+    pixels.length !== width * height * 3
+  ) {
+    return false;
+  }
+  if (targetCanvas.width !== width) targetCanvas.width = width;
+  if (targetCanvas.height !== height) targetCanvas.height = height;
+  const targetContext = targetCanvas.getContext("2d", { alpha: false });
+  const image = targetContext.createImageData(width, height);
+  for (let source = 0, destination = 0; source < pixels.length; source += 3) {
+    image.data[destination] = pixels[source];
+    image.data[destination + 1] = pixels[source + 1];
+    image.data[destination + 2] = pixels[source + 2];
+    image.data[destination + 3] = 255;
+    destination += 4;
+  }
+  targetContext.putImageData(image, 0, 0);
+  return true;
+}
+
+function sceneKey(preset, saved) {
+  return `${saved ? "saved" : "built-in"}:${preset.id}`;
+}
+
+function scenePreviewPixels(preset) {
+  const width = Number(preset.width) || state.width;
+  const height = Number(preset.height) || state.height;
+  const expected = width * height * 3;
+  const stored =
+    Array.isArray(preset.previewPixels) && preset.previewPixels.length === expected
+      ? preset.previewPixels
+      : Array.isArray(preset.pixels) && preset.pixels.length === expected
+        ? preset.pixels
+        : null;
+  if (stored) return { pixels: new Uint8Array(stored), width, height };
+  if (
+    !preset.effect ||
+    width !== state.width ||
+    height !== state.height ||
+    !effectPainters[preset.effect]
+  ) {
+    return null;
+  }
+  const pixels = new Uint8Array(expected);
+  const palette = normalizePalette(preset.palette);
+  const time = 1.35 * (Number(preset.speed ?? 100) / 100);
+  effectPainters[preset.effect](time, pixels, palette.colors);
+  const intensity = Math.max(
+    0.1,
+    Math.min(1, Number(preset.intensity ?? 75) / 100),
+  );
+  for (let index = 0; index < pixels.length; index += 1) {
+    pixels[index] = clampByte(pixels[index] * intensity);
+  }
+  return { pixels, width, height };
+}
+
+function updateSceneMonitor() {
+  const monitor = document.querySelector("#sceneMonitor");
+  if (!monitor) return;
+  const output = state.outputContext;
+  const scene = output.scene;
+  const playlist = state.library.playlists.find(
+    (item) => item.id === state.activePlaylistId,
+  );
+  monitor.dataset.state = output.kind;
+  document.querySelector("#sceneMonitorBadge").textContent = playlist
+    ? "PLAYLIST LIVE"
+    : output.kind === "scene"
+      ? "SCENE LIVE"
+      : "LIVE OUTPUT";
+  document.querySelector("#sceneMonitorKicker").textContent = playlist
+    ? `PLAYLIST / ${playlist.name}`
+    : output.kind === "scene"
+      ? `${output.source ?? "SAVED"} SCENE`
+      : "PROGRAM MONITOR";
+  document.querySelector("#sceneMonitorName").textContent = output.name;
+
+  const effectName =
+    effectById(scene?.effect ?? output.effect)?.name ??
+    (output.kind === "canvas" ? "PIXEL FRAME" : output.kind.toUpperCase());
+  const brightness = Math.round(
+    Number(scene?.brightness ?? brightnessSlider.value),
+  );
+  const zone = describeZone(scene?.zone ?? state.zone);
+  document.querySelector("#sceneMonitorMeta").textContent =
+    `${effectName} / ${brightness}% / ${zone}`;
+
+  const progressElement = document.querySelector("#sceneProgress");
+  const progressFill = document.querySelector("#sceneProgressFill");
+  const progressLabel = document.querySelector("#sceneProgressLabel");
+  if (playlist && state.activePlaylistStep) {
+    const progress = playlistStepProgress(
+      state.activePlaylistStep.startedAt,
+      state.activePlaylistStep.duration,
+    );
+    const percent = Math.round(progress.progress * 100);
+    progressFill.style.width = `${percent}%`;
+    progressElement.setAttribute("aria-valuenow", String(percent));
+    progressLabel.textContent =
+      `STEP ${state.activePlaylistStep.index + 1}/${playlist.steps.length}` +
+      ` / ${progress.remainingSeconds}s LEFT` +
+      ` / ${state.activePlaylistStep.transition.toUpperCase()}`;
+  } else {
+    progressFill.style.width = "0%";
+    progressElement.setAttribute("aria-valuenow", "0");
+    progressLabel.textContent =
+      output.kind === "scene"
+        ? "OUTPUT MIRRORS THIS SCENE"
+        : "OUTPUT MIRRORS THE WALL";
+  }
+}
+
+function setOutputContext(output) {
+  state.outputContext = {
+    kind: output.kind ?? "canvas",
+    name: output.name ?? "CURRENT OUTPUT",
+    sceneKey: output.sceneKey ?? null,
+    scene: output.scene ?? null,
+    source: output.source ?? null,
+    effect: output.effect ?? output.scene?.effect ?? null,
+  };
+  renderPresets();
+  updateSceneMonitor();
+  drawRgbCanvas(
+    sceneMonitorCanvas,
+    state.pixels,
+    state.width,
+    state.height,
+  );
+}
+
+function renderSceneMirrors() {
+  drawRgbCanvas(
+    sceneMonitorCanvas,
+    state.pixels,
+    state.width,
+    state.height,
+  );
+  const activeSceneCanvas = document.querySelector(
+    ".preset-row.active .scene-preview-canvas",
+  );
+  if (activeSceneCanvas) {
+    drawRgbCanvas(activeSceneCanvas, state.pixels, state.width, state.height);
+  }
+}
+
 function render() {
   const cellWidth = canvas.width / state.width;
   const cellHeight = canvas.height / state.height;
@@ -368,6 +528,7 @@ function render() {
     );
   }
   context.restore();
+  renderSceneMirrors();
 }
 
 function stopAnimation(showNotice = false) {
@@ -434,6 +595,7 @@ function paintAtEvent(event) {
 canvas.addEventListener("pointerdown", (event) => {
   stopMedia();
   stopAnimation();
+  setOutputContext({ kind: "canvas", name: "HAND-DRAWN FRAME" });
   state.drawing = true;
   canvas.setPointerCapture(event.pointerId);
   paintAtEvent(event);
@@ -480,6 +642,7 @@ document.querySelector("#eraserButton").addEventListener("click", (event) => {
 document.querySelector("#fillButton").addEventListener("click", () => {
   stopMedia();
   stopAnimation();
+  setOutputContext({ kind: "canvas", name: "COLOR FILL" });
   const color = hexToRgb(colorPicker.value);
   for (let y = 0; y < state.height; y += 1) {
     for (let x = 0; x < state.width; x += 1) {
@@ -493,6 +656,7 @@ document.querySelector("#fillButton").addEventListener("click", () => {
 document.querySelector("#clearButton").addEventListener("click", () => {
   stopMedia();
   stopAnimation();
+  setOutputContext({ kind: "canvas", name: "CLEARED FRAME" });
   for (let y = 0; y < state.height; y += 1) {
     for (let x = 0; x < state.width; x += 1) {
       setPixel(x, y, [0, 0, 0]);
@@ -639,6 +803,7 @@ document.querySelector("#imageInput").addEventListener("change", (event) => {
   stopMedia();
   stopAnimation();
   state.animationName = "media";
+  setOutputContext({ kind: "media", name: file.name.toUpperCase() });
   const url = URL.createObjectURL(file);
   state.mediaUrl = url;
 
@@ -699,6 +864,7 @@ document.querySelector("#imageInput").addEventListener("change", (event) => {
 function updateBrightnessVisual(value) {
   brightnessValue.textContent = `${value}%`;
   updateRangeFill(brightnessSlider);
+  updateSceneMonitor();
 }
 
 function updateRangeFill(input) {
@@ -996,6 +1162,10 @@ async function setMode(mode) {
         body: JSON.stringify({ mode }),
       }),
     );
+    setOutputContext({
+      kind: mode === "off" ? "off" : "stock",
+      name: mode === "off" ? "OUTPUT OFF" : "TWINKLY STOCK MODE",
+    });
     toast(mode === "off" ? "Panel switched off." : "Stock Twinkly animation restored.");
   } catch (error) {
     toast(error.message, true);
@@ -1086,10 +1256,17 @@ function renderGeneratedFrame(
   return target;
 }
 
-function startGeneratedEffect(name) {
+function startGeneratedEffect(name, { preserveOutput = false } = {}) {
   stopMedia();
   stopAnimation();
   state.animationName = name;
+  if (!preserveOutput) {
+    setOutputContext({
+      kind: "effect",
+      name: effectById(name)?.name ?? name.toUpperCase(),
+      effect: name,
+    });
+  }
   document
     .querySelector(`[data-effect="${name}"]`)
     ?.classList.add("active");
@@ -1445,6 +1622,10 @@ function startTextMode(text, clock = false) {
   stopMedia();
   stopAnimation();
   state.animationName = clock ? "clock" : "message";
+  setOutputContext({
+    kind: "text",
+    name: clock ? "LOCAL CLOCK" : text.toUpperCase(),
+  });
   const textCanvas = document.createElement("canvas");
   const textContext = textCanvas.getContext("2d");
   let offset = state.width;
@@ -1647,8 +1828,15 @@ async function loadPreset(preset, options = {}) {
     const completed = await transitionToFrame(target, selectedTransition);
     if (!completed) return false;
     if (preset.effect && effectById(preset.effect) && effectPainters[preset.effect]) {
-      startGeneratedEffect(preset.effect);
+      startGeneratedEffect(preset.effect, { preserveOutput: true });
     }
+    setOutputContext({
+      kind: "scene",
+      name: preset.name,
+      sceneKey: options.sceneKey ?? `saved:${preset.id}`,
+      scene: preset,
+      source: options.source ?? "SAVED",
+    });
     toast(`Loaded ${preset.name}.`);
     return true;
   } catch (error) {
@@ -1660,18 +1848,60 @@ async function loadPreset(preset, options = {}) {
 function createPresetRow(preset, saved = false) {
   const row = document.createElement("div");
   row.className = "preset-row";
+  if (!saved) row.classList.add("built-in");
+  const key = sceneKey(preset, saved);
+  row.dataset.sceneKey = key;
+  row.classList.toggle("active", state.outputContext.sceneKey === key);
 
   const loadButton = document.createElement("button");
   loadButton.className = "preset-load";
   loadButton.type = "button";
+  loadButton.setAttribute("aria-label", `Load scene ${preset.name}`);
+
+  const preview = document.createElement("span");
+  preview.className = "scene-preview";
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.className = "scene-preview-canvas";
+  previewCanvas.setAttribute("aria-hidden", "true");
+  const previewLabel = document.createElement("small");
+  previewLabel.className = "scene-preview-label";
+  previewLabel.textContent =
+    state.outputContext.sceneKey === key
+      ? "ON AIR"
+      : saved
+        ? "SAVED"
+        : "BUILT-IN";
+  preview.append(previewCanvas, previewLabel);
+
+  const previewFrame = scenePreviewPixels(preset);
+  if (previewFrame) {
+    preview.style.aspectRatio = `${previewFrame.width} / ${previewFrame.height}`;
+    drawRgbCanvas(
+      previewCanvas,
+      previewFrame.pixels,
+      previewFrame.width,
+      previewFrame.height,
+    );
+  }
+
+  const copy = document.createElement("span");
+  copy.className = "scene-card-copy";
   const name = document.createElement("span");
   name.textContent = preset.name;
-  const type = document.createElement("small");
-  type.textContent = preset.effect ? preset.effect.toUpperCase() : "FRAME";
-  loadButton.append(name, type);
+  const details = document.createElement("small");
+  const effectName =
+    effectById(preset.effect)?.name ?? (preset.effect ? preset.effect : "STATIC FRAME");
+  details.textContent =
+    `${effectName} / ${Math.round(Number(preset.brightness ?? 25))}%` +
+    ` / ${describeZone(preset.zone ?? { type: "all" })}`;
+  copy.append(name, details);
+  loadButton.append(preview, copy);
   loadButton.addEventListener("click", () => {
     stopPlaylist();
-    void loadPreset(preset);
+    void loadPreset(preset, {
+      sceneKey: key,
+      source: saved ? "SAVED" : "BUILT-IN",
+    });
   });
   row.append(loadButton);
 
@@ -1689,8 +1919,10 @@ function createPresetRow(preset, saved = false) {
         state.playlistDraft = state.playlistDraft.filter(
           (step) => step.sceneId !== preset.id,
         );
+        if (state.outputContext.sceneKey === key) {
+          setOutputContext({ kind: "canvas", name: "CURRENT FRAME" });
+        }
         await loadLibrary();
-        renderPresets();
         toast(`Deleted ${preset.name}.`);
       } catch (error) {
         toast(error.message, true);
@@ -1743,12 +1975,24 @@ async function saveCurrentPreset() {
   if (existing) preset.id = existing.id;
 
   try {
-    await api("/api/scenes", {
+    const response = await api("/api/scenes", {
       method: "POST",
       body: JSON.stringify(preset),
     });
     input.value = "";
     await loadLibrary();
+    const savedScene =
+      sceneForId(response.scene?.id) ??
+      state.library.scenes.find((scene) => scene.name === name);
+    if (savedScene) {
+      setOutputContext({
+        kind: "scene",
+        name: savedScene.name,
+        sceneKey: `saved:${savedScene.id}`,
+        scene: savedScene,
+        source: "SAVED",
+      });
+    }
     toast(`Saved ${name} to the controller library.`);
   } catch (error) {
     toast(error.message, true);
@@ -1841,10 +2085,14 @@ function renderPlaylistDraft() {
 
 function stopPlaylist(showNotice = false) {
   clearTimeout(state.playlistTimer);
+  clearInterval(state.playlistProgressTimer);
   state.playlistTimer = null;
+  state.playlistProgressTimer = null;
   const wasRunning = Boolean(state.activePlaylistId);
   state.activePlaylistId = null;
+  state.activePlaylistStep = null;
   renderPlaylists();
+  updateSceneMonitor();
   if (showNotice && wasRunning) toast("Playlist stopped.");
 }
 
@@ -1857,13 +2105,22 @@ async function runPlaylistStep(playlist, index) {
     toast("A playlist scene is missing.", true);
     return;
   }
-  await loadPreset(scene, {
+  const loaded = await loadPreset(scene, {
+    sceneKey: `saved:${scene.id}`,
+    source: "PLAYLIST",
     transition: {
       type: step.transition,
       duration: state.transition.duration,
     },
   });
-  if (state.activePlaylistId !== playlist.id) return;
+  if (!loaded || state.activePlaylistId !== playlist.id) return;
+  state.activePlaylistStep = {
+    index,
+    startedAt: Date.now(),
+    duration: step.duration,
+    transition: step.transition,
+  };
+  updateSceneMonitor();
   state.playlistTimer = setTimeout(() => {
     const next = advancePlaylist(index, playlist.steps.length, playlist.repeat);
     if (next.done) {
@@ -1878,7 +2135,9 @@ async function runPlaylistStep(playlist, index) {
 function playPlaylist(playlist) {
   stopPlaylist();
   state.activePlaylistId = playlist.id;
+  state.playlistProgressTimer = setInterval(updateSceneMonitor, 250);
   renderPlaylists();
+  updateSceneMonitor();
   toast(`Running ${playlist.name}.`);
   void runPlaylistStep(playlist, 0);
 }
@@ -2190,6 +2449,7 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
 });
 
 render();
+updateSceneMonitor();
 updateModulationVisuals();
 initializeEffectCatalog();
 initializePalettes();

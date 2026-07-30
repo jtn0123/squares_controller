@@ -41,6 +41,7 @@ export function createSceneSnapshot({
     width,
     height,
     pixels: effect ? null : Array.from(pixels),
+    ...(effect ? { previewPixels: Array.from(pixels) } : {}),
     speed: Number(speed),
     intensity: Number(intensity),
     brightness: Number(brightness),
@@ -48,6 +49,19 @@ export function createSceneSnapshot({
     ...(zone ? { zone: structuredClone(zone) } : {}),
     ...(layers ? { layers: structuredClone(layers) } : {}),
     ...(transition ? { transition: structuredClone(transition) } : {}),
+  };
+}
+
+export function playlistStepProgress(startedAt, durationSeconds, now = Date.now()) {
+  const duration = Math.max(1, Number(durationSeconds) || 1);
+  if (!Number.isFinite(startedAt)) {
+    return { progress: 0, remainingSeconds: Math.ceil(duration) };
+  }
+  const elapsed = Math.max(0, now - startedAt);
+  const progress = Math.min(1, elapsed / (duration * 1000));
+  return {
+    progress,
+    remainingSeconds: Math.max(0, Math.ceil(duration - elapsed / 1000)),
   };
 }
 

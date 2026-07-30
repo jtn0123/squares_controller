@@ -1182,6 +1182,114 @@ h1 {
   letter-spacing: 0.12em;
 }
 
+.scene-monitor {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.85fr) minmax(0, 1.15fr);
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 9px;
+  border: 1px solid #353d32;
+  background:
+    linear-gradient(135deg, rgba(217, 255, 91, 0.045), transparent 48%),
+    #070907;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.scene-monitor[data-state="scene"] {
+  border-color: #6b7e3d;
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 255, 91, 0.08),
+    0 0 20px rgba(217, 255, 91, 0.04);
+}
+
+.scene-monitor-screen {
+  position: relative;
+  align-self: start;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #30382d;
+  background: #020302;
+}
+
+.scene-monitor-screen::after {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(217, 255, 91, 0.08);
+  box-shadow: inset 0 0 22px rgba(217, 255, 91, 0.04);
+  content: "";
+  pointer-events: none;
+}
+
+#sceneMonitorCanvas,
+.scene-preview-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #030403;
+  image-rendering: pixelated;
+}
+
+#sceneMonitorBadge {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  padding: 3px 5px;
+  color: var(--black);
+  background: var(--acid);
+  font: 800 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.scene-monitor-copy {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  align-content: start;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.scene-monitor-copy > small,
+.scene-monitor-copy > span {
+  overflow: hidden;
+  color: #697064;
+  font: 650 7px/1.3 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-monitor-copy > strong {
+  margin: 5px 0 4px;
+  overflow: hidden;
+  color: var(--paper);
+  font: 750 13px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-monitor[data-state="scene"] .scene-monitor-copy > strong {
+  color: var(--acid);
+}
+
+.scene-progress {
+  align-self: end;
+  height: 3px;
+  margin: 10px 0 5px;
+  overflow: hidden;
+  background: #242a22;
+}
+
+.scene-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--acid);
+  box-shadow: 0 0 8px rgba(217, 255, 91, 0.45);
+  transition: width 200ms linear;
+}
+
 .scene-transition-control {
   display: grid;
   grid-template-columns: 1fr 1.2fr;
@@ -1225,18 +1333,35 @@ h1 {
 
 .preset-list {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
-  max-height: 244px;
+  max-height: 430px;
   padding-top: 4px;
   overflow-y: auto;
 }
 
 .preset-row {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) 27px;
   min-width: 0;
   border: 1px solid var(--line);
   background: #0a0c0a;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.preset-row:hover {
+  border-color: #4b5547;
+  transform: translateY(-1px);
+}
+
+.preset-row.active {
+  border-color: var(--acid);
+  box-shadow: inset 0 0 0 1px rgba(217, 255, 91, 0.13);
+}
+
+.preset-row.built-in {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .preset-load,
@@ -1248,11 +1373,9 @@ h1 {
 }
 
 .preset-load {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 10px;
+  display: grid;
+  grid-template-rows: auto auto;
+  padding: 0;
   text-align: left;
 }
 
@@ -1260,7 +1383,50 @@ h1 {
   background: var(--panel-raised);
 }
 
-.preset-load span {
+.scene-preview {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 35% 40%, rgba(217, 255, 91, 0.08), transparent 38%),
+    #030403;
+}
+
+.scene-preview canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.scene-preview-label {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 1;
+  padding: 3px 4px;
+  color: #9aa193;
+  border: 1px solid rgba(238, 232, 217, 0.18);
+  background: rgba(3, 4, 3, 0.8);
+  font: 750 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.09em;
+}
+
+.preset-row.active .scene-preview-label {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+}
+
+.scene-card-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.scene-card-copy span {
   overflow: hidden;
   font: 700 8px/1 "Avenir Next Condensed", sans-serif;
   letter-spacing: 0.1em;
@@ -1268,15 +1434,17 @@ h1 {
   white-space: nowrap;
 }
 
-.preset-load small {
-  flex: 0 0 auto;
+.scene-card-copy small {
+  overflow: hidden;
   color: var(--muted);
-  font: 600 7px/1 "Avenir Next Condensed", sans-serif;
-  letter-spacing: 0.1em;
+  font: 600 6px/1.25 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .preset-delete {
-  width: 34px;
+  width: 27px;
   color: var(--muted);
   border-left: 1px solid var(--line);
 }

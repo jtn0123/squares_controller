@@ -20,6 +20,7 @@ SCENE_FIELDS = {
     "width",
     "height",
     "pixels",
+    "previewPixels",
     "speed",
     "intensity",
     "brightness",
@@ -141,6 +142,25 @@ class LibraryStore:
             ):
                 raise ValueError("Scene RGB values must be numbers from 0 to 255.")
             scene["pixels"] = [round(value) for value in pixels]
+
+        preview_pixels = scene.get("previewPixels")
+        if preview_pixels is not None:
+            if (
+                not isinstance(preview_pixels, list)
+                or width is None
+                or height is None
+                or len(preview_pixels) != width * height * 3
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not 0 <= value <= 255
+                    for value in preview_pixels
+                )
+            ):
+                raise ValueError(
+                    "Scene preview RGB values must be numbers from 0 to 255."
+                )
+            scene["previewPixels"] = [round(value) for value in preview_pixels]
 
         try:
             encoded = json.dumps(scene, separators=(",", ":")).encode("utf-8")

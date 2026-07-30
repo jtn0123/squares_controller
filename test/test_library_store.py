@@ -20,8 +20,9 @@ class LibraryStoreTests(unittest.TestCase):
             {
                 "name": "Night Radar",
                 "effect": "radar",
-                "width": 32,
-                "height": 24,
+                "width": 2,
+                "height": 1,
+                "previewPixels": [1, 2, 3, 4, 5, 6],
                 "speed": 110,
                 "intensity": 58,
                 "brightness": 24,
@@ -30,6 +31,7 @@ class LibraryStoreTests(unittest.TestCase):
 
         self.assertRegex(scene["id"], r"^[a-f0-9]{32}$")
         self.assertEqual(scene["name"], "Night Radar")
+        self.assertEqual(scene["previewPixels"], [1, 2, 3, 4, 5, 6])
         self.assertEqual(LibraryStore(self.path).snapshot()["scenes"], [scene])
         self.assertEqual(json.loads(self.path.read_text())["version"], 1)
 

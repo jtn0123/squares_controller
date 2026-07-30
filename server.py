@@ -39,7 +39,7 @@ ALLOW_UNAUTHENTICATED_LAN = (
     os.environ.get("ALLOW_UNAUTHENTICATED_LAN", "0") == "1"
 )
 MAX_BODY_BYTES = 2_000_000
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
@@ -113,6 +113,11 @@ class SquaresHandler(SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         if self.path.startswith("/api/") and args and str(args[0]).startswith("5"):
             super().log_message(format, *args)
+
+    def end_headers(self) -> None:
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
 
     def send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         response_payload = controller_payload(payload)

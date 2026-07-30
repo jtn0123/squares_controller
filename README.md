@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.7.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-58%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.8.0-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-59%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -19,6 +19,8 @@ solder.
 - Target the whole wall, a panel, a row, a column, or a custom rectangle
 - Save server-persisted scenes and timed playlists with cut, crossfade, push,
   or dissolve transitions
+- See real scene thumbnails, an exact live-output monitor, active-scene state,
+  and playlist step progress in the controller UI
 - Display scrolling text, a clock, and locally loaded fonts
 - Schedule sleep, wake, brightness, stock-mode, and off actions
 - Rotate the complete display to 0°, 90°, 180°, or 270°
@@ -132,7 +134,7 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 29 Python and 29 browser-model tests. It covers
+The current suite contains 29 Python and 30 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, media controls, scenes, and playlists.
