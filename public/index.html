@@ -332,6 +332,30 @@
             />
             <button id="savePresetButton" type="button">SAVE</button>
           </div>
+          <div class="scene-transition-control">
+            <label>
+              <span>LOAD TRANSITION</span>
+              <select id="sceneTransition">
+                <option value="cut">CUT</option>
+                <option value="crossfade" selected>CROSSFADE</option>
+                <option value="push">PUSH</option>
+                <option value="dissolve">DISSOLVE</option>
+              </select>
+            </label>
+            <label>
+              <span>DURATION</span>
+              <output id="transitionDurationValue" for="transitionDuration">800ms</output>
+              <input
+                class="range range--compact"
+                id="transitionDuration"
+                type="range"
+                min="0"
+                max="3000"
+                step="100"
+                value="800"
+              />
+            </label>
+          </div>
           <div class="preset-list" id="presetList"></div>
           <div class="library-actions">
             <button id="exportLibraryButton" type="button">EXPORT JSON</button>
@@ -356,6 +380,15 @@
             <label>
               <span>SECONDS</span>
               <input id="playlistDuration" type="number" min="1" max="86400" value="30" />
+            </label>
+            <label>
+              <span>TRANSITION</span>
+              <select id="playlistTransition">
+                <option value="cut">CUT</option>
+                <option value="crossfade" selected>CROSSFADE</option>
+                <option value="push">PUSH</option>
+                <option value="dissolve">DISSOLVE</option>
+              </select>
             </label>
             <button id="addPlaylistStepButton" type="button">ADD STEP</button>
           </div>

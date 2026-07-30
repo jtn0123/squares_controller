@@ -1013,6 +1013,47 @@ h1 {
   letter-spacing: 0.12em;
 }
 
+.scene-transition-control {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+  margin: 8px 0 5px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: #090b09;
+}
+
+.scene-transition-control label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.scene-transition-control span,
+.scene-transition-control output {
+  color: #656d61;
+  font: 650 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.scene-transition-control select {
+  grid-column: 1 / -1;
+  height: 28px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #070907;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.scene-transition-control .range {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .preset-list {
   display: grid;
   gap: 5px;
@@ -1117,7 +1158,7 @@ h1 {
 
 .playlist-step-composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 70px;
+  grid-template-columns: minmax(0, 1fr) 65px 92px;
   gap: 7px;
 }
 

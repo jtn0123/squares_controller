@@ -24,6 +24,10 @@ import {
   blendRgb,
   normalizeLayer,
 } from "./blend_model.js";
+import {
+  normalizeTransition,
+  transitionFrame,
+} from "./transition_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -79,6 +83,8 @@ const state = {
     opacity: 55,
     paletteId: "candy",
   }),
+  transition: normalizeTransition({ type: "crossfade", duration: 800 }),
+  transitionToken: 0,
 };
 
 function toast(message, error = false) {
@@ -334,6 +340,7 @@ function render() {
 }
 
 function stopAnimation(showNotice = false) {
+  state.transitionToken += 1;
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
   state.animationName = null;
@@ -727,6 +734,32 @@ function initializeLayers() {
   updateLayerControls();
 }
 
+function updateTransitionControls() {
+  document.querySelector("#sceneTransition").value = state.transition.type;
+  document.querySelector("#transitionDuration").value = state.transition.duration;
+  document.querySelector("#transitionDurationValue").textContent =
+    `${state.transition.duration}ms`;
+  updateRangeFill(document.querySelector("#transitionDuration"));
+}
+
+function readTransitionControls() {
+  state.transition = normalizeTransition({
+    type: document.querySelector("#sceneTransition").value,
+    duration: document.querySelector("#transitionDuration").value,
+  });
+  updateTransitionControls();
+}
+
+function initializeTransitions() {
+  document
+    .querySelector("#sceneTransition")
+    .addEventListener("change", readTransitionControls);
+  document
+    .querySelector("#transitionDuration")
+    .addEventListener("input", readTransitionControls);
+  updateTransitionControls();
+}
+
 let brightnessTimer;
 brightnessSlider.addEventListener("input", () => {
   const requestedBrightness = brightnessSlider.value;
@@ -793,7 +826,61 @@ document.querySelectorAll("[data-rotation]").forEach((button) => {
   });
 });
 
-function startGeneratedEffect(name, painter) {
+function renderGeneratedFrame(
+  name,
+  time,
+  backdrop,
+  target,
+  primaryBuffer = new Uint8Array(target.length),
+  overlayBuffer = new Uint8Array(target.length),
+) {
+  primaryBuffer.fill(0);
+  effectPainters[name](time, primaryBuffer, state.palette.colors);
+  overlayBuffer.fill(0);
+  const overlayPalette = CURATED_PALETTES.find(
+    (palette) => palette.id === state.overlay.paletteId,
+  ) ?? CURATED_PALETTES[0];
+  if (state.overlay.enabled) {
+    effectPainters[state.overlay.effect](
+      time * 0.87 + 0.61,
+      overlayBuffer,
+      overlayPalette.colors,
+    );
+  }
+
+  for (let y = 0; y < state.height; y += 1) {
+    for (let x = 0; x < state.width; x += 1) {
+      const offset = (y * state.width + x) * 3;
+      if (!zoneContains(state.zone, x, y, state.width, state.height)) {
+        target[offset] = backdrop[offset];
+        target[offset + 1] = backdrop[offset + 1];
+        target[offset + 2] = backdrop[offset + 2];
+        continue;
+      }
+      const base = [
+        clampByte(primaryBuffer[offset] * state.effectIntensity),
+        clampByte(primaryBuffer[offset + 1] * state.effectIntensity),
+        clampByte(primaryBuffer[offset + 2] * state.effectIntensity),
+      ];
+      const mixed = state.overlay.enabled
+        ? blendRgb(
+            base,
+            [
+              clampByte(overlayBuffer[offset] * state.effectIntensity),
+              clampByte(overlayBuffer[offset + 1] * state.effectIntensity),
+              clampByte(overlayBuffer[offset + 2] * state.effectIntensity),
+            ],
+            state.overlay.blend,
+            state.overlay.opacity / 100,
+          )
+        : base;
+      target.set(mixed, offset);
+    }
+  }
+  return target;
+}
+
+function startGeneratedEffect(name) {
   stopAnimation();
   state.animationName = name;
   document
@@ -809,49 +896,14 @@ function startGeneratedEffect(name, painter) {
     if (state.animationName !== name) return;
     if (now - previousFrame >= 50) {
       const time = ((now - startedAt) / 1000) * state.effectSpeed;
-      primaryBuffer.fill(0);
-      painter(time, primaryBuffer, state.palette.colors);
-      overlayBuffer.fill(0);
-      const overlayPalette = CURATED_PALETTES.find(
-        (palette) => palette.id === state.overlay.paletteId,
-      ) ?? CURATED_PALETTES[0];
-      if (state.overlay.enabled) {
-        effectPainters[state.overlay.effect](
-          time * 0.87 + 0.61,
-          overlayBuffer,
-          overlayPalette.colors,
-        );
-      }
-
-      for (let y = 0; y < state.height; y += 1) {
-        for (let x = 0; x < state.width; x += 1) {
-          const offset = (y * state.width + x) * 3;
-          if (!zoneContains(state.zone, x, y, state.width, state.height)) {
-            state.pixels[offset] = backdrop[offset];
-            state.pixels[offset + 1] = backdrop[offset + 1];
-            state.pixels[offset + 2] = backdrop[offset + 2];
-            continue;
-          }
-          const base = [
-            clampByte(primaryBuffer[offset] * state.effectIntensity),
-            clampByte(primaryBuffer[offset + 1] * state.effectIntensity),
-            clampByte(primaryBuffer[offset + 2] * state.effectIntensity),
-          ];
-          const mixed = state.overlay.enabled
-            ? blendRgb(
-                base,
-                [
-                  clampByte(overlayBuffer[offset] * state.effectIntensity),
-                  clampByte(overlayBuffer[offset + 1] * state.effectIntensity),
-                  clampByte(overlayBuffer[offset + 2] * state.effectIntensity),
-                ],
-                state.overlay.blend,
-                state.overlay.opacity / 100,
-              )
-            : base;
-          state.pixels.set(mixed, offset);
-        }
-      }
+      renderGeneratedFrame(
+        name,
+        time,
+        backdrop,
+        state.pixels,
+        primaryBuffer,
+        overlayBuffer,
+      );
       render();
       scheduleFrame();
       previousFrame = now;
@@ -969,7 +1021,7 @@ const effectPainters = {
 document.querySelectorAll("[data-effect]").forEach((button) => {
   button.addEventListener("click", () => {
     const name = button.dataset.effect;
-    startGeneratedEffect(name, effectPainters[name]);
+    startGeneratedEffect(name);
   });
 });
 
@@ -1086,7 +1138,47 @@ async function sendBrightness(value) {
   );
 }
 
-async function loadPreset(preset) {
+function transitionToFrame(target, transition) {
+  const setting = normalizeTransition(transition);
+  const from = state.pixels.slice();
+  stopAnimation();
+  const token = state.transitionToken;
+  if (setting.type === "cut" || setting.duration === 0) {
+    state.pixels.set(target);
+    render();
+    scheduleFrame();
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    let startedAt;
+    const tick = (now) => {
+      if (token !== state.transitionToken) {
+        resolve(false);
+        return;
+      }
+      startedAt ??= now;
+      const progress = Math.min(1, (now - startedAt) / setting.duration);
+      state.pixels.set(
+        transitionFrame(
+          from,
+          target,
+          state.width,
+          state.height,
+          setting.type,
+          progress,
+        ),
+      );
+      render();
+      scheduleFrame();
+      if (progress < 1) requestAnimationFrame(tick);
+      else resolve(true);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+async function loadPreset(preset, options = {}) {
   effectSpeed.value = preset.speed ?? 100;
   effectIntensity.value = preset.intensity ?? 75;
   updateModulationVisuals();
@@ -1096,11 +1188,25 @@ async function loadPreset(preset) {
     state.overlay = normalizeLayer(preset.layers.overlay);
     updateLayerControls();
   }
+  if (preset.transition && !options.transition) {
+    state.transition = normalizeTransition(preset.transition);
+    updateTransitionControls();
+  }
+  const selectedTransition = normalizeTransition(
+    options.transition ?? preset.transition ?? state.transition,
+  );
 
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
+    let target;
     if (preset.effect && effectPainters[preset.effect]) {
-      startGeneratedEffect(preset.effect, effectPainters[preset.effect]);
+      target = new Uint8Array(state.pixels.length);
+      renderGeneratedFrame(
+        preset.effect,
+        0,
+        state.pixels.slice(),
+        target,
+      );
     } else {
       if (
         preset.width !== state.width ||
@@ -1110,14 +1216,18 @@ async function loadPreset(preset) {
       ) {
         throw new Error("This preset was saved for a different panel layout.");
       }
-      stopAnimation();
-      state.pixels.set(preset.pixels);
-      render();
-      scheduleFrame();
+      target = new Uint8Array(preset.pixels);
+    }
+    const completed = await transitionToFrame(target, selectedTransition);
+    if (!completed) return false;
+    if (preset.effect && effectPainters[preset.effect]) {
+      startGeneratedEffect(preset.effect);
     }
     toast(`Loaded ${preset.name}.`);
+    return true;
   } catch (error) {
     toast(error.message, true);
+    return false;
   }
 }
 
@@ -1202,6 +1312,7 @@ async function saveCurrentPreset() {
     palette: state.palette,
     zone: state.zone,
     layers: { overlay: state.overlay },
+    transition: state.transition,
   });
   if (existing) preset.id = existing.id;
 
@@ -1288,7 +1399,7 @@ function renderPlaylistDraft() {
     const name = document.createElement("span");
     name.textContent = scene?.name ?? "MISSING SCENE";
     const duration = document.createElement("small");
-    duration.textContent = `${step.duration}s`;
+    duration.textContent = `${step.duration}s / ${step.transition.toUpperCase()}`;
     const remove = document.createElement("button");
     remove.type = "button";
     remove.setAttribute("aria-label", `Remove ${name.textContent}`);
@@ -1320,7 +1431,12 @@ async function runPlaylistStep(playlist, index) {
     toast("A playlist scene is missing.", true);
     return;
   }
-  await loadPreset(scene);
+  await loadPreset(scene, {
+    transition: {
+      type: step.transition,
+      duration: state.transition.duration,
+    },
+  });
   if (state.activePlaylistId !== playlist.id) return;
   state.playlistTimer = setTimeout(() => {
     const next = advancePlaylist(index, playlist.steps.length, playlist.repeat);
@@ -1418,7 +1534,11 @@ document.querySelector("#addPlaylistStepButton").addEventListener("click", () =>
     toast("Step time must be from 1 to 86400 seconds.", true);
     return;
   }
-  state.playlistDraft.push({ sceneId, duration, transition: "cut" });
+  state.playlistDraft.push({
+    sceneId,
+    duration,
+    transition: document.querySelector("#playlistTransition").value,
+  });
   renderPlaylistDraft();
 });
 
@@ -1493,6 +1613,7 @@ updateModulationVisuals();
 initializePalettes();
 initializeZones();
 initializeLayers();
+initializeTransitions();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();

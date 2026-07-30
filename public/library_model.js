@@ -33,6 +33,7 @@ export function createSceneSnapshot({
   palette,
   zone,
   layers,
+  transition,
 }) {
   return {
     name,
@@ -46,6 +47,7 @@ export function createSceneSnapshot({
     ...(palette ? { palette: structuredClone(palette) } : {}),
     ...(zone ? { zone: structuredClone(zone) } : {}),
     ...(layers ? { layers: structuredClone(layers) } : {}),
+    ...(transition ? { transition: structuredClone(transition) } : {}),
   };
 }
 

@@ -31,6 +31,7 @@ test("creates either an effect scene or a raster scene", () => {
     brightness: 25,
     zone: { type: "panel", column: 1, row: 2 },
     layers: { overlay: { enabled: true, effect: "orbit" } },
+    transition: { type: "dissolve", duration: 900 },
   };
 
   assert.deepEqual(createSceneSnapshot({ ...base, effect: "tide" }), {
@@ -44,6 +45,7 @@ test("creates either an effect scene or a raster scene", () => {
     brightness: 25,
     zone: { type: "panel", column: 1, row: 2 },
     layers: { overlay: { enabled: true, effect: "orbit" } },
+    transition: { type: "dissolve", duration: 900 },
   });
   assert.deepEqual(createSceneSnapshot({ ...base, effect: null }).pixels, [
     1, 2, 3, 4, 5, 6,
