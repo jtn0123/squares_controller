@@ -56,7 +56,11 @@ import {
   describeAutomation,
   localDateTime,
 } from "./automation_model.js";
-import { FRAME_INTERVAL_MS, alignFrameTime } from "./frame_timing.js";
+import {
+  FRAME_INTERVAL_MS,
+  alignFrameTime,
+  nextFrameDeadline,
+} from "./frame_timing.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -100,7 +104,7 @@ const state = {
   animationName: null,
   frameQueued: false,
   frameSending: false,
-  lastSentAt: 0,
+  nextFrameAt: 0,
   toastTimer: null,
   effectSpeed: 1,
   effectIntensity: 0.75,
@@ -576,10 +580,8 @@ function scheduleFrame() {
 
 async function flushFrame() {
   if (!state.frameQueued || !state.connected) return;
-  const delay = Math.max(
-    0,
-    FRAME_INTERVAL_MS - (performance.now() - state.lastSentAt),
-  );
+  const now = performance.now();
+  const delay = Math.max(0, state.nextFrameAt - now);
   if (delay > 0) {
     setTimeout(() => void flushFrame(), delay);
     return;
@@ -587,7 +589,7 @@ async function flushFrame() {
   state.frameQueued = false;
   state.frameSending = true;
   try {
-    state.lastSentAt = performance.now();
+    state.nextFrameAt = nextFrameDeadline(state.nextFrameAt, now);
     await api("/api/frame", {
       method: "POST",
       body: JSON.stringify({

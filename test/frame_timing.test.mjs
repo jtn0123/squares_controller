@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   FRAME_INTERVAL_MS,
   alignFrameTime,
+  nextFrameDeadline,
 } from "../public/frame_timing.js";
 
 test("aligns 60 Hz browser ticks to a 40 FPS frame clock", () => {
@@ -21,6 +22,17 @@ test("aligns 60 Hz browser ticks to a 40 FPS frame clock", () => {
   assert.ok(frames >= 39 && frames <= 40, `${frames} frames`);
 });
 
+test("upload deadlines correct timer drift and skip missed slots", () => {
+  let deadline = nextFrameDeadline(0, 10);
+  assert.equal(deadline, 35);
+
+  deadline = nextFrameDeadline(deadline, 36.5);
+  assert.equal(deadline, 60);
+
+  deadline = nextFrameDeadline(deadline, 90);
+  assert.equal(deadline, 115);
+});
+
 test("frame acknowledgements do not repaint full controller status", () => {
   const source = readFileSync(
     new URL("../public/app.js", import.meta.url),
@@ -32,8 +44,5 @@ test("frame acknowledgements do not repaint full controller status", () => {
   );
 
   assert.doesNotMatch(frameUpload, /applyStatus/);
-  assert.ok(
-    frameUpload.indexOf("state.lastSentAt = performance.now()") <
-      frameUpload.indexOf('await api("/api/frame"'),
-  );
+  assert.match(frameUpload, /state\.nextFrameAt = nextFrameDeadline/);
 });

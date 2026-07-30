@@ -12,19 +12,48 @@ Squares Controller has four independent timing stages:
 
 ## Actual-device measurements
 
-Signal Sweep was measured through the browser and over the Mac's Wi-Fi socket
-to a 768-LED, 12-panel Squares installation:
+The initial and first-pass results used Signal Sweep; the current
+deadline-alignment result used Plasma Field. Both were measured through the
+browser and over the Mac's Wi-Fi socket to the same 768-LED, 12-panel Squares
+installation:
 
-| Measurement | Before | Optimized |
-| --- | ---: | ---: |
-| New browser frames | 18.17 FPS | 37.3 FPS |
-| Panel-bound relay frames | 25 FPS | 40 FPS |
-| UDP payload and protocol bytes | 58,500 B/s | 93,600 B/s |
+| Measurement | Initial | First pass | Current |
+| --- | ---: | ---: | ---: |
+| New browser frames | 18.17 FPS | 37.3 FPS | 39.998 FPS |
+| Panel-bound relay frames | 25 FPS | 40 FPS | 40 FPS |
+| UDP payload and protocol bytes | 58,500 B/s | 93,600 B/s | 93,600 B/s |
 
-The optimized relay held 93,600 B/s in each steady one-second sample, reported
-no controller error, and used approximately 4.3% CPU and 22 MB of memory on the
-local Python process. The relay repeats the newest frame when browser timing
-does not supply a new one for a particular 25 ms deadline.
+The current browser result came from 619 timestamped frame requests over
+15.451 seconds. Median upload spacing was 25.063 ms, p95 was 27.165 ms, and the
+maximum was 29.353 ms. Deadline alignment prevents ordinary timer lateness from
+accumulating across later uploads.
+
+The relay held approximately 93,600 B/s, reported no controller error, and the
+local Python process used approximately 6.4% CPU and 21 MB of memory while
+Plasma Field was rendering during the final check. The relay repeats the newest
+frame when browser timing does not supply a new one for a particular 25 ms
+deadline.
+
+## Higher-rate controller stress trial
+
+The connected Squares master returned `frame_rate: 40` from its live
+`/xled/v1/gestalt` response. A separate direct-UDP stress trial then transmitted
+unique frames for eight seconds at each candidate rate:
+
+| Target | Transmitted | UDP errors | Device mode | REST response |
+| ---: | ---: | ---: | --- | ---: |
+| 40 FPS | 40.00 FPS | 0 | `rt` | 41.8 ms |
+| 50 FPS | 50.00 FPS | 0 | `rt` | 30.9 ms |
+| 60 FPS | 60.00 FPS | 0 | `rt` | 47.4 ms |
+| 75 FPS | 75.00 FPS | 0 | `rt` | 192.5 ms |
+| 100 FPS | 100.00 FPS | 0 | `rt` | 158.5 ms |
+
+This proves that the Mac, Wi-Fi path, and UDP receiver can tolerate additional
+traffic for a short trial. It does not prove that the LED engine displays more
+than the 40 unique frames per second declared by the controller because the
+realtime UDP protocol provides no displayed-frame acknowledgement. The sharp
+REST-latency increase at 75 and 100 FPS also makes those rates a worse production
+default. Squares Controller therefore keeps the device-advertised 40 FPS target.
 
 ## Software-only measurements
 
