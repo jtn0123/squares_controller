@@ -725,6 +725,82 @@ h1 {
   margin-bottom: 7px;
 }
 
+.palette-studio {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.palette-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.palette-heading label {
+  color: var(--muted);
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+}
+
+.palette-heading select {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.palette-preview {
+  height: 9px;
+  border: 1px solid #3a4037;
+  background: linear-gradient(90deg, #d9ff5b, #57e6d5, #4b83ff, #ec5fff);
+}
+
+.gradient-editor {
+  display: grid;
+  grid-template-columns: repeat(3, 38px) 1fr;
+  gap: 6px;
+}
+
+.gradient-editor label {
+  display: grid;
+  gap: 4px;
+}
+
+.gradient-editor label span {
+  color: #656d61;
+  font: 600 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.gradient-editor input[type="color"] {
+  width: 38px;
+  height: 29px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+}
+
+.gradient-editor button {
+  align-self: end;
+  height: 29px;
+  color: var(--acid);
+  border: 1px solid #4a5831;
+  background: rgba(217, 255, 91, 0.04);
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
 .input-label {
   display: block;
   margin-bottom: 8px;

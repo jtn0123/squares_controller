@@ -7,6 +7,11 @@ import {
   createSceneSnapshot,
   normalizeLibrary,
 } from "./library_model.js";
+import {
+  CURATED_PALETTES,
+  normalizePalette,
+  sampleGradient,
+} from "./palette_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -53,6 +58,7 @@ const state = {
   playlistDraft: [],
   playlistTimer: null,
   activePlaylistId: null,
+  palette: normalizePalette(null),
 };
 
 function toast(message, error = false) {
@@ -461,6 +467,62 @@ function updateModulationVisuals() {
   updateRangeFill(effectIntensity);
 }
 
+function updatePaletteControls() {
+  const select = document.querySelector("#paletteSelect");
+  const isCurated = CURATED_PALETTES.some(
+    (palette) => palette.id === state.palette.id,
+  );
+  select.value = isCurated ? state.palette.id : "custom";
+  const colors = state.palette.colors;
+  document.querySelector("#gradientStart").value = colors[0];
+  document.querySelector("#gradientMiddle").value =
+    colors[Math.floor((colors.length - 1) / 2)];
+  document.querySelector("#gradientEnd").value = colors.at(-1);
+  document.querySelector("#palettePreview").style.background =
+    `linear-gradient(90deg, ${colors.join(", ")})`;
+}
+
+function applyPalette(palette, announce = false) {
+  state.palette = normalizePalette(palette);
+  updatePaletteControls();
+  if (announce) toast(`Palette set to ${state.palette.id.toUpperCase()}.`);
+}
+
+function initializePalettes() {
+  const select = document.querySelector("#paletteSelect");
+  CURATED_PALETTES.forEach((palette) => {
+    const option = document.createElement("option");
+    option.value = palette.id;
+    option.textContent = palette.name;
+    select.append(option);
+  });
+  const customOption = document.createElement("option");
+  customOption.value = "custom";
+  customOption.textContent = "CUSTOM GRADIENT";
+  select.append(customOption);
+  select.addEventListener("change", () => {
+    if (select.value === "custom") return;
+    applyPalette(
+      CURATED_PALETTES.find((palette) => palette.id === select.value),
+      true,
+    );
+  });
+  document.querySelector("#applyGradientButton").addEventListener("click", () => {
+    applyPalette(
+      {
+        id: "custom",
+        colors: [
+          document.querySelector("#gradientStart").value,
+          document.querySelector("#gradientMiddle").value,
+          document.querySelector("#gradientEnd").value,
+        ],
+      },
+      true,
+    );
+  });
+  updatePaletteControls();
+}
+
 let brightnessTimer;
 brightnessSlider.addEventListener("input", () => {
   const requestedBrightness = brightnessSlider.value;
@@ -562,8 +624,10 @@ const effectPainters = {
           Math.sin(x * 0.24 + time * 1.3) +
           Math.cos(y * 0.31 - time * 0.95) +
           Math.sin((x + y) * 0.11 + time * 0.7);
-        const hue = x * 5.2 - y * 2.4 + time * 28 + wave * 24;
-        setPixel(x, y, hslToRgb(hue, 0.88, 0.28 + (wave + 3) * 0.045));
+        const phase = (x * 0.018 - y * 0.011 + time * 0.075 + wave * 0.08);
+        const color = sampleGradient(state.palette.colors, phase);
+        const gain = 0.58 + (wave + 3) * 0.075;
+        setPixel(x, y, color.map((channel) => clampByte(channel * gain)));
       }
     }
   },
@@ -581,7 +645,11 @@ const effectPainters = {
         const sweepLight = Math.max(0, 1 - Math.abs(delta) * 3.2);
         const spark = ((x * 17 + y * 31) % 71 === 0) ? 0.65 : 0;
         const value = Math.min(1, 0.025 + ring + sweepLight * 0.72 + spark);
-        setPixel(x, y, [clampByte(value * 155), clampByte(value * 255), clampByte(value * 80)]);
+        const color = sampleGradient(
+          state.palette.colors,
+          angle / (Math.PI * 2) + time * 0.035,
+        );
+        setPixel(x, y, color.map((channel) => clampByte(channel * value)));
       }
     }
   },
@@ -594,11 +662,12 @@ const effectPainters = {
           Math.sin(y * 0.73 - time * 2.3) *
           Math.sin((x + y) * 0.42 + time);
         const heat = Math.max(0, rise * 0.72 + noise * 0.33 - 0.08);
-        setPixel(x, y, [
-          clampByte(heat * 255),
-          clampByte(Math.max(0, heat - 0.24) * 175),
-          clampByte(Math.max(0, heat - 0.68) * 80),
-        ]);
+        const color = sampleGradient(state.palette.colors, heat * 0.82);
+        setPixel(
+          x,
+          y,
+          color.map((channel) => clampByte(channel * Math.min(1, heat * 1.35))),
+        );
       }
     }
   },
@@ -613,11 +682,15 @@ const effectPainters = {
         const d2 = Math.hypot(x - second[0], y - second[1]);
         const a = Math.exp(-d1 * 0.42);
         const b = Math.exp(-d2 * 0.38);
-        setPixel(x, y, [
-          clampByte(b * 225 + a * 25),
-          clampByte(a * 230 + b * 45),
-          clampByte(a * 215 + b * 250),
-        ]);
+        const firstColor = sampleGradient(state.palette.colors, time * 0.025 + 0.2);
+        const secondColor = sampleGradient(state.palette.colors, -time * 0.02 + 0.72);
+        setPixel(
+          x,
+          y,
+          firstColor.map((channel, index) =>
+            clampByte(channel * a + secondColor[index] * b),
+          ),
+        );
       }
     }
   },
@@ -744,6 +817,7 @@ async function loadPreset(preset) {
   effectSpeed.value = preset.speed ?? 100;
   effectIntensity.value = preset.intensity ?? 75;
   updateModulationVisuals();
+  if (preset.palette) applyPalette(preset.palette);
 
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
@@ -847,6 +921,7 @@ async function saveCurrentPreset() {
     speed: Number(effectSpeed.value),
     intensity: Number(effectIntensity.value),
     brightness: Number(brightnessSlider.value),
+    palette: state.palette,
   });
   if (existing) preset.id = existing.id;
 
@@ -1135,6 +1210,7 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
 
 render();
 updateModulationVisuals();
+initializePalettes();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();

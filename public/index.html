@@ -202,6 +202,28 @@
               value="75"
             />
           </div>
+          <div class="palette-studio">
+            <div class="palette-heading">
+              <label for="paletteSelect">COLOR PALETTE</label>
+              <select id="paletteSelect"></select>
+            </div>
+            <div class="palette-preview" id="palettePreview" aria-hidden="true"></div>
+            <div class="gradient-editor">
+              <label>
+                <span>START</span>
+                <input id="gradientStart" type="color" value="#d9ff5b" />
+              </label>
+              <label>
+                <span>MID</span>
+                <input id="gradientMiddle" type="color" value="#4b83ff" />
+              </label>
+              <label>
+                <span>END</span>
+                <input id="gradientEnd" type="color" value="#ec5fff" />
+              </label>
+              <button id="applyGradientButton" type="button">USE CUSTOM</button>
+            </div>
+          </div>
         </section>
 
         <section class="rack-section">

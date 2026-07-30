@@ -30,6 +30,7 @@ export function createSceneSnapshot({
   speed,
   intensity,
   brightness,
+  palette,
 }) {
   return {
     name,
@@ -40,6 +41,7 @@ export function createSceneSnapshot({
     speed: Number(speed),
     intensity: Number(intensity),
     brightness: Number(brightness),
+    ...(palette ? { palette: structuredClone(palette) } : {}),
   };
 }
 
