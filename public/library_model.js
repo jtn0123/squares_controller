@@ -32,6 +32,7 @@ export function createSceneSnapshot({
   brightness,
   palette,
   zone,
+  layers,
 }) {
   return {
     name,
@@ -44,6 +45,7 @@ export function createSceneSnapshot({
     brightness: Number(brightness),
     ...(palette ? { palette: structuredClone(palette) } : {}),
     ...(zone ? { zone: structuredClone(zone) } : {}),
+    ...(layers ? { layers: structuredClone(layers) } : {}),
   };
 }
 

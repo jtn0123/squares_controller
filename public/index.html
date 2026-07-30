@@ -250,6 +250,46 @@
             </div>
             <output class="zone-readout" id="zoneReadout">WHOLE WALL</output>
           </div>
+          <div class="layer-studio">
+            <div class="layer-heading">
+              <span>LAYER B / EFFECT OVERLAY</span>
+              <label class="layer-toggle">
+                <input id="overlayEnabled" type="checkbox" />
+                ENABLED
+              </label>
+            </div>
+            <div class="layer-controls" id="overlayControls">
+              <label>
+                <span>EFFECT</span>
+                <select id="overlayEffect">
+                  <option value="tide">CHROMA TIDE</option>
+                  <option value="radar">NIGHT RADAR</option>
+                  <option value="ember">EMBER FIELD</option>
+                  <option value="orbit" selected>ORBITAL</option>
+                </select>
+              </label>
+              <label>
+                <span>PALETTE</span>
+                <select id="overlayPalette"></select>
+              </label>
+              <label>
+                <span>BLEND</span>
+                <select id="overlayBlend"></select>
+              </label>
+              <label>
+                <span>OPACITY</span>
+                <output id="overlayOpacityValue" for="overlayOpacity">55%</output>
+                <input
+                  class="range range--compact"
+                  id="overlayOpacity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="55"
+                />
+              </label>
+            </div>
+          </div>
         </section>
 
         <section class="rack-section">

@@ -894,6 +894,79 @@ h1 {
   letter-spacing: 0.13em;
 }
 
+.layer-studio {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.layer-heading,
+.layer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.layer-heading > span,
+.layer-toggle,
+.layer-controls label > span,
+.layer-controls output {
+  color: var(--muted);
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.layer-toggle {
+  justify-content: end;
+  cursor: pointer;
+}
+
+.layer-toggle input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--acid);
+}
+
+.layer-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+
+.layer-studio.enabled .layer-controls {
+  opacity: 1;
+}
+
+.layer-controls label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.layer-controls select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 700 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.layer-controls .range {
+  grid-column: 1 / -1;
+  margin: 3px 0 0;
+}
+
 .input-label {
   display: block;
   margin-bottom: 8px;

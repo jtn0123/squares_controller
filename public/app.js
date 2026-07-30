@@ -19,6 +19,11 @@ import {
   zoneBounds,
   zoneContains,
 } from "./zone_model.js";
+import {
+  BLEND_MODES,
+  blendRgb,
+  normalizeLayer,
+} from "./blend_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -67,6 +72,13 @@ const state = {
   activePlaylistId: null,
   palette: normalizePalette(null),
   zone: { type: "all" },
+  overlay: normalizeLayer({
+    enabled: false,
+    effect: "orbit",
+    blend: "screen",
+    opacity: 55,
+    paletteId: "candy",
+  }),
 };
 
 function toast(message, error = false) {
@@ -667,6 +679,54 @@ function initializeZones() {
   renderZoneControls();
 }
 
+function updateLayerControls() {
+  const layerStudio = document.querySelector(".layer-studio");
+  document.querySelector("#overlayEnabled").checked = state.overlay.enabled;
+  document.querySelector("#overlayEffect").value = state.overlay.effect;
+  document.querySelector("#overlayPalette").value = state.overlay.paletteId;
+  document.querySelector("#overlayBlend").value = state.overlay.blend;
+  document.querySelector("#overlayOpacity").value = state.overlay.opacity;
+  document.querySelector("#overlayOpacityValue").textContent =
+    `${state.overlay.opacity}%`;
+  updateRangeFill(document.querySelector("#overlayOpacity"));
+  layerStudio.classList.toggle("enabled", state.overlay.enabled);
+}
+
+function readLayerControls() {
+  state.overlay = normalizeLayer({
+    enabled: document.querySelector("#overlayEnabled").checked,
+    effect: document.querySelector("#overlayEffect").value,
+    paletteId: document.querySelector("#overlayPalette").value,
+    blend: document.querySelector("#overlayBlend").value,
+    opacity: document.querySelector("#overlayOpacity").value,
+  });
+  updateLayerControls();
+}
+
+function initializeLayers() {
+  const paletteSelect = document.querySelector("#overlayPalette");
+  CURATED_PALETTES.forEach((palette) => {
+    const option = document.createElement("option");
+    option.value = palette.id;
+    option.textContent = palette.name;
+    paletteSelect.append(option);
+  });
+  const blendSelect = document.querySelector("#overlayBlend");
+  BLEND_MODES.forEach((mode) => {
+    const option = document.createElement("option");
+    option.value = mode.id;
+    option.textContent = mode.name;
+    blendSelect.append(option);
+  });
+  ["overlayEnabled", "overlayEffect", "overlayPalette", "overlayBlend"].forEach(
+    (id) => document.querySelector(`#${id}`).addEventListener("change", readLayerControls),
+  );
+  document
+    .querySelector("#overlayOpacity")
+    .addEventListener("input", readLayerControls);
+  updateLayerControls();
+}
+
 let brightnessTimer;
 brightnessSlider.addEventListener("input", () => {
   const requestedBrightness = brightnessSlider.value;
@@ -740,16 +800,57 @@ function startGeneratedEffect(name, painter) {
     .querySelector(`[data-effect="${name}"]`)
     ?.classList.add("active");
   const startedAt = performance.now();
+  const backdrop = state.pixels.slice();
+  const primaryBuffer = new Uint8Array(state.pixels.length);
+  const overlayBuffer = new Uint8Array(state.pixels.length);
   let previousFrame = 0;
 
   const tick = (now) => {
     if (state.animationName !== name) return;
     if (now - previousFrame >= 50) {
-      painter(((now - startedAt) / 1000) * state.effectSpeed);
-      for (let index = 0; index < state.pixels.length; index += 1) {
-        state.pixels[index] = clampByte(
-          state.pixels[index] * state.effectIntensity,
+      const time = ((now - startedAt) / 1000) * state.effectSpeed;
+      primaryBuffer.fill(0);
+      painter(time, primaryBuffer, state.palette.colors);
+      overlayBuffer.fill(0);
+      const overlayPalette = CURATED_PALETTES.find(
+        (palette) => palette.id === state.overlay.paletteId,
+      ) ?? CURATED_PALETTES[0];
+      if (state.overlay.enabled) {
+        effectPainters[state.overlay.effect](
+          time * 0.87 + 0.61,
+          overlayBuffer,
+          overlayPalette.colors,
         );
+      }
+
+      for (let y = 0; y < state.height; y += 1) {
+        for (let x = 0; x < state.width; x += 1) {
+          const offset = (y * state.width + x) * 3;
+          if (!zoneContains(state.zone, x, y, state.width, state.height)) {
+            state.pixels[offset] = backdrop[offset];
+            state.pixels[offset + 1] = backdrop[offset + 1];
+            state.pixels[offset + 2] = backdrop[offset + 2];
+            continue;
+          }
+          const base = [
+            clampByte(primaryBuffer[offset] * state.effectIntensity),
+            clampByte(primaryBuffer[offset + 1] * state.effectIntensity),
+            clampByte(primaryBuffer[offset + 2] * state.effectIntensity),
+          ];
+          const mixed = state.overlay.enabled
+            ? blendRgb(
+                base,
+                [
+                  clampByte(overlayBuffer[offset] * state.effectIntensity),
+                  clampByte(overlayBuffer[offset + 1] * state.effectIntensity),
+                  clampByte(overlayBuffer[offset + 2] * state.effectIntensity),
+                ],
+                state.overlay.blend,
+                state.overlay.opacity / 100,
+              )
+            : base;
+          state.pixels.set(mixed, offset);
+        }
       }
       render();
       scheduleFrame();
@@ -760,8 +861,21 @@ function startGeneratedEffect(name, painter) {
   state.animationFrame = requestAnimationFrame(tick);
 }
 
+function paintEffectPixel(target, x, y, rgb) {
+  if (
+    x < 0 ||
+    y < 0 ||
+    x >= state.width ||
+    y >= state.height ||
+    !zoneContains(state.zone, x, y, state.width, state.height)
+  ) {
+    return;
+  }
+  target.set(rgb, (y * state.width + x) * 3);
+}
+
 const effectPainters = {
-  tide(time) {
+  tide(time, target, paletteColors) {
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         const wave =
@@ -769,13 +883,18 @@ const effectPainters = {
           Math.cos(y * 0.31 - time * 0.95) +
           Math.sin((x + y) * 0.11 + time * 0.7);
         const phase = (x * 0.018 - y * 0.011 + time * 0.075 + wave * 0.08);
-        const color = sampleGradient(state.palette.colors, phase);
+        const color = sampleGradient(paletteColors, phase);
         const gain = 0.58 + (wave + 3) * 0.075;
-        setPixel(x, y, color.map((channel) => clampByte(channel * gain)));
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * gain)),
+        );
       }
     }
   },
-  radar(time) {
+  radar(time, target, paletteColors) {
     const centerX = (state.width - 1) / 2;
     const centerY = (state.height - 1) / 2;
     const sweep = time * 1.4;
@@ -790,14 +909,19 @@ const effectPainters = {
         const spark = ((x * 17 + y * 31) % 71 === 0) ? 0.65 : 0;
         const value = Math.min(1, 0.025 + ring + sweepLight * 0.72 + spark);
         const color = sampleGradient(
-          state.palette.colors,
+          paletteColors,
           angle / (Math.PI * 2) + time * 0.035,
         );
-        setPixel(x, y, color.map((channel) => clampByte(channel * value)));
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * value)),
+        );
       }
     }
   },
-  ember(time) {
+  ember(time, target, paletteColors) {
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         const rise = 1 - y / state.height;
@@ -806,8 +930,9 @@ const effectPainters = {
           Math.sin(y * 0.73 - time * 2.3) *
           Math.sin((x + y) * 0.42 + time);
         const heat = Math.max(0, rise * 0.72 + noise * 0.33 - 0.08);
-        const color = sampleGradient(state.palette.colors, heat * 0.82);
-        setPixel(
+        const color = sampleGradient(paletteColors, heat * 0.82);
+        paintEffectPixel(
+          target,
           x,
           y,
           color.map((channel) => clampByte(channel * Math.min(1, heat * 1.35))),
@@ -815,7 +940,7 @@ const effectPainters = {
       }
     }
   },
-  orbit(time) {
+  orbit(time, target, paletteColors) {
     const cx = (state.width - 1) / 2;
     const cy = (state.height - 1) / 2;
     const first = [cx + Math.cos(time) * 8.5, cy + Math.sin(time * 1.17) * 6];
@@ -826,9 +951,10 @@ const effectPainters = {
         const d2 = Math.hypot(x - second[0], y - second[1]);
         const a = Math.exp(-d1 * 0.42);
         const b = Math.exp(-d2 * 0.38);
-        const firstColor = sampleGradient(state.palette.colors, time * 0.025 + 0.2);
-        const secondColor = sampleGradient(state.palette.colors, -time * 0.02 + 0.72);
-        setPixel(
+        const firstColor = sampleGradient(paletteColors, time * 0.025 + 0.2);
+        const secondColor = sampleGradient(paletteColors, -time * 0.02 + 0.72);
+        paintEffectPixel(
+          target,
           x,
           y,
           firstColor.map((channel, index) =>
@@ -966,6 +1092,10 @@ async function loadPreset(preset) {
   updateModulationVisuals();
   if (preset.palette) applyPalette(preset.palette);
   if (preset.zone) applyZone(preset.zone);
+  if (preset.layers?.overlay) {
+    state.overlay = normalizeLayer(preset.layers.overlay);
+    updateLayerControls();
+  }
 
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
@@ -1071,6 +1201,7 @@ async function saveCurrentPreset() {
     brightness: Number(brightnessSlider.value),
     palette: state.palette,
     zone: state.zone,
+    layers: { overlay: state.overlay },
   });
   if (existing) preset.id = existing.id;
 
@@ -1361,6 +1492,7 @@ render();
 updateModulationVisuals();
 initializePalettes();
 initializeZones();
+initializeLayers();
 renderPresets();
 renderPlaylistDraft();
 void loadStatus();
