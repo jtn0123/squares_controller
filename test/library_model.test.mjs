@@ -21,7 +21,22 @@ test("normalizes a server library and drops malformed records", () => {
     {
       scenes: [{ id: "one", name: "One" }],
       playlists: [{ id: "show", name: "Show", steps: [] }],
+      palettes: [],
     },
+  );
+});
+
+test("keeps valid reusable palettes in library snapshots", () => {
+  assert.deepEqual(
+    normalizeLibrary({
+      scenes: [],
+      playlists: [],
+      palettes: [
+        { id: "night", name: "NIGHT", colors: ["#000000", "#00aaff"] },
+        { id: 4, name: "BROKEN", colors: [] },
+      ],
+    }).palettes,
+    [{ id: "night", name: "NIGHT", colors: ["#000000", "#00aaff"] }],
   );
 });
 

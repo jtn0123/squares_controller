@@ -351,6 +351,27 @@
               </label>
               <button id="applyGradientButton" type="button">USE CUSTOM</button>
             </div>
+            <details class="advanced-studio palette-workshop">
+              <summary>
+                <span>PALETTE WORKSHOP</span>
+                <strong id="paletteStopCount">4 STOPS</strong>
+              </summary>
+              <div class="palette-stop-list" id="paletteStopList"></div>
+              <div class="palette-workshop-actions">
+                <button id="addPaletteStopButton" type="button">+ COLOR STOP</button>
+                <input
+                  id="paletteName"
+                  type="text"
+                  maxlength="48"
+                  placeholder="PALETTE NAME"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="savePaletteButton" type="button">SAVE</button>
+                <button id="deletePaletteButton" type="button">DELETE</button>
+              </div>
+              <small>2–8 STOPS / SAVED WITH SCENE-LIBRARY BACKUPS</small>
+            </details>
           </div>
           <div class="zone-studio">
             <div class="zone-heading">
@@ -377,6 +398,43 @@
               <label><span>H</span><input id="zoneHeight" type="number" min="1" value="8" /></label>
             </div>
             <output class="zone-readout" id="zoneReadout">WHOLE WALL</output>
+            <details class="advanced-studio segment-studio">
+              <summary>
+                <span>2D SEGMENT LAB</span>
+                <strong id="segmentCount">LIVE + 0 PINNED</strong>
+              </summary>
+              <div class="segment-transform-grid">
+                <label><input id="segmentMirrorX" type="checkbox" /> MIRROR X</label>
+                <label><input id="segmentMirrorY" type="checkbox" /> MIRROR Y</label>
+                <label><input id="segmentTranspose" type="checkbox" /> TRANSPOSE</label>
+                <label>
+                  <span>GROUP</span>
+                  <input id="segmentGrouping" type="number" min="1" max="8" value="1" />
+                </label>
+                <label>
+                  <span>GAP</span>
+                  <input id="segmentSpacing" type="number" min="0" max="8" value="0" />
+                </label>
+                <label>
+                  <span>OFFSET</span>
+                  <input id="segmentOffset" type="number" value="0" />
+                </label>
+              </div>
+              <div class="segment-action-line">
+                <input
+                  id="segmentName"
+                  type="text"
+                  maxlength="32"
+                  placeholder="SEGMENT NAME"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="pinSegmentButton" type="button">PIN LIVE</button>
+                <button id="clearSegmentsButton" type="button">CLEAR</button>
+              </div>
+              <div class="segment-list" id="segmentList"></div>
+              <small>UP TO 3 PINNED REGIONS + THE LIVE SEGMENT / TOP REGION WINS</small>
+            </details>
           </div>
           <div class="layer-studio">
             <div class="layer-heading">
@@ -630,7 +688,7 @@
               <input id="importLibraryInput" type="file" accept="application/json,.json" />
             </label>
           </div>
-          <small class="local-note">Folders, tags, favorites, scenes, and playlists are included in each backup.</small>
+          <small class="local-note">Palettes, folders, tags, favorites, scenes, and playlists are included in each backup.</small>
         </section>
 
         <section class="rack-section">

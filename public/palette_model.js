@@ -12,6 +12,7 @@ export const CURATED_PALETTES = Object.freeze([
 ]);
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 function rgbFromHex(color) {
   return [
@@ -34,6 +35,25 @@ export function normalizePalette(value) {
     }
   }
   return CURATED_PALETTES[0];
+}
+
+export function normalizeSavedPalette(value) {
+  if (!value || typeof value !== "object") return null;
+  if (!SAFE_ID.test(value.id) || !Array.isArray(value.colors)) return null;
+  const name =
+    typeof value.name === "string"
+      ? value.name.trim().replace(/\s+/g, " ").slice(0, 48).toUpperCase()
+      : "";
+  const colors = value.colors
+    .filter((color) => typeof color === "string" && HEX_COLOR.test(color))
+    .slice(0, 8)
+    .map((color) => color.toLowerCase());
+  if (!name || colors.length < 2) return null;
+  return {
+    id: value.id,
+    name,
+    colors,
+  };
 }
 
 export function sampleGradient(rawColors, rawPosition) {

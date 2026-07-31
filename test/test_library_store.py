@@ -33,7 +33,7 @@ class LibraryStoreTests(unittest.TestCase):
         self.assertEqual(scene["name"], "Night Radar")
         self.assertEqual(scene["previewPixels"], [1, 2, 3, 4, 5, 6])
         self.assertEqual(LibraryStore(self.path).snapshot()["scenes"], [scene])
-        self.assertEqual(json.loads(self.path.read_text())["version"], 1)
+        self.assertEqual(json.loads(self.path.read_text())["version"], 2)
 
     def test_rejects_invalid_frame_and_unknown_playlist_scene(self) -> None:
         with self.assertRaisesRegex(ValueError, "RGB values"):
@@ -115,6 +115,22 @@ class LibraryStoreTests(unittest.TestCase):
                     "tags": [f"tag-{index}" for index in range(9)],
                 }
             )
+
+    def test_saves_reusable_multi_stop_palettes(self) -> None:
+        palette = self.store.upsert_palette(
+            {
+                "name": " Northern Lights ",
+                "colors": ["#001122", "#22CCAA", "#8855FF"],
+            }
+        )
+
+        self.assertEqual(palette["name"], "Northern Lights")
+        self.assertEqual(palette["colors"], ["#001122", "#22ccaa", "#8855ff"])
+        self.assertEqual(LibraryStore(self.path).snapshot()["palettes"], [palette])
+        self.assertTrue(self.store.delete_palette(palette["id"]))
+
+        with self.assertRaisesRegex(ValueError, "2 to 8"):
+            self.store.upsert_palette({"name": "Broken", "colors": ["#000000"]})
 
 
 if __name__ == "__main__":

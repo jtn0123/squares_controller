@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CURATED_PALETTES,
   normalizePalette,
+  normalizeSavedPalette,
   sampleGradient,
 } from "../public/palette_model.js";
 
@@ -31,4 +32,39 @@ test("normalizes saved palettes and falls back safely", () => {
     { id: "custom", colors: ["#123456", "#abcdef"] },
   );
   assert.deepEqual(normalizePalette(null), CURATED_PALETTES[0]);
+});
+
+test("normalizes named reusable palettes with up to eight stops", () => {
+  assert.deepEqual(
+    normalizeSavedPalette({
+      id: "northern-lights",
+      name: " Northern lights ",
+      colors: [
+        "#001122",
+        "#22ccaa",
+        "#8855ff",
+        "#ffffff",
+        "#123456",
+        "#234567",
+        "#345678",
+        "#456789",
+        "#abcdef",
+      ],
+    }),
+    {
+      id: "northern-lights",
+      name: "NORTHERN LIGHTS",
+      colors: [
+        "#001122",
+        "#22ccaa",
+        "#8855ff",
+        "#ffffff",
+        "#123456",
+        "#234567",
+        "#345678",
+        "#456789",
+      ],
+    },
+  );
+  assert.equal(normalizeSavedPalette({ id: "bad", name: "", colors: [] }), null);
 });

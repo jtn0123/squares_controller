@@ -316,6 +316,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 playlist = library_store.upsert_playlist(body)
                 self.send_json(HTTPStatus.OK, {"playlist": playlist})
                 return
+            if path == "/api/palettes":
+                palette = library_store.upsert_palette(body)
+                self.send_json(HTTPStatus.OK, {"palette": palette})
+                return
             if path == "/api/library/import":
                 imported = library_store.import_library(
                     body.get("library"), merge=bool(body.get("merge", True))
@@ -387,6 +391,9 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             elif path.startswith("/api/playlists/"):
                 item_id = path.removeprefix("/api/playlists/")
                 deleted = library_store.delete_playlist(item_id)
+            elif path.startswith("/api/palettes/"):
+                item_id = path.removeprefix("/api/palettes/")
+                deleted = library_store.delete_palette(item_id)
             elif path.startswith("/api/automations/"):
                 item_id = path.removeprefix("/api/automations/")
                 deleted = automation_store.delete(item_id)

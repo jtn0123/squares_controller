@@ -1356,6 +1356,222 @@ h1 {
   letter-spacing: 0.13em;
 }
 
+.advanced-studio {
+  border: 1px solid #30372d;
+  background: #070907;
+}
+
+.advanced-studio summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 31px;
+  padding: 0 8px;
+  color: #788173;
+  cursor: pointer;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  list-style: none;
+}
+
+.advanced-studio summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-studio summary::before {
+  margin-right: 7px;
+  color: var(--acid);
+  content: "+";
+}
+
+.advanced-studio[open] summary::before {
+  content: "−";
+}
+
+.advanced-studio summary span {
+  flex: 1;
+}
+
+.advanced-studio summary strong {
+  color: var(--acid);
+  font-size: 6px;
+}
+
+.advanced-studio > small {
+  display: block;
+  padding: 0 8px 8px;
+  color: #555e51;
+  font: 650 5px/1.25 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.palette-stop-list {
+  display: flex;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.palette-stop {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-stop input {
+  width: 100%;
+  height: 31px;
+  padding: 3px;
+  border: 1px solid #394136;
+  border-radius: 0;
+  background: #030403;
+}
+
+.palette-stop button {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  color: #9ca696;
+  border: 1px solid #4a5346;
+  background: #080a08;
+  font: 800 8px/1 sans-serif;
+}
+
+.palette-workshop-actions,
+.segment-action-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 5px;
+  padding: 0 8px 8px;
+}
+
+.palette-workshop-actions input,
+.palette-workshop-actions button,
+.segment-action-line input,
+.segment-action-line button,
+.segment-transform-grid input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #090b09;
+  font: 750 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.palette-workshop-actions button,
+.segment-action-line button {
+  color: var(--acid);
+  border-color: #455132;
+}
+
+#deletePaletteButton,
+#clearSegmentsButton {
+  color: var(--signal);
+  border-color: #593026;
+}
+
+.segment-transform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.segment-transform-grid label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px;
+  color: #747d70;
+  font: 700 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.segment-transform-grid label:has(input[type="number"]) {
+  grid-template-columns: 1fr;
+}
+
+.segment-transform-grid input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  accent-color: var(--acid);
+}
+
+.segment-action-line {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.segment-list {
+  display: grid;
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+
+.segment-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+  padding: 4px 5px;
+  border: 1px solid #2e352b;
+  background: #0a0c0a;
+}
+
+.segment-row > input {
+  accent-color: var(--acid);
+}
+
+.segment-row span {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.segment-row strong,
+.segment-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment-row strong {
+  color: #a8b0a2;
+  font: 750 7px/1.1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.segment-row small {
+  margin-top: 3px;
+  color: #596155;
+  font: 650 5px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.segment-row button {
+  height: 22px;
+  padding: 0 5px;
+  color: #8b9585;
+  border: 1px solid #3b4437;
+  background: #070907;
+  font: 750 5px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.segment-row button:last-child {
+  color: var(--signal);
+}
+
 .layer-studio {
   display: grid;
   gap: 9px;

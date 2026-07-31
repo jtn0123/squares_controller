@@ -9,12 +9,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-LIBRARY_VERSION = 1
+LIBRARY_VERSION = 2
 MAX_SCENES = 64
 MAX_PLAYLISTS = 32
+MAX_PALETTES = 32
 MAX_PLAYLIST_STEPS = 64
 MAX_SCENE_BYTES = 512_000
 ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 SCENE_FIELDS = {
     "effect",
     "width",
@@ -32,6 +34,9 @@ SCENE_FIELDS = {
     "font",
     "media",
     "transition",
+    "segments",
+    "segmentTransform",
+    "effectControls",
     "folder",
     "tags",
     "favorite",
@@ -39,7 +44,12 @@ SCENE_FIELDS = {
 
 
 def _empty_library() -> dict[str, Any]:
-    return {"version": LIBRARY_VERSION, "scenes": [], "playlists": []}
+    return {
+        "version": LIBRARY_VERSION,
+        "scenes": [],
+        "playlists": [],
+        "palettes": [],
+    }
 
 
 def _identifier(value: Any, *, generate: bool = False) -> str:
@@ -250,15 +260,42 @@ class LibraryStore:
             "steps": clean_steps,
         }
 
+    @staticmethod
+    def _sanitize_palette(raw: Any) -> dict[str, Any]:
+        if not isinstance(raw, dict):
+            raise ValueError("Each palette must be a JSON object.")
+        colors = raw.get("colors")
+        if not isinstance(colors, list) or not 2 <= len(colors) <= 8:
+            raise ValueError("A palette needs 2 to 8 color stops.")
+        if any(
+            not isinstance(color, str) or not HEX_COLOR_PATTERN.fullmatch(color)
+            for color in colors
+        ):
+            raise ValueError("Palette colors must use six-digit hex values.")
+        return {
+            "id": _identifier(raw.get("id"), generate=True),
+            "name": _name(raw.get("name"), "Palette"),
+            "colors": [color.lower() for color in colors],
+        }
+
     @classmethod
     def _sanitize_library(cls, raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict):
             raise ValueError("Library backup must be a JSON object.")
         raw_scenes = raw.get("scenes", [])
         raw_playlists = raw.get("playlists", [])
-        if not isinstance(raw_scenes, list) or not isinstance(raw_playlists, list):
-            raise ValueError("Library scenes and playlists must be arrays.")
-        if len(raw_scenes) > MAX_SCENES or len(raw_playlists) > MAX_PLAYLISTS:
+        raw_palettes = raw.get("palettes", [])
+        if (
+            not isinstance(raw_scenes, list)
+            or not isinstance(raw_playlists, list)
+            or not isinstance(raw_palettes, list)
+        ):
+            raise ValueError("Library scenes, playlists, and palettes must be arrays.")
+        if (
+            len(raw_scenes) > MAX_SCENES
+            or len(raw_playlists) > MAX_PLAYLISTS
+            or len(raw_palettes) > MAX_PALETTES
+        ):
             raise ValueError("Library backup exceeds the storage limits.")
         scenes = [cls._sanitize_scene(scene) for scene in raw_scenes]
         scene_ids = [scene["id"] for scene in scenes]
@@ -271,10 +308,15 @@ class LibraryStore:
         playlist_ids = [playlist["id"] for playlist in playlists]
         if len(playlist_ids) != len(set(playlist_ids)):
             raise ValueError("Library playlist IDs must be unique.")
+        palettes = [cls._sanitize_palette(palette) for palette in raw_palettes]
+        palette_ids = [palette["id"] for palette in palettes]
+        if len(palette_ids) != len(set(palette_ids)):
+            raise ValueError("Library palette IDs must be unique.")
         return {
             "version": LIBRARY_VERSION,
             "scenes": scenes,
             "playlists": playlists,
+            "palettes": palettes,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -348,6 +390,36 @@ class LibraryStore:
             self._write()
             return True
 
+    def upsert_palette(self, raw: Any) -> dict[str, Any]:
+        palette = self._sanitize_palette(raw)
+        with self._lock:
+            palettes = [
+                existing
+                for existing in self._library["palettes"]
+                if existing["id"] != palette["id"]
+            ]
+            if len(palettes) >= MAX_PALETTES:
+                raise ValueError(
+                    f"The library can hold at most {MAX_PALETTES} palettes."
+                )
+            self._library["palettes"] = [palette, *palettes]
+            self._write()
+            return deepcopy(palette)
+
+    def delete_palette(self, palette_id: str) -> bool:
+        clean_id = _identifier(palette_id)
+        with self._lock:
+            palettes = [
+                palette
+                for palette in self._library["palettes"]
+                if palette["id"] != clean_id
+            ]
+            if len(palettes) == len(self._library["palettes"]):
+                return False
+            self._library["palettes"] = palettes
+            self._write()
+            return True
+
     def import_library(self, raw: Any, *, merge: bool) -> dict[str, Any]:
         imported = self._sanitize_library(raw)
         with self._lock:
@@ -370,10 +442,21 @@ class LibraryStore:
                         for playlist in imported["playlists"]
                     }
                 )
+                palettes_by_id = {
+                    palette["id"]: palette
+                    for palette in self._library["palettes"]
+                }
+                palettes_by_id.update(
+                    {
+                        palette["id"]: palette
+                        for palette in imported["palettes"]
+                    }
+                )
                 merged = {
                     "version": LIBRARY_VERSION,
                     "scenes": list(scenes_by_id.values()),
                     "playlists": list(playlists_by_id.values()),
+                    "palettes": list(palettes_by_id.values()),
                 }
                 self._library = self._sanitize_library(merged)
             self._write()

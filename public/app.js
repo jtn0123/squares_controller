@@ -19,6 +19,11 @@ import {
   sampleGradient,
 } from "./palette_model.js";
 import {
+  normalizeSegment,
+  normalizeSegmentTransform,
+  segmentSourceIndex,
+} from "./segment_model.js";
+import {
   describeZone,
   normalizeZone,
   panelGrid,
@@ -126,7 +131,7 @@ const state = {
   rotation: 0,
   backendWarningShown: false,
   stateEvents: null,
-  library: { scenes: [], playlists: [] },
+  library: { scenes: [], playlists: [], palettes: [] },
   playlistDraft: [],
   playlistTimer: null,
   playlistProgressTimer: null,
@@ -140,6 +145,8 @@ const state = {
   },
   palette: normalizePalette(null),
   zone: { type: "all" },
+  segmentTransform: normalizeSegmentTransform(null, 32 * 24),
+  segments: [],
   overlay: normalizeLayer({
     enabled: false,
     effect: "orbit",
@@ -269,7 +276,15 @@ function applyStatus(status, { syncBrightness = true } = {}) {
       `Interactive ${status.width} by ${status.height} LED canvas`,
     );
     state.zone = normalizeZone(state.zone, status.width, status.height);
+    state.segmentTransform = normalizeSegmentTransform(
+      state.segmentTransform,
+      status.width * status.height,
+    );
+    state.segments = state.segments.map((segment, index) =>
+      normalizeSegment(segment, status.width, status.height, `segment-${index + 1}`),
+    );
     renderZoneControls();
+    renderSegmentStudio();
     render();
   }
 
@@ -1333,12 +1348,93 @@ function updateModulationVisuals() {
   updateRangeFill(effectIntensity);
 }
 
-function updatePaletteControls() {
+function availablePalettes() {
+  return [...CURATED_PALETTES, ...state.library.palettes];
+}
+
+function renderPaletteOptions() {
   const select = document.querySelector("#paletteSelect");
-  const isCurated = CURATED_PALETTES.some(
+  const palettes = availablePalettes();
+  const selectedId = palettes.some(
+    (palette) => palette.id === state.palette.id,
+  )
+    ? state.palette.id
+    : "custom";
+  select.replaceChildren();
+  palettes.forEach((palette) => {
+    const option = document.createElement("option");
+    option.value = palette.id;
+    option.textContent =
+      palette.name ?? palette.id.replaceAll("-", " ").toUpperCase();
+    select.append(option);
+  });
+  const customOption = document.createElement("option");
+  customOption.value = "custom";
+  customOption.textContent = "UNSAVED GRADIENT";
+  select.append(customOption);
+  select.value = selectedId;
+
+  const overlaySelect = document.querySelector("#overlayPalette");
+  if (overlaySelect) {
+    const overlayId = state.overlay.paletteId;
+    overlaySelect.replaceChildren();
+    palettes.forEach((palette) => {
+      const option = document.createElement("option");
+      option.value = palette.id;
+      option.textContent =
+        palette.name ?? palette.id.replaceAll("-", " ").toUpperCase();
+      overlaySelect.append(option);
+    });
+    overlaySelect.value = palettes.some((palette) => palette.id === overlayId)
+      ? overlayId
+      : CURATED_PALETTES[0].id;
+  }
+}
+
+function renderPaletteWorkshop() {
+  const list = document.querySelector("#paletteStopList");
+  if (!list) return;
+  list.replaceChildren();
+  state.palette.colors.forEach((color, index) => {
+    const stop = document.createElement("label");
+    stop.className = "palette-stop";
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = color;
+    input.setAttribute("aria-label", `Palette color stop ${index + 1}`);
+    input.addEventListener("input", () => {
+      const colors = Array.from(
+        document.querySelectorAll("#paletteStopList input[type='color']"),
+        (element) => element.value,
+      );
+      state.palette = normalizePalette({ id: "custom", colors });
+      updatePaletteControls(false);
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove palette color stop ${index + 1}`);
+    remove.disabled = state.palette.colors.length <= 2;
+    remove.addEventListener("click", () => {
+      const colors = state.palette.colors.filter(
+        (_color, colorIndex) => colorIndex !== index,
+      );
+      applyPalette({ id: "custom", colors });
+    });
+    stop.append(input, remove);
+    list.append(stop);
+  });
+  document.querySelector("#paletteStopCount").textContent =
+    `${state.palette.colors.length} STOPS`;
+  const saved = state.library.palettes.find(
     (palette) => palette.id === state.palette.id,
   );
-  select.value = isCurated ? state.palette.id : "custom";
+  document.querySelector("#paletteName").value = saved?.name ?? "";
+  document.querySelector("#deletePaletteButton").disabled = !saved;
+}
+
+function updatePaletteControls(renderStops = true) {
+  renderPaletteOptions();
   const colors = state.palette.colors;
   document.querySelector("#gradientStart").value = colors[0];
   document.querySelector("#gradientMiddle").value =
@@ -1346,6 +1442,7 @@ function updatePaletteControls() {
   document.querySelector("#gradientEnd").value = colors.at(-1);
   document.querySelector("#palettePreview").style.background =
     `linear-gradient(90deg, ${colors.join(", ")})`;
+  if (renderStops) renderPaletteWorkshop();
 }
 
 function applyPalette(palette, announce = false) {
@@ -1356,20 +1453,11 @@ function applyPalette(palette, announce = false) {
 
 function initializePalettes() {
   const select = document.querySelector("#paletteSelect");
-  CURATED_PALETTES.forEach((palette) => {
-    const option = document.createElement("option");
-    option.value = palette.id;
-    option.textContent = palette.name;
-    select.append(option);
-  });
-  const customOption = document.createElement("option");
-  customOption.value = "custom";
-  customOption.textContent = "CUSTOM GRADIENT";
-  select.append(customOption);
+  renderPaletteOptions();
   select.addEventListener("change", () => {
     if (select.value === "custom") return;
     applyPalette(
-      CURATED_PALETTES.find((palette) => palette.id === select.value),
+      availablePalettes().find((palette) => palette.id === select.value),
       true,
     );
   });
@@ -1386,6 +1474,59 @@ function initializePalettes() {
       true,
     );
   });
+  document.querySelector("#addPaletteStopButton").addEventListener("click", () => {
+    if (state.palette.colors.length >= 8) {
+      toast("A palette can have at most eight color stops.", true);
+      return;
+    }
+    const colors = [...state.palette.colors];
+    colors.splice(colors.length - 1, 0, colors.at(-1));
+    applyPalette({ id: "custom", colors });
+  });
+  document.querySelector("#savePaletteButton").addEventListener("click", async () => {
+    const nameInput = document.querySelector("#paletteName");
+    const name = nameInput.value.trim();
+    if (!name) {
+      toast("Name the palette first.", true);
+      nameInput.focus();
+      return;
+    }
+    const existing = state.library.palettes.find(
+      (palette) => palette.id === state.palette.id || palette.name === name.toUpperCase(),
+    );
+    try {
+      const response = await api("/api/palettes", {
+        method: "POST",
+        body: JSON.stringify({
+          ...(existing ? { id: existing.id } : {}),
+          name,
+          colors: state.palette.colors,
+        }),
+      });
+      await loadLibrary();
+      applyPalette(response.palette, true);
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
+  document
+    .querySelector("#deletePaletteButton")
+    .addEventListener("click", async () => {
+      const saved = state.library.palettes.find(
+        (palette) => palette.id === state.palette.id,
+      );
+      if (!saved) return;
+      try {
+        await api(`/api/palettes/${encodeURIComponent(saved.id)}`, {
+          method: "DELETE",
+        });
+        applyPalette(CURATED_PALETTES[0]);
+        await loadLibrary();
+        toast(`Deleted ${saved.name}.`);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
   updatePaletteControls();
 }
 
@@ -1496,6 +1637,160 @@ function initializeZones() {
   renderZoneControls();
 }
 
+function renderSegmentStudio() {
+  const count = document.querySelector("#segmentCount");
+  if (!count) return;
+  const transform = normalizeSegmentTransform(
+    state.segmentTransform,
+    state.width * state.height,
+  );
+  state.segmentTransform = transform;
+  document.querySelector("#segmentMirrorX").checked = transform.mirrorX;
+  document.querySelector("#segmentMirrorY").checked = transform.mirrorY;
+  document.querySelector("#segmentTranspose").checked = transform.transpose;
+  document.querySelector("#segmentGrouping").value = transform.grouping;
+  document.querySelector("#segmentSpacing").value = transform.spacing;
+  document.querySelector("#segmentOffset").value = transform.offset;
+  document.querySelector("#segmentOffset").min = String(
+    -(state.width * state.height - 1),
+  );
+  document.querySelector("#segmentOffset").max = String(
+    state.width * state.height - 1,
+  );
+  count.textContent = `LIVE + ${state.segments.length} PINNED`;
+
+  const list = document.querySelector("#segmentList");
+  list.replaceChildren();
+  state.segments.forEach((segment) => {
+    const row = document.createElement("div");
+    row.className = "segment-row";
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = segment.enabled;
+    enabled.setAttribute("aria-label", `Enable ${segment.name}`);
+    enabled.addEventListener("change", () => {
+      segment.enabled = enabled.checked;
+    });
+    const copy = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = segment.name;
+    const details = document.createElement("small");
+    details.textContent =
+      `${effectById(segment.effect)?.name ?? segment.effect.toUpperCase()}` +
+      ` / ${describeZone(segment.zone)}`;
+    copy.append(name, details);
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = "EDIT";
+    edit.setAttribute("aria-label", `Edit ${segment.name}`);
+    edit.addEventListener("click", () => {
+      state.segments = state.segments.filter((item) => item.id !== segment.id);
+      state.zone = normalizeZone(segment.zone, state.width, state.height);
+      state.segmentTransform = normalizeSegmentTransform(
+        segment.transform,
+        state.width * state.height,
+      );
+      effectSpeed.value = Math.round(segment.speed * 100);
+      effectIntensity.value = Math.round(segment.intensity * 100);
+      updateModulationVisuals();
+      applyPalette(segment.palette);
+      renderZoneControls();
+      renderSegmentStudio();
+      startGeneratedEffect(segment.effect);
+      toast(`${segment.name} is now the live segment.`);
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove ${segment.name}`);
+    remove.addEventListener("click", () => {
+      state.segments = state.segments.filter((item) => item.id !== segment.id);
+      renderSegmentStudio();
+    });
+    row.append(enabled, copy, edit, remove);
+    list.append(row);
+  });
+  if (!state.segments.length) {
+    const empty = document.createElement("small");
+    empty.className = "local-note";
+    empty.textContent = "PIN THE LIVE REGION, THEN BUILD ANOTHER.";
+    list.append(empty);
+  }
+}
+
+function readSegmentTransformControls() {
+  state.segmentTransform = normalizeSegmentTransform(
+    {
+      mirrorX: document.querySelector("#segmentMirrorX").checked,
+      mirrorY: document.querySelector("#segmentMirrorY").checked,
+      transpose: document.querySelector("#segmentTranspose").checked,
+      grouping: document.querySelector("#segmentGrouping").value,
+      spacing: document.querySelector("#segmentSpacing").value,
+      offset: document.querySelector("#segmentOffset").value,
+    },
+    state.width * state.height,
+  );
+  renderSegmentStudio();
+}
+
+function initializeSegments() {
+  [
+    "segmentMirrorX",
+    "segmentMirrorY",
+    "segmentTranspose",
+    "segmentGrouping",
+    "segmentSpacing",
+    "segmentOffset",
+  ].forEach((id) => {
+    document
+      .querySelector(`#${id}`)
+      .addEventListener(
+        id.startsWith("segmentMirror") || id === "segmentTranspose"
+          ? "change"
+          : "input",
+        readSegmentTransformControls,
+      );
+  });
+  document.querySelector("#pinSegmentButton").addEventListener("click", () => {
+    if (!effectPainters[state.animationName]) {
+      toast("Run an effect before pinning a segment.", true);
+      return;
+    }
+    if (state.segments.length >= 3) {
+      toast("The live renderer supports three pinned segments.", true);
+      return;
+    }
+    const requestedName = document.querySelector("#segmentName").value.trim();
+    const index = state.segments.length + 1;
+    state.segments.push(
+      normalizeSegment(
+        {
+          id: `segment-${Date.now().toString(36)}-${index}`,
+          name: requestedName || `SEGMENT ${index}`,
+          effect: state.animationName,
+          speed: state.effectSpeed,
+          intensity: state.effectIntensity,
+          palette: state.palette,
+          zone: state.zone,
+          transform: state.segmentTransform,
+        },
+        state.width,
+        state.height,
+        `segment-${index}`,
+      ),
+    );
+    document.querySelector("#segmentName").value = "";
+    renderSegmentStudio();
+    toast(`Pinned segment ${index}.`);
+  });
+  document.querySelector("#clearSegmentsButton").addEventListener("click", () => {
+    state.segments = [];
+    renderSegmentStudio();
+    toast("Pinned segments cleared.");
+  });
+  renderSegmentStudio();
+}
+
 function updateLayerControls() {
   const layerStudio = document.querySelector(".layer-studio");
   document.querySelector("#overlayEnabled").checked = state.overlay.enabled;
@@ -1529,13 +1824,7 @@ function initializeLayers() {
     option.textContent = effect.name;
     effectSelect.append(option);
   });
-  const paletteSelect = document.querySelector("#overlayPalette");
-  CURATED_PALETTES.forEach((palette) => {
-    const option = document.createElement("option");
-    option.value = palette.id;
-    option.textContent = palette.name;
-    paletteSelect.append(option);
-  });
+  renderPaletteOptions();
   const blendSelect = document.querySelector("#overlayBlend");
   BLEND_MODES.forEach((mode) => {
     const option = document.createElement("option");
@@ -1652,48 +1941,94 @@ function renderGeneratedFrame(
   primaryBuffer = new Uint8Array(target.length),
   overlayBuffer = new Uint8Array(target.length),
 ) {
-  primaryBuffer.fill(0);
-  effectPainters[name](time, primaryBuffer, state.palette.colors);
-  overlayBuffer.fill(0);
-  const overlayPalette = CURATED_PALETTES.find(
-    (palette) => palette.id === state.overlay.paletteId,
-  ) ?? CURATED_PALETTES[0];
-  if (state.overlay.enabled) {
-    effectPainters[state.overlay.effect](
-      time * 0.87 + 0.61,
-      overlayBuffer,
-      overlayPalette.colors,
+  target.set(backdrop);
+  const previousZone = state.zone;
+  const paintSegment = (segment, includeOverlay = false) => {
+    state.zone = segment.zone;
+    primaryBuffer.fill(0);
+    effectPainters[segment.effect](
+      time * segment.speed,
+      primaryBuffer,
+      segment.palette.colors,
     );
-  }
-
-  for (let y = 0; y < state.height; y += 1) {
-    for (let x = 0; x < state.width; x += 1) {
-      const offset = (y * state.width + x) * 3;
-      if (!zoneContains(state.zone, x, y, state.width, state.height)) {
-        target[offset] = backdrop[offset];
-        target[offset + 1] = backdrop[offset + 1];
-        target[offset + 2] = backdrop[offset + 2];
-        continue;
-      }
-      const base = [
-        clampByte(primaryBuffer[offset] * state.effectIntensity),
-        clampByte(primaryBuffer[offset + 1] * state.effectIntensity),
-        clampByte(primaryBuffer[offset + 2] * state.effectIntensity),
-      ];
-      const mixed = state.overlay.enabled
-        ? blendRgb(
-            base,
-            [
-              clampByte(overlayBuffer[offset] * state.effectIntensity),
-              clampByte(overlayBuffer[offset + 1] * state.effectIntensity),
-              clampByte(overlayBuffer[offset + 2] * state.effectIntensity),
-            ],
-            state.overlay.blend,
-            state.overlay.opacity / 100,
-          )
-        : base;
-      target.set(mixed, offset);
+    overlayBuffer.fill(0);
+    const overlayPalette =
+      [...CURATED_PALETTES, ...state.library.palettes].find(
+        (palette) => palette.id === state.overlay.paletteId,
+      ) ?? CURATED_PALETTES[0];
+    if (includeOverlay && state.overlay.enabled) {
+      effectPainters[state.overlay.effect](
+        time * segment.speed * 0.87 + 0.61,
+        overlayBuffer,
+        overlayPalette.colors,
+      );
     }
+
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const pixel = segmentSourceIndex(
+          segment.zone,
+          segment.transform,
+          x,
+          y,
+          state.width,
+          state.height,
+        );
+        if (pixel < 0) continue;
+        const offset = (y * state.width + x) * 3;
+        const sourceOffset = pixel * 3;
+        const base = [
+          clampByte(primaryBuffer[sourceOffset] * segment.intensity),
+          clampByte(primaryBuffer[sourceOffset + 1] * segment.intensity),
+          clampByte(primaryBuffer[sourceOffset + 2] * segment.intensity),
+        ];
+        const mixed =
+          includeOverlay && state.overlay.enabled
+            ? blendRgb(
+                base,
+                [
+                  clampByte(overlayBuffer[sourceOffset] * segment.intensity),
+                  clampByte(
+                    overlayBuffer[sourceOffset + 1] * segment.intensity,
+                  ),
+                  clampByte(
+                    overlayBuffer[sourceOffset + 2] * segment.intensity,
+                  ),
+                ],
+                state.overlay.blend,
+                state.overlay.opacity / 100,
+              )
+            : base;
+        target.set(mixed, offset);
+      }
+    }
+  };
+
+  try {
+    state.segments
+      .filter((segment) => segment.enabled && effectPainters[segment.effect])
+      .forEach((segment) => paintSegment(segment));
+    paintSegment(
+      normalizeSegment(
+        {
+          id: "live",
+          name: "LIVE SEGMENT",
+          enabled: true,
+          effect: name,
+          speed: state.effectSpeed,
+          intensity: state.effectIntensity,
+          palette: state.palette,
+          zone: state.zone,
+          transform: state.segmentTransform,
+        },
+        state.width,
+        state.height,
+        "live",
+      ),
+      true,
+    );
+  } finally {
+    state.zone = previousZone;
   }
   return target;
 }
@@ -1721,7 +2056,7 @@ function startGeneratedEffect(name, { preserveOutput = false } = {}) {
   const tick = (now) => {
     if (state.animationName !== name) return;
     if (now - previousFrame >= FRAME_INTERVAL_MS) {
-      const time = ((now - startedAt) / 1000) * state.effectSpeed;
+      const time = (now - startedAt) / 1000;
       renderGeneratedFrame(
         name,
         time,
@@ -2035,7 +2370,7 @@ async function captureMovieFrames(frameCount, fps) {
   return Array.from({ length: frameCount }, (_, index) =>
     renderGeneratedFrame(
       state.animationName,
-      (index / fps) * state.effectSpeed,
+      index / fps,
       backdrop,
       new Uint8Array(state.pixels.length),
       primary,
@@ -2374,6 +2709,23 @@ async function loadPreset(preset, options = {}) {
   updateModulationVisuals();
   if (preset.palette) applyPalette(preset.palette);
   if (preset.zone) applyZone(preset.zone);
+  state.segmentTransform = normalizeSegmentTransform(
+    preset.segmentTransform,
+    state.width * state.height,
+  );
+  state.segments = Array.isArray(preset.segments)
+    ? preset.segments
+        .slice(0, 3)
+        .map((segment, index) =>
+          normalizeSegment(
+            segment,
+            state.width,
+            state.height,
+            `segment-${index + 1}`,
+          ),
+        )
+    : [];
+  renderSegmentStudio();
   if (preset.layers?.overlay) {
     state.overlay = normalizeLayer(preset.layers.overlay);
     updateLayerControls();
@@ -2700,6 +3052,8 @@ async function saveCurrentPreset() {
     zone: state.zone,
     layers: { overlay: state.overlay },
     transition: state.transition,
+    segments: state.segments,
+    segmentTransform: state.segmentTransform,
   });
   const folder = document.querySelector("#sceneFolder").value.trim();
   const tags = parseSceneTags(document.querySelector("#sceneTags").value);
@@ -3076,6 +3430,9 @@ function initializeAutomations() {
 async function loadLibrary() {
   const library = normalizeLibrary(await api("/api/library"));
   state.library = library;
+  renderPaletteOptions();
+  renderPaletteWorkshop();
+  updateLayerControls();
   state.playlistDraft = state.playlistDraft.filter((step) => sceneForId(step.sceneId));
   updateSceneFolderFilter();
   renderPresets();
@@ -3226,7 +3583,7 @@ document.querySelector("#importLibraryInput").addEventListener("change", async (
     if (
       !merge &&
       !window.confirm(
-        "Replace every saved scene and playlist with this backup?",
+        "Replace every saved scene, playlist, and palette with this backup?",
       )
     ) {
       return;
@@ -3251,6 +3608,7 @@ updateModulationVisuals();
 initializeEffectCatalog();
 initializePalettes();
 initializeZones();
+initializeSegments();
 initializeLayers();
 initializeTransitions();
 initializeMediaControls();

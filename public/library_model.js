@@ -1,3 +1,5 @@
+import { normalizeSavedPalette } from "./palette_model.js";
+
 export function normalizeLibrary(value) {
   const scenes = Array.isArray(value?.scenes)
     ? value.scenes.filter(
@@ -18,7 +20,10 @@ export function normalizeLibrary(value) {
           Array.isArray(playlist.steps),
       )
     : [];
-  return { scenes, playlists };
+  const palettes = Array.isArray(value?.palettes)
+    ? value.palettes.map(normalizeSavedPalette).filter(Boolean)
+    : [];
+  return { scenes, playlists, palettes };
 }
 
 function normalizeFolder(value) {
@@ -107,6 +112,9 @@ export function createSceneSnapshot({
   zone,
   layers,
   transition,
+  segments,
+  segmentTransform,
+  effectControls,
 }) {
   return {
     name,
@@ -122,6 +130,13 @@ export function createSceneSnapshot({
     ...(zone ? { zone: structuredClone(zone) } : {}),
     ...(layers ? { layers: structuredClone(layers) } : {}),
     ...(transition ? { transition: structuredClone(transition) } : {}),
+    ...(segments?.length ? { segments: structuredClone(segments) } : {}),
+    ...(segmentTransform
+      ? { segmentTransform: structuredClone(segmentTransform) }
+      : {}),
+    ...(effectControls
+      ? { effectControls: structuredClone(effectControls) }
+      : {}),
   };
 }
 
