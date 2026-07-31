@@ -2,9 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  mergeMovieDetails,
   outputPresentation,
   outputSignalPath,
 } from "../public/output_model.js";
+
+test("later identity-only status events retain loaded movie details", () => {
+  const status = mergeMovieDetails(
+    {
+      mode: "movie",
+      currentMovie: { id: 14, name: "Color Plasma" },
+    },
+    [{ id: 14, name: "Color Plasma", fps: 40, frames_number: 320 }],
+  );
+
+  assert.equal(status.currentMovie.fps, 40);
+  assert.equal(status.currentMovie.frames_number, 320);
+});
 
 test("controller movie replaces a stale browser canvas presentation", () => {
   const presentation = outputPresentation(

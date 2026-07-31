@@ -71,6 +71,7 @@ import {
   packMovieFrames,
 } from "./movie_model.js";
 import {
+  mergeMovieDetails,
   outputPresentation,
   outputSignalPath,
 } from "./output_model.js";
@@ -170,7 +171,7 @@ const state = {
   automations: [],
   streamTelemetry: normalizeStreamTelemetry(null),
   measuredFrameRate: 30,
-  movieLibrary: { availableFrames: 0, maxCapacity: 0 },
+  movieLibrary: { movies: [], availableFrames: 0, maxCapacity: 0 },
   controllerStatus: null,
 };
 
@@ -206,6 +207,7 @@ function setConnection(status, errorMessage = "") {
 }
 
 function applyStatus(status, { syncBrightness = true } = {}) {
+  status = mergeMovieDetails(status, state.movieLibrary.movies);
   state.controllerStatus = status;
   setConnection(status);
   const controllerVersion = status.controllerVersion;

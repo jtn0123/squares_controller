@@ -5,7 +5,7 @@ Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
 ![Version](https://img.shields.io/badge/version-0.10.1-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-94%20passing-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-95%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do

@@ -21,6 +21,16 @@ function movieMeta(movie, brightness) {
   return parts.join(" / ");
 }
 
+export function mergeMovieDetails(status, movies = []) {
+  const known = movies.find((movie) => movie.id === status?.currentMovie?.id);
+  return known
+    ? {
+        ...status,
+        currentMovie: { ...status.currentMovie, ...known },
+      }
+    : status;
+}
+
 export function outputPresentation(status, current = {}) {
   if (!status?.connected) {
     return {
