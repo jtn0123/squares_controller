@@ -104,6 +104,16 @@ def publish_controller_state(
     return state_broker.publish(controller_payload(payload), source)
 
 
+class SquaresServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        error = sys.exc_info()[1]
+        if isinstance(error, (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 class SquaresHandler(SimpleHTTPRequestHandler):
     server_version = f"SquaresController/{APP_VERSION}"
     protocol_version = "HTTP/1.1"
@@ -395,7 +405,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
 
 
-server = ThreadingHTTPServer((HOST, PORT), SquaresHandler)
+server = SquaresServer((HOST, PORT), SquaresHandler)
 shutting_down = threading.Event()
 
 
