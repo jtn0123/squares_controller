@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import threading
+import time
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +23,11 @@ from src.command_api import (
 )
 from src.library_store import LibraryStore
 from src.movie_payload import decode_movie_payload
+from src.runtime_policy import (
+    FrameActivity,
+    RuntimePolicyStore,
+    panel_mode_for_action,
+)
 from src.state_broker import StateBroker, StateEvent
 from src.twinkly_client import TwinklyClient
 
@@ -34,6 +40,9 @@ LIBRARY_PATH = Path(
 AUTOMATION_PATH = Path(
     os.environ.get("SQUARES_AUTOMATIONS", ROOT / ".squares" / "automations.json")
 )
+RUNTIME_POLICY_PATH = Path(
+    os.environ.get("SQUARES_RUNTIME_POLICY", ROOT / ".squares" / "runtime.json")
+)
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
 ALLOW_UNAUTHENTICATED_LAN = (
@@ -45,6 +54,9 @@ STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
 automation_store = AutomationStore(AUTOMATION_PATH)
+runtime_policy_store = RuntimePolicyStore(RUNTIME_POLICY_PATH)
+frame_activity = FrameActivity()
+frame_mode_lock = threading.Lock()
 validate_bind_security(
     HOST,
     allow_unauthenticated_lan=ALLOW_UNAUTHENTICATED_LAN,
@@ -284,6 +296,12 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 {"automations": automation_store.snapshot()},
             )
             return
+        if path == "/api/runtime-policy":
+            self.send_json(
+                HTTPStatus.OK,
+                {"runtimePolicy": runtime_policy_store.snapshot()},
+            )
+            return
         if path == "/api/events":
             try:
                 self.serve_state_events()
@@ -330,6 +348,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 automation = automation_store.upsert(body)
                 self.send_json(HTTPStatus.OK, {"automation": automation})
                 return
+            if path == "/api/runtime-policy":
+                policy = runtime_policy_store.update(body)
+                self.send_json(HTTPStatus.OK, {"runtimePolicy": policy})
+                return
             if path == "/api/v1/command":
                 action = str(body.get("action", "unknown"))
                 result = execute_command(get_client(), body)
@@ -352,9 +374,11 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 pixels = bytes(
                     max(0, min(255, round(float(value)))) for value in raw_pixels
                 )
-                result = get_client().set_raster_frame(
-                    pixels, int(body["width"]), int(body["height"])
-                )
+                with frame_mode_lock:
+                    result = get_client().set_raster_frame(
+                        pixels, int(body["width"]), int(body["height"])
+                    )
+                    frame_activity.note(time.monotonic())
                 source = "frame"
             elif path == "/api/brightness":
                 result = get_client().set_brightness(body["value"])
@@ -451,6 +475,30 @@ def automation_loop() -> None:
                 )
 
 
+def execute_runtime_action(action: str, source: str) -> None:
+    mode = panel_mode_for_action(action)
+    if mode is None:
+        return
+    result = get_client().set_mode(mode)
+    publish_controller_state(result, source)
+
+
+def frame_loss_loop() -> None:
+    while not shutting_down.wait(0.5):
+        try:
+            with frame_mode_lock:
+                action = frame_activity.claim_stale_action(
+                    runtime_policy_store.snapshot(),
+                    time.monotonic(),
+                )
+                if action is None:
+                    continue
+                execute_runtime_action(action, "runtime:frame-loss")
+            print(f"Frame-loss policy ran: {action}")
+        except (ConnectionError, KeyError, OSError, ValueError) as error:
+            print(f"Frame-loss policy failed: {error}", file=sys.stderr)
+
+
 def shutdown(signum: int, _frame: Any) -> None:
     if shutting_down.is_set():
         return
@@ -470,6 +518,11 @@ else:
     print(f"Connecting to {DEVICE_IP}...")
     try:
         status = client.connect()
+        startup_action = runtime_policy_store.snapshot()["startupAction"]
+        startup_mode = panel_mode_for_action(startup_action)
+        if startup_mode is not None and startup_mode != status["mode"]:
+            execute_runtime_action(startup_action, "runtime:startup")
+            status = client.status()
         print(
             f"Connected: {status['width']}x{status['height']}, "
             f"{status['ledCount']} LEDs, firmware {status['firmware']}"
@@ -484,6 +537,12 @@ automation_thread = threading.Thread(
     daemon=True,
 )
 automation_thread.start()
+frame_loss_thread = threading.Thread(
+    target=frame_loss_loop,
+    name="squares-frame-loss",
+    daemon=True,
+)
+frame_loss_thread.start()
 
 try:
     server.serve_forever()

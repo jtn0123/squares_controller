@@ -613,6 +613,149 @@ h1 {
     rgba(10, 12, 10, 0.72);
 }
 
+.clip-studio {
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(120deg, rgba(75, 131, 255, 0.045), transparent 48%),
+    rgba(8, 10, 9, 0.82);
+}
+
+.clip-studio summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 13px;
+  color: var(--muted);
+  cursor: pointer;
+  font: 750 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.13em;
+  list-style: none;
+}
+
+.clip-studio summary::-webkit-details-marker {
+  display: none;
+}
+
+.clip-studio summary::before {
+  margin-right: 8px;
+  color: var(--acid);
+  content: "+";
+}
+
+.clip-studio[open] summary::before {
+  content: "−";
+}
+
+.clip-studio summary span {
+  flex: 1;
+}
+
+.clip-studio summary strong {
+  color: var(--acid);
+  font-size: 7px;
+}
+
+.clip-toolbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  padding: 11px 11px 0;
+  border-top: 1px solid var(--line);
+}
+
+.clip-toolbar button,
+.runtime-policy-grid button {
+  min-height: 32px;
+  color: var(--muted);
+  border: 1px solid #394235;
+  background: #080a08;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.clip-toolbar button:hover,
+.runtime-policy-grid button:hover,
+.clip-toolbar .clip-play.active {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+}
+
+.clip-toolbar button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.clip-duration {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 11px 4px;
+  color: #6f786b;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.11em;
+}
+
+.clip-duration output {
+  color: var(--paper);
+}
+
+.clip-duration input {
+  grid-column: 1 / -1;
+}
+
+.clip-timeline {
+  display: flex;
+  gap: 7px;
+  min-height: 70px;
+  margin: 8px 11px;
+  padding: 8px;
+  overflow-x: auto;
+  border: 1px solid #293027;
+  background: #050605;
+}
+
+.clip-frame {
+  position: relative;
+  flex: 0 0 72px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid #3a4337;
+  background: #070907;
+}
+
+.clip-frame.active {
+  border-color: var(--acid);
+  box-shadow: 0 0 0 1px var(--acid);
+}
+
+.clip-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.clip-frame span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 2px 3px;
+  color: var(--paper);
+  background: rgba(0, 0, 0, 0.72);
+  font: 700 6px/1 ui-monospace, monospace;
+}
+
+.clip-studio > small {
+  display: block;
+  padding: 0 11px 10px;
+  color: #596155;
+  font: 650 6px/1.35 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
 .media-heading {
   display: flex;
   align-items: center;
@@ -2733,6 +2876,40 @@ h1 {
   background:
     linear-gradient(135deg, transparent 0 86%, rgba(217, 255, 91, 0.08) 86%),
     #0b0e0b;
+}
+
+.runtime-studio {
+  margin-bottom: 15px;
+}
+
+.runtime-policy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 9px;
+  border-top: 1px solid #252b23;
+}
+
+.runtime-policy-grid label {
+  display: grid;
+  gap: 5px;
+  color: #697264;
+  font: 700 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.11em;
+}
+
+.runtime-policy-grid select,
+.runtime-policy-grid input {
+  width: 100%;
+  min-height: 30px;
+  color: var(--paper);
+  border: 1px solid #3a4337;
+  background: #080a08;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+}
+
+.runtime-policy-grid button {
+  align-self: end;
 }
 
 .system-list .warning {

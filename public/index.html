@@ -226,6 +226,34 @@
           </div>
           <button class="media-stop" id="stopMediaButton" type="button">STOP INPUT / HOLD LAST FRAME</button>
         </div>
+        <details class="clip-studio" id="pixelClipStudio">
+          <summary>
+            <span>PIXEL CLIP / FRAME TIMELINE</span>
+            <strong id="clipStatus">0 / 32 FRAMES</strong>
+          </summary>
+          <div class="clip-toolbar">
+            <button id="captureClipFrame" type="button">+ CAPTURE FRAME</button>
+            <button id="updateClipFrame" type="button">UPDATE SELECTED</button>
+            <button id="duplicateClipFrame" type="button">DUPLICATE</button>
+            <button id="deleteClipFrame" type="button">DELETE</button>
+            <button class="clip-play" id="playClip" type="button">▶ PLAY LOOP</button>
+          </div>
+          <div class="clip-duration">
+            <label for="clipFrameDuration">SELECTED FRAME TIME</label>
+            <output id="clipFrameDurationValue" for="clipFrameDuration">250ms</output>
+            <input
+              class="range range--compact"
+              id="clipFrameDuration"
+              type="range"
+              min="25"
+              max="2000"
+              step="25"
+              value="250"
+            />
+          </div>
+          <div class="clip-timeline" id="clipTimeline" aria-label="Pixel clip frames"></div>
+          <small>CAPTURE THE LIVE CANVAS, SET EACH HOLD TIME, THEN PLAY OR BAKE THE LOOP TO THE PANEL.</small>
+        </details>
       </section>
 
       <aside class="control-rack" aria-label="Panel controls">
@@ -831,6 +859,36 @@
               <button data-rotation="270" type="button">270°</button>
             </div>
           </div>
+          <details class="advanced-studio runtime-studio" id="runtimeStudio">
+            <summary>
+              <span>STARTUP + FRAME-LOSS POLICY</span>
+              <strong id="runtimePolicyStatus">SAFE DEFAULTS</strong>
+            </summary>
+            <div class="runtime-policy-grid">
+              <label>
+                <span>WHEN SERVER STARTS</span>
+                <select id="startupAction">
+                  <option value="unchanged">LEAVE PANEL UNCHANGED</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="off">TURN PANEL OFF</option>
+                </select>
+              </label>
+              <label>
+                <span>WHEN BROWSER FRAMES STOP</span>
+                <select id="frameLossAction">
+                  <option value="hold">HOLD LAST FRAME</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="off">TURN PANEL OFF</option>
+                </select>
+              </label>
+              <label>
+                <span>WAIT / SECONDS</span>
+                <input id="frameLossSeconds" type="number" min="3" max="120" value="10" />
+              </label>
+              <button id="saveRuntimePolicy" type="button">SAVE RUNTIME POLICY</button>
+            </div>
+            <small>STARTUP APPLIES ON THE NEXT SERVER LAUNCH. FRAME-LOSS ALSO COUNTS A STATIC BROWSER FRAME; HOLD IS THE NON-DISRUPTIVE DEFAULT.</small>
+          </details>
           <div
             class="stream-diagnostics"
             id="streamDiagnostics"

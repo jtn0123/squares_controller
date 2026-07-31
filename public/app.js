@@ -82,6 +82,10 @@ import {
   outputPresentation,
   outputSignalPath,
 } from "./output_model.js";
+import {
+  MAX_CLIP_FRAMES,
+  clipFrameIndex,
+} from "./clip_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -130,6 +134,7 @@ const state = {
   effectSpeed: 1,
   effectIntensity: 0.75,
   effectControls: {},
+  clip: { frames: [], selected: -1 },
   rotation: 0,
   backendWarningShown: false,
   stateEvents: null,
@@ -285,8 +290,10 @@ function applyStatus(status, { syncBrightness = true } = {}) {
     state.segments = state.segments.map((segment, index) =>
       normalizeSegment(segment, status.width, status.height, `segment-${index + 1}`),
     );
+    state.clip = { frames: [], selected: -1 };
     renderZoneControls();
     renderSegmentStudio();
+    renderClipTimeline();
     render();
   }
 
@@ -729,6 +736,7 @@ function render() {
 
 function stopAnimation(showNotice = false) {
   const wasAudio = state.animationName === "audio";
+  const wasClip = state.animationName === "clip";
   state.transitionToken += 1;
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
@@ -737,7 +745,174 @@ function stopAnimation(showNotice = false) {
   document
     .querySelectorAll(".effect-card")
     .forEach((button) => button.classList.remove("active"));
+  if (wasClip) {
+    document.querySelector("#playClip")?.classList.remove("active");
+    const play = document.querySelector("#playClip");
+    if (play) play.textContent = "▶ PLAY LOOP";
+  }
   if (showNotice) toast("Motion stopped. The last frame remains live.");
+}
+
+function updateClipSelectionVisual(index) {
+  document
+    .querySelector(".clip-frame.active")
+    ?.classList.remove("active");
+  document
+    .querySelector(`[data-clip-frame="${index}"]`)
+    ?.classList.add("active");
+}
+
+function renderClipTimeline() {
+  const timeline = document.querySelector("#clipTimeline");
+  if (!timeline) return;
+  const frames = state.clip.frames;
+  const selected = frames[state.clip.selected] ? state.clip.selected : -1;
+  state.clip.selected = selected;
+  timeline.replaceChildren();
+  frames.forEach((frame, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "clip-frame";
+    button.dataset.clipFrame = String(index);
+    button.classList.toggle("active", index === selected);
+    button.setAttribute("aria-label", `Select clip frame ${index + 1}`);
+    const preview = document.createElement("canvas");
+    drawRgbCanvas(preview, frame.pixels, state.width, state.height);
+    const label = document.createElement("span");
+    label.textContent = `${index + 1} / ${frame.duration}ms`;
+    button.append(preview, label);
+    button.addEventListener("click", () => selectClipFrame(index));
+    timeline.append(button);
+  });
+  if (!frames.length) {
+    const empty = document.createElement("small");
+    empty.className = "local-note";
+    empty.textContent = "CAPTURE THE CURRENT WALL TO CREATE FRAME 01.";
+    timeline.append(empty);
+  }
+  const hasSelection = selected >= 0;
+  ["updateClipFrame", "duplicateClipFrame", "deleteClipFrame"].forEach((id) => {
+    document.querySelector(`#${id}`).disabled = !hasSelection;
+  });
+  document.querySelector("#playClip").disabled = frames.length < 2;
+  const duration = document.querySelector("#clipFrameDuration");
+  duration.disabled = !hasSelection;
+  duration.value = hasSelection ? frames[selected].duration : 250;
+  document.querySelector("#clipFrameDurationValue").textContent =
+    `${duration.value}ms`;
+  document.querySelector("#clipStatus").textContent =
+    `${frames.length} / ${MAX_CLIP_FRAMES} FRAMES`;
+}
+
+function selectClipFrame(index) {
+  const frame = state.clip.frames[index];
+  if (!frame) return;
+  stopMedia();
+  stopAnimation();
+  state.clip.selected = index;
+  state.pixels.set(frame.pixels);
+  setOutputContext({ kind: "clip", name: `PIXEL CLIP / FRAME ${index + 1}` });
+  render();
+  scheduleFrame();
+  renderClipTimeline();
+}
+
+function startClipPlayback() {
+  if (state.animationName === "clip") {
+    stopAnimation(true);
+    return;
+  }
+  if (state.clip.frames.length < 2) {
+    toast("Capture at least two frames before playing a clip.", true);
+    return;
+  }
+  stopMedia();
+  stopAnimation();
+  state.animationName = "clip";
+  setOutputContext({ kind: "clip", name: "PIXEL CLIP LOOP" });
+  const button = document.querySelector("#playClip");
+  button.classList.add("active");
+  button.textContent = "■ STOP LOOP";
+  const startedAt = performance.now();
+  let previousIndex = -1;
+  const tick = (now) => {
+    if (state.animationName !== "clip") return;
+    const index = clipFrameIndex(state.clip.frames, now - startedAt);
+    if (index !== previousIndex) {
+      previousIndex = index;
+      state.clip.selected = index;
+      state.pixels.set(state.clip.frames[index].pixels);
+      render();
+      scheduleFrame();
+      updateClipSelectionVisual(index);
+    }
+    state.animationFrame = requestAnimationFrame(tick);
+  };
+  state.animationFrame = requestAnimationFrame(tick);
+}
+
+function initializeClipStudio() {
+  document.querySelector("#captureClipFrame").addEventListener("click", () => {
+    if (state.clip.frames.length >= MAX_CLIP_FRAMES) {
+      toast("Pixel clips are capped at 32 frames.", true);
+      return;
+    }
+    const selected = state.clip.frames[state.clip.selected];
+    state.clip.frames.push({
+      pixels: state.pixels.slice(),
+      duration: selected?.duration ?? 250,
+    });
+    state.clip.selected = state.clip.frames.length - 1;
+    renderClipTimeline();
+    toast(`Captured frame ${state.clip.selected + 1}.`);
+  });
+  document.querySelector("#updateClipFrame").addEventListener("click", () => {
+    const frame = state.clip.frames[state.clip.selected];
+    if (!frame) return;
+    frame.pixels = state.pixels.slice();
+    renderClipTimeline();
+    toast(`Updated frame ${state.clip.selected + 1}.`);
+  });
+  document.querySelector("#duplicateClipFrame").addEventListener("click", () => {
+    const frame = state.clip.frames[state.clip.selected];
+    if (!frame) return;
+    if (state.clip.frames.length >= MAX_CLIP_FRAMES) {
+      toast("Pixel clips are capped at 32 frames.", true);
+      return;
+    }
+    state.clip.frames.splice(state.clip.selected + 1, 0, {
+      pixels: frame.pixels.slice(),
+      duration: frame.duration,
+    });
+    state.clip.selected += 1;
+    renderClipTimeline();
+  });
+  document.querySelector("#deleteClipFrame").addEventListener("click", () => {
+    if (state.animationName === "clip") stopAnimation();
+    state.clip.frames.splice(state.clip.selected, 1);
+    state.clip.selected = Math.min(
+      state.clip.selected,
+      state.clip.frames.length - 1,
+    );
+    if (state.clip.selected >= 0) {
+      state.pixels.set(state.clip.frames[state.clip.selected].pixels);
+      render();
+      scheduleFrame();
+    }
+    renderClipTimeline();
+  });
+  document.querySelector("#clipFrameDuration").addEventListener("input", (event) => {
+    const frame = state.clip.frames[state.clip.selected];
+    if (!frame) return;
+    frame.duration = Math.max(25, Math.min(2_000, Number(event.target.value)));
+    document.querySelector("#clipFrameDurationValue").textContent =
+      `${frame.duration}ms`;
+    document.querySelector(
+      `[data-clip-frame="${state.clip.selected}"] span`,
+    ).textContent = `${state.clip.selected + 1} / ${frame.duration}ms`;
+  });
+  document.querySelector("#playClip").addEventListener("click", startClipPlayback);
+  renderClipTimeline();
 }
 
 function scheduleFrame() {
@@ -2613,6 +2788,13 @@ async function captureMovieFrames(frameCount, fps) {
     return frames;
   }
 
+  if (state.animationName === "clip" && state.clip.frames.length) {
+    return Array.from({ length: frameCount }, (_, index) => {
+      const clipIndex = clipFrameIndex(state.clip.frames, index / fps * 1_000);
+      return state.clip.frames[clipIndex].pixels.slice();
+    });
+  }
+
   const effect = effectPainters[state.animationName];
   if (!effect) return [state.pixels.slice()];
   const backdrop = state.pixels.slice();
@@ -2669,7 +2851,11 @@ async function bakeCurrentLook() {
     const duration = video && Number.isFinite(video.duration)
       ? Math.min(requestedDuration, video.duration)
       : requestedDuration;
-    const isMotion = Boolean(video || effectPainters[state.animationName]);
+    const isMotion = Boolean(
+      video ||
+      effectPainters[state.animationName] ||
+      (state.animationName === "clip" && state.clip.frames.length > 1),
+    );
     const frameCount = isMotion
       ? movieFrameCount(duration, fps, library.availableFrames)
       : 1;
@@ -3683,6 +3869,53 @@ function initializeAutomations() {
   );
 }
 
+function renderRuntimePolicy(policy) {
+  document.querySelector("#startupAction").value = policy.startupAction;
+  document.querySelector("#frameLossAction").value = policy.frameLossAction;
+  document.querySelector("#frameLossSeconds").value = policy.frameLossSeconds;
+  const startup =
+    policy.startupAction === "unchanged"
+      ? "START UNCHANGED"
+      : `START ${policy.startupAction.toUpperCase()}`;
+  const frameLoss =
+    policy.frameLossAction === "hold"
+      ? "LOSS HOLD"
+      : `LOSS ${policy.frameLossAction.toUpperCase()}`;
+  document.querySelector("#runtimePolicyStatus").textContent =
+    `${startup} / ${frameLoss}`;
+}
+
+async function loadRuntimePolicy() {
+  const response = await api("/api/runtime-policy");
+  renderRuntimePolicy(response.runtimePolicy);
+}
+
+function initializeRuntimePolicy() {
+  document
+    .querySelector("#saveRuntimePolicy")
+    .addEventListener("click", async () => {
+      try {
+        const response = await api("/api/runtime-policy", {
+          method: "POST",
+          body: JSON.stringify({
+            startupAction: document.querySelector("#startupAction").value,
+            frameLossAction: document.querySelector("#frameLossAction").value,
+            frameLossSeconds: Number(
+              document.querySelector("#frameLossSeconds").value,
+            ),
+          }),
+        });
+        renderRuntimePolicy(response.runtimePolicy);
+        toast("Runtime policy saved.");
+      } catch (error) {
+        toast(error.message, true);
+      }
+    });
+  void loadRuntimePolicy().catch((error) =>
+    toast(`Runtime policy unavailable: ${error.message}`, true),
+  );
+}
+
 async function loadLibrary() {
   const library = normalizeLibrary(await api("/api/library"));
   state.library = library;
@@ -3863,6 +4096,7 @@ updateSceneMonitor();
 updateModulationVisuals();
 initializeEffectCatalog();
 initializePalettes();
+initializeClipStudio();
 initializeZones();
 initializeSegments();
 initializeLayers();
@@ -3871,6 +4105,7 @@ initializeMediaControls();
 initializeLiveInputs();
 initializeTextStudio();
 initializeAutomations();
+initializeRuntimePolicy();
 initializeSceneOrganizer();
 renderPresets();
 renderPlaylistDraft();
