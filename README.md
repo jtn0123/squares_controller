@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.10.1-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-95%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.11.0-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-113%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -17,18 +17,26 @@ solder.
   with sensitivity, smoothing, and live frequency meters
 - Mirror a screen, window, or browser tab through the same media sampling and
   color-correction pipeline
-- Run ten procedural 2D and particle effects with speed and intensity controls
-- Select curated palettes or create a custom three-color gradient
+- Run sixteen procedural 2D and particle effects with speed, intensity, and
+  optional effect-specific controls
+- Select curated palettes, build two-to-eight-stop gradients, and save custom
+  palettes to the controller library
 - Compose two effect layers with opacity and five blend modes
-- Target the whole wall, a panel, a row, a column, or a custom rectangle
-- Save server-persisted scenes and timed playlists with cut, crossfade, push,
-  or dissolve transitions
+- Target the whole wall, a panel, a row, a column, or a custom rectangle; pin
+  up to three additional 2D segments with mirroring, transpose, grouping,
+  spacing, and offset transforms
+- Save server-persisted scenes and timed playlists with eight transitions,
+  including cut, crossfade, push, dissolve, wipe, shift, radial, and pixelate
+- Capture up to 32 hand-built pixel frames, set each frame's hold time down to
+  25 ms, preview the loop, and bake it into controller movie storage
 - See real scene thumbnails, exact browser-output previews, honest
   controller-local playback status, active-scene state, and playlist progress
 - Organize scenes with folders, tags, favorites, search, filters, duplication,
   inline metadata editing, and merge-or-replace JSON backups
 - Display scrolling text, a clock, and locally loaded fonts
 - Schedule sleep, wake, brightness, stock-mode, and off actions
+- Choose safe startup and stale-browser-frame behavior; unchanged startup and
+  hold-last-frame remain the non-disruptive defaults
 - Rotate the complete display to 0°, 90°, 180°, or 270°
 - Control live brightness while custom frames are streaming
 - Inspect advertised, measured, target, and delivered frame cadence plus relay
@@ -77,8 +85,9 @@ On macOS, you can also double-click `scripts/start.command`.
 Open [http://127.0.0.1:4312](http://127.0.0.1:4312). Press `Control-C` to stop;
 a graceful shutdown returns the panel to its saved Twinkly animation.
 
-Scenes, playlists, and automations are stored in `.squares/` beside the
-controller. That directory and `config.json` are ignored by Git.
+Scenes, playlists, palettes, automations, and runtime policy are stored in
+`.squares/` beside the controller. That directory and `config.json` are
+ignored by Git.
 
 ## Local integrations
 
@@ -108,6 +117,7 @@ Environment variables override the defaults:
 | `SQUARES_CONFIG` | Alternate configuration file | `./config.json` |
 | `SQUARES_LIBRARY` | Alternate scene/playlist file | `./.squares/library.json` |
 | `SQUARES_AUTOMATIONS` | Alternate automation file | `./.squares/automations.json` |
+| `SQUARES_RUNTIME_POLICY` | Alternate startup/frame-loss policy file | `./.squares/runtime.json` |
 | `ALLOW_UNAUTHENTICATED_LAN` | Explicitly allow a non-loopback bind | unset |
 
 ## Start automatically on macOS
@@ -144,12 +154,12 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 41 Python and 45 browser-model tests. It covers
+The current suite contains 49 Python and 64 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media
-controls, scene organization, playlists, relay telemetry, and safe movie
-payloads.
+controls, scene organization, playlists, pixel clips, runtime failure policy,
+relay telemetry, and safe movie payloads.
 
 ## Frame-rate notes
 

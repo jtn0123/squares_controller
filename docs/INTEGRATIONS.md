@@ -46,6 +46,11 @@ Supported actions are:
 automation counts. `GET /api/events` is a Server-Sent Events stream for live
 controller changes.
 
+The browser UI also uses `GET` and `POST /api/runtime-policy` to persist its
+startup and stale-frame policy. Its safe default is to leave the panel
+unchanged at server startup and hold the latest realtime frame if browser
+updates stop.
+
 Generated effects, media, fonts, transitions, and playlist rendering run in
 the browser. The external API controls hardware state and complete raster
 frames directly.

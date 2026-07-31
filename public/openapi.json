@@ -111,6 +111,50 @@
           }
         }
       }
+    },
+    "/api/runtime-policy": {
+      "get": {
+        "summary": "Read startup and stale-frame behavior",
+        "responses": {
+          "200": {
+            "description": "Current runtime policy"
+          }
+        }
+      },
+      "post": {
+        "summary": "Persist startup and stale-frame behavior",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "startupAction": {
+                    "enum": ["unchanged", "stock", "off"]
+                  },
+                  "frameLossAction": {
+                    "enum": ["hold", "stock", "off"]
+                  },
+                  "frameLossSeconds": {
+                    "type": "integer",
+                    "minimum": 3,
+                    "maximum": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved runtime policy"
+          },
+          "400": {
+            "description": "Invalid runtime policy"
+          }
+        }
+      }
     }
   }
 }
