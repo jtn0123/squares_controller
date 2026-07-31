@@ -11,3 +11,11 @@ export function statusOptionsForSource(source) {
     syncBrightness: source !== "frame",
   };
 }
+
+export function shouldApplyStatus(source, previousStatus, nextStatus) {
+  if (source !== "frame" || !previousStatus) return true;
+  return (
+    previousStatus.mode !== nextStatus.mode ||
+    Boolean(previousStatus.streaming) !== Boolean(nextStatus.streaming)
+  );
+}

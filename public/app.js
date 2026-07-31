@@ -1,5 +1,6 @@
 import {
   brightnessFromStatus,
+  shouldApplyStatus,
   statusOptionsForSource,
 } from "./status_sync.js";
 import {
@@ -228,8 +229,6 @@ function applyStatus(status, { syncBrightness = true } = {}) {
   document.querySelector("#measuredFpsReadout").textContent =
     Number(status.measuredFrameRate ?? status.frameRate).toFixed(2);
   state.measuredFrameRate = Number(status.measuredFrameRate ?? status.frameRate);
-  document.querySelector("#relayFpsReadout").textContent =
-    Number(status.streamTargetFps ?? status.frameRate).toFixed(1);
   updateStreamTelemetry(status.streamTelemetry);
   document.querySelector("#firmwareReadout").textContent = `FW ${status.firmware}`;
   document.querySelector("#routeReadout").textContent = status.ip;
@@ -299,6 +298,8 @@ function updateOutputSignal(status) {
 function updateStreamTelemetry(raw) {
   const telemetry = normalizeStreamTelemetry(raw);
   state.streamTelemetry = telemetry;
+  document.querySelector("#relayFpsReadout").textContent =
+    telemetry.actualFps ? telemetry.actualFps.toFixed(2) : "—";
   const health = streamHealth(telemetry);
   const panel = document.querySelector("#streamDiagnostics");
   panel.dataset.health = health;
@@ -397,6 +398,13 @@ function startStateSync() {
   stateEvents.addEventListener("state", (event) => {
     try {
       const message = JSON.parse(event.data);
+      if (
+        !shouldApplyStatus(
+          message.source,
+          state.controllerStatus,
+          message.status,
+        )
+      ) return;
       applyStatus(
         message.status,
         statusOptionsForSource(message.source),
@@ -573,8 +581,23 @@ function updateSceneMonitor() {
   }
 }
 
+function updatePresetSelection() {
+  document.querySelectorAll(".preset-row").forEach((row) => {
+    const active = row.dataset.sceneKey === state.outputContext.sceneKey;
+    row.classList.toggle("active", active);
+    const label = row.querySelector(".scene-preview-label");
+    if (label) {
+      label.textContent = active
+        ? "ON AIR"
+        : row.classList.contains("built-in")
+          ? "BUILT-IN"
+          : "SAVED";
+    }
+  });
+}
+
 function setOutputContext(output) {
-  state.outputContext = {
+  const nextOutputContext = {
     kind: output.kind ?? "canvas",
     name: output.name ?? "CURRENT OUTPUT",
     sceneKey: output.sceneKey ?? null,
@@ -588,7 +611,10 @@ function setOutputContext(output) {
     playback: output.playback ?? null,
     controllerMovie: output.controllerMovie ?? null,
   };
-  renderPresets();
+  const sceneSelectionChanged =
+    state.outputContext.sceneKey !== nextOutputContext.sceneKey;
+  state.outputContext = nextOutputContext;
+  if (sceneSelectionChanged) updatePresetSelection();
   updateSceneMonitor();
   drawRgbCanvas(
     sceneMonitorCanvas,
