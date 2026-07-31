@@ -4,16 +4,17 @@ import unittest
 from unittest.mock import Mock, patch
 
 from src.twinkly_client import (
-    STREAM_INTERVAL_SECONDS,
     Layout,
     TwinklyClient,
     build_realtime_packets,
     calculate_layout,
+    choose_stream_fps,
     next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
     raster_to_device_frame,
     scale_frame_brightness,
+    stream_interval_seconds,
 )
 
 
@@ -30,12 +31,24 @@ def rectangular_coordinates(width: int, height: int) -> list[dict[str, float]]:
 
 
 class TwinklyClientTests(unittest.TestCase):
-    def test_relay_targets_device_native_frame_rate(self) -> None:
-        self.assertEqual(STREAM_INTERVAL_SECONDS, 0.025)
+    def test_relay_keeps_headroom_below_measured_panel_rate(self) -> None:
+        device = {"frame_rate": 40, "measured_frame_rate": 38.46}
+
+        self.assertEqual(choose_stream_fps(device), 37.5)
+        self.assertAlmostEqual(stream_interval_seconds(device), 1 / 37.5)
+
+    def test_relay_respects_slower_device_measurement(self) -> None:
+        device = {"frame_rate": 25, "measured_frame_rate": 23.26}
+
+        self.assertEqual(choose_stream_fps(device), 23.26)
 
     def test_relay_skips_missed_deadlines_without_bursting(self) -> None:
-        self.assertEqual(next_stream_deadline(1.0, 1.01), 1.025)
-        self.assertEqual(next_stream_deadline(1.0, 1.04), 1.065)
+        interval = 1 / 37.5
+        self.assertAlmostEqual(next_stream_deadline(1.0, 1.01, interval), 1.0 + interval)
+        self.assertAlmostEqual(
+            next_stream_deadline(1.0, 1.04, interval),
+            1.04 + interval,
+        )
 
     @staticmethod
     def connected_client() -> TwinklyClient:
@@ -44,12 +57,49 @@ class TwinklyClientTests(unittest.TestCase):
             "device_name": "Test Squares",
             "product_code": "TST",
             "frame_rate": 25,
+            "measured_frame_rate": 23.26,
         }
         client.firmware = "2.9.1"
         client.layout = Layout(1, 1, 1, (0,))
         client.mode = "movie"
         client.brightness = 100
         return client
+
+    def test_status_exposes_advertised_measured_and_relay_rates(self) -> None:
+        client = self.connected_client()
+        status = client.status()
+
+        self.assertEqual(status["frameRate"], 25)
+        self.assertEqual(status["measuredFrameRate"], 23.26)
+        self.assertEqual(status["streamTargetFps"], 23.26)
+        client.close(restore_movie=False)
+
+    def test_stream_telemetry_separates_unique_and_repeated_frames(self) -> None:
+        client = self.connected_client()
+        client._record_stream_delivery(1.000, 0.999, 7)
+        client._record_stream_delivery(1.028, 1.026, 7)
+        client._record_stream_delivery(1.055, 1.053, 8)
+
+        telemetry = client.stream_telemetry()
+
+        self.assertEqual(telemetry["sentFrames"], 3)
+        self.assertEqual(telemetry["uniqueFrames"], 2)
+        self.assertEqual(telemetry["repeatedFrames"], 1)
+        self.assertEqual(telemetry["lateFrames"], 2)
+        self.assertEqual(telemetry["missedDeadlines"], 0)
+        self.assertAlmostEqual(telemetry["actualFps"], 36.36, places=2)
+        self.assertEqual(telemetry["maxGapMs"], 28.0)
+        client.close(restore_movie=False)
+
+    def test_stream_telemetry_counts_full_deadline_misses(self) -> None:
+        client = self.connected_client()
+        interval = stream_interval_seconds(client.device)
+        client._record_stream_delivery(2.0, 2.0 - interval - 0.001, 1)
+
+        telemetry = client.stream_telemetry()
+
+        self.assertEqual(telemetry["missedDeadlines"], 1)
+        client.close(restore_movie=False)
 
     def test_calculates_32_by_24_geometry_and_flips_device_y(self) -> None:
         layout = calculate_layout(rectangular_coordinates(32, 24))

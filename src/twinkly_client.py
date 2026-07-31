@@ -8,21 +8,39 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
 API_PREFIX = "/xled/v1"
 UDP_PORT = 7777
 FRAME_CHUNK_SIZE = 900
-STREAM_INTERVAL_SECONDS = 0.025
+MAX_STABLE_STREAM_FPS = 37.5
 REQUEST_TIMEOUT_SECONDS = 4
 TOKEN_MAX_AGE_SECONDS = 3 * 60 * 60
 SUPPORTED_ROTATIONS = (0, 90, 180, 270)
 
 
-def next_stream_deadline(previous: float, now: float) -> float:
-    target = previous + STREAM_INTERVAL_SECONDS
-    return now + STREAM_INTERVAL_SECONDS if target <= now else target
+def choose_stream_fps(device: dict[str, Any] | None) -> float:
+    if not device:
+        return MAX_STABLE_STREAM_FPS
+    raw_rate = device.get("measured_frame_rate", device.get("frame_rate"))
+    try:
+        device_rate = float(raw_rate)
+    except (TypeError, ValueError):
+        return MAX_STABLE_STREAM_FPS
+    if device_rate <= 0:
+        return MAX_STABLE_STREAM_FPS
+    return min(device_rate, MAX_STABLE_STREAM_FPS)
+
+
+def stream_interval_seconds(device: dict[str, Any] | None) -> float:
+    return 1.0 / choose_stream_fps(device)
+
+
+def next_stream_deadline(previous: float, now: float, interval: float) -> float:
+    target = previous + interval
+    return now + interval if target <= now else target
 
 
 @dataclass(frozen=True)
@@ -188,6 +206,17 @@ class TwinklyClient:
         self._stream_stop = threading.Event()
         self._stream_thread: threading.Thread | None = None
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._frame_version = 0
+        self._last_sent_version: int | None = None
+        self._stream_started_at: float | None = None
+        self._last_send_at: float | None = None
+        self._sent_frames = 0
+        self._unique_frames = 0
+        self._repeated_frames = 0
+        self._late_frames = 0
+        self._missed_deadlines = 0
+        self._stream_gaps_ms: deque[float] = deque(maxlen=240)
+        self._stream_lateness_ms: deque[float] = deque(maxlen=240)
 
     def _fetch_json(
         self,
@@ -313,12 +342,93 @@ class TwinklyClient:
                 "height": height,
                 "rotation": self.rotation,
                 "frameRate": self.device["frame_rate"],
+                "measuredFrameRate": self.device.get(
+                    "measured_frame_rate", self.device["frame_rate"]
+                ),
+                "streamTargetFps": choose_stream_fps(self.device),
                 "mode": self.mode,
                 "brightness": self.brightness,
                 "brightnessControl": "realtime-rgb" if is_streaming else "device",
                 "streaming": is_streaming,
+                "streamTelemetry": self.stream_telemetry(),
                 "lastError": self.last_error,
             }
+
+    @staticmethod
+    def _percentile(values: deque[float], fraction: float) -> float:
+        if not values:
+            return 0.0
+        ordered = sorted(values)
+        index = min(len(ordered) - 1, round((len(ordered) - 1) * fraction))
+        return ordered[index]
+
+    def stream_telemetry(self) -> dict[str, Any]:
+        with self._lock:
+            elapsed = (
+                (self._last_send_at - self._stream_started_at)
+                if self._last_send_at is not None
+                and self._stream_started_at is not None
+                else 0.0
+            )
+            actual_fps = (
+                (self._sent_frames - 1) / elapsed
+                if self._sent_frames > 1 and elapsed > 0
+                else 0.0
+            )
+            return {
+                "targetFps": choose_stream_fps(self.device),
+                "actualFps": round(actual_fps, 2),
+                "sentFrames": self._sent_frames,
+                "uniqueFrames": self._unique_frames,
+                "repeatedFrames": self._repeated_frames,
+                "lateFrames": self._late_frames,
+                "missedDeadlines": self._missed_deadlines,
+                "p95GapMs": round(
+                    self._percentile(self._stream_gaps_ms, 0.95), 3
+                ),
+                "maxGapMs": round(max(self._stream_gaps_ms, default=0.0), 3),
+                "p95LatenessMs": round(
+                    self._percentile(self._stream_lateness_ms, 0.95), 3
+                ),
+            }
+
+    def _reset_stream_telemetry(self) -> None:
+        with self._lock:
+            self._last_sent_version = None
+            self._stream_started_at = None
+            self._last_send_at = None
+            self._sent_frames = 0
+            self._unique_frames = 0
+            self._repeated_frames = 0
+            self._late_frames = 0
+            self._missed_deadlines = 0
+            self._stream_gaps_ms.clear()
+            self._stream_lateness_ms.clear()
+
+    def _record_stream_delivery(
+        self, sent_at: float, deadline: float, frame_version: int
+    ) -> None:
+        interval = stream_interval_seconds(self.device)
+        with self._lock:
+            if self._stream_started_at is None:
+                self._stream_started_at = sent_at
+            if self._last_send_at is not None:
+                self._stream_gaps_ms.append(
+                    (sent_at - self._last_send_at) * 1000
+                )
+            lateness = max(0.0, sent_at - deadline)
+            self._stream_lateness_ms.append(lateness * 1000)
+            self._sent_frames += 1
+            if frame_version == self._last_sent_version:
+                self._repeated_frames += 1
+            else:
+                self._unique_frames += 1
+            if lateness > 0.0015:
+                self._late_frames += 1
+            if lateness > interval:
+                self._missed_deadlines += int(lateness // interval)
+            self._last_sent_version = frame_version
+            self._last_send_at = sent_at
 
     def refresh_status(self) -> dict[str, Any]:
         if self.device is None:
@@ -392,6 +502,7 @@ class TwinklyClient:
         )
         with self._lock:
             self.last_frame = frame
+            self._frame_version += 1
 
         if self._stream_thread is None or not self._stream_thread.is_alive():
             self.request("/led/mode", method="POST", body={"mode": "rt"})
@@ -402,6 +513,7 @@ class TwinklyClient:
             )
             with self._lock:
                 self.mode = "rt"
+            self._reset_stream_telemetry()
             self._stream_stop.clear()
             self._stream_thread = threading.Thread(
                 target=self._stream_loop,
@@ -413,22 +525,32 @@ class TwinklyClient:
 
     def _stream_loop(self) -> None:
         deadline = time.monotonic()
+        interval = stream_interval_seconds(self.device)
         while not self._stream_stop.is_set():
-            self._send_last_frame()
-            deadline = next_stream_deadline(deadline, time.monotonic())
+            self._send_last_frame(deadline)
+            deadline = next_stream_deadline(
+                deadline, time.monotonic(), interval
+            )
             self._stream_stop.wait(max(0.0, deadline - time.monotonic()))
 
-    def _send_last_frame(self) -> None:
+    def _send_last_frame(self, deadline: float | None = None) -> None:
         try:
             token = self.authenticate()
             with self._lock:
                 frame = self.last_frame
                 brightness = self.brightness if self.brightness is not None else 100
+                frame_version = self._frame_version
             if frame is None:
                 return
             output_frame = scale_frame_brightness(frame, brightness)
             for packet in build_realtime_packets(token, output_frame):
                 self._socket.sendto(packet, (self.ip, UDP_PORT))
+            sent_at = time.monotonic()
+            self._record_stream_delivery(
+                sent_at,
+                deadline if deadline is not None else sent_at,
+                frame_version,
+            )
             with self._lock:
                 self.last_error = None
         except (ConnectionError, OSError, ValueError) as error:
