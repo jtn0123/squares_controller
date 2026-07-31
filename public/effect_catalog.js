@@ -144,3 +144,22 @@ export function radarLightLevel(delta, ring = 0, spark = 0) {
     Math.max(0, Number(ring) + sweepLight * 0.72 + Number(spark)),
   );
 }
+
+export function cellularLifeLevel(
+  x,
+  y,
+  time,
+  rawDensity,
+  rawCadence,
+) {
+  const density = Math.max(10, Math.min(90, Number(rawDensity) || 42));
+  const cadence = Math.max(1, Math.min(12, Number(rawCadence) || 5));
+  const drift = (Number(time) || 0) * (0.18 + cadence * 0.045);
+  const field =
+    Math.sin(Number(x) * 0.45 + drift * 1.1) +
+    Math.cos(Number(y) * 0.41 - drift * 0.87) +
+    Math.sin((Number(x) + Number(y)) * 0.23 + drift * 0.63) +
+    Math.cos((Number(x) - Number(y)) * 0.17 - drift * 0.41);
+  const threshold = 2.15 - density * 0.036;
+  return Math.max(0, Math.min(1, (field - threshold) / 1.6));
+}

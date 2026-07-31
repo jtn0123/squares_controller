@@ -41,11 +41,13 @@ import {
 } from "./transition_model.js";
 import {
   EFFECT_CATALOG,
+  cellularLifeLevel,
   effectById,
   hashUnit,
   normalizeEffectControls,
   radarLightLevel,
 } from "./effect_catalog.js";
+import { renderEffectPreview } from "./effect_preview_model.js";
 import {
   adjustRgb,
   fitRect,
@@ -109,6 +111,25 @@ const FONT_STACKS = {
   pixel: '"Courier New", ui-monospace, monospace',
   serif: 'Georgia, "Times New Roman", serif',
 };
+const EFFECT_PREVIEW_TIMES = {
+  tide: 1.35,
+  radar: 0.8,
+  ember: 1.7,
+  orbit: 1.2,
+  plasma: 1.5,
+  confetti: 1.1,
+  rain: 1.35,
+  fireworks: 1.9,
+  ripples: 1.1,
+  vortex: 1.4,
+  galaxy: 1.6,
+  waterfall: 1.25,
+  life: 1.4,
+  snow: 1.1,
+  blobs: 1.8,
+  ballpit: 1.3,
+};
+let effectPreviewQueued = false;
 
 const builtInPresets = [
   { id: "aurora", name: "AURORA DRIFT", effect: "tide", speed: 74, intensity: 70, brightness: 28 },
@@ -294,6 +315,7 @@ function applyStatus(status, { syncBrightness = true } = {}) {
     renderZoneControls();
     renderSegmentStudio();
     renderClipTimeline();
+    queueEffectPreviewRender();
     render();
   }
 
@@ -1523,6 +1545,7 @@ function updateModulationVisuals() {
     `${effectIntensity.value}%`;
   updateRangeFill(effectSpeed);
   updateRangeFill(effectIntensity);
+  queueEffectPreviewRender();
 }
 
 function effectControl(effect, control) {
@@ -1581,6 +1604,7 @@ function renderEffectControls(effectId = state.animationName) {
       });
       renderValue();
     });
+    input.addEventListener("change", queueEffectPreviewRender);
     renderValue();
     label.append(name, value, input);
     grid.append(label);
@@ -1649,6 +1673,7 @@ function renderPaletteWorkshop() {
       state.palette = normalizePalette({ id: "custom", colors });
       updatePaletteControls(false);
     });
+    input.addEventListener("change", queueEffectPreviewRender);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "×";
@@ -1687,6 +1712,7 @@ function updatePaletteControls(renderStops = true) {
 function applyPalette(palette, announce = false) {
   state.palette = normalizePalette(palette);
   updatePaletteControls();
+  queueEffectPreviewRender();
   if (announce) toast(`Palette set to ${state.palette.id.toUpperCase()}.`);
 }
 
@@ -2574,29 +2600,42 @@ const effectPainters = {
   galaxy(time, target, paletteColors) {
     const centerX = (state.width - 1) / 2;
     const centerY = (state.height - 1) / 2;
+    const scale = Math.max(1, Math.min(state.width, state.height));
     const arms = effectControl("galaxy", "arms");
     const twist = effectControl("galaxy", "twist");
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
-        const dx = (x - centerX) / state.width;
-        const dy = (y - centerY) / state.height;
+        const dx = (x - centerX) / scale;
+        const dy = (y - centerY) / scale;
         const radius = Math.hypot(dx, dy);
         const angle = Math.atan2(dy, dx);
-        const spiral = Math.cos(angle * arms - radius * twist * 18 + time);
-        const dust = hashUnit(x * 197 + y * 389) > 0.965 ? 0.65 : 0;
-        const core = Math.exp(-radius * 16);
-        const gain = Math.max(0, spiral) ** 7 * Math.max(0, 1 - radius * 1.7);
+        const spiral =
+          0.5 +
+          0.5 *
+            Math.cos(
+              (angle - time * 0.18) * arms -
+                radius * twist * 10,
+            );
+        const armGlow =
+          spiral ** 6 * Math.exp(-radius * 1.85) *
+          Math.max(0, 1 - radius * 0.55);
+        const core = Math.exp(-radius * 9);
+        const starSeed = hashUnit(x * 197 + y * 389);
+        const star =
+          starSeed > 0.968
+            ? Math.max(0, Math.sin(time * (1.5 + starSeed) + starSeed * 31)) *
+              0.7
+            : 0;
+        const gain = Math.min(1, armGlow * 1.25 + core * 0.9 + star);
         const color = sampleGradient(
           paletteColors,
-          angle / (Math.PI * 2) + time * 0.025 + radius,
+          angle / (Math.PI * 2) + time * 0.025 + radius * 0.45,
         );
         paintEffectPixel(
           target,
           x,
           y,
-          color.map((channel) =>
-            clampByte(channel * Math.min(1, gain + core + dust)),
-          ),
+          color.map((channel) => clampByte(channel * gain)),
         );
       }
     }
@@ -2604,63 +2643,77 @@ const effectPainters = {
   waterfall(time, target, paletteColors) {
     const width = effectControl("waterfall", "width");
     const turbulence = effectControl("waterfall", "turbulence") / 100;
+    const span = width + 2;
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
-        const stream = Math.floor(x / width);
+        const stream = Math.floor(x / span);
+        const center =
+          stream * span +
+          1 +
+          (width - 1) / 2 +
+          Math.sin(y * 0.28 + time * 1.1 + stream) * turbulence * 1.4;
+        const lane =
+          Math.max(0, 1 - Math.abs(x - center) / Math.max(1, width / 2)) ** 2;
+        if (lane <= 0) continue;
         const phase =
-          y / state.height +
-          time * (0.2 + hashUnit(stream * 37 + 5) * 0.32) +
-          Math.sin(y * 0.23 + time + stream) * turbulence * 0.09;
-        const crest = Math.max(0, Math.sin(phase * Math.PI * 6)) ** 3;
+          y * 0.24 +
+          time * (2.2 + hashUnit(stream * 37 + 5) * 1.8) +
+          stream * 1.7;
+        const crest = Math.max(0, Math.sin(phase) * 0.5 + 0.5) ** 3;
+        const shimmer =
+          Math.max(0, Math.sin(phase * 0.37 + x * 0.71)) * turbulence * 0.28;
+        const gain = Math.min(1, lane * (0.08 + crest * 0.92 + shimmer));
         const color = sampleGradient(
           paletteColors,
-          phase + stream * 0.13,
+          x / state.width * 0.45 + y / state.height * 0.2 + time * 0.035,
         );
         paintEffectPixel(
           target,
           x,
           y,
-          color.map((channel) => clampByte(channel * (0.12 + crest * 0.88))),
+          color.map((channel) => clampByte(channel * gain)),
         );
       }
     }
   },
   life(time, target, paletteColors) {
-    const density = effectControl("life", "density") / 100;
-    const generation = Math.floor(time * effectControl("life", "cadence"));
+    const density = effectControl("life", "density");
+    const cadence = effectControl("life", "cadence");
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
-        let neighbors = 0;
-        for (let oy = -1; oy <= 1; oy += 1) {
-          for (let ox = -1; ox <= 1; ox += 1) {
-            if (ox === 0 && oy === 0) continue;
-            const nx = (x + ox + state.width) % state.width;
-            const ny = (y + oy + state.height) % state.height;
-            if (hashUnit(nx * 313 + ny * 571 + generation * 911) < density) {
-              neighbors += 1;
-            }
-          }
-        }
-        const seeded =
-          hashUnit(x * 313 + y * 571 + (generation - 1) * 911) < density;
-        const alive = neighbors === 3 || (seeded && neighbors === 2);
-        if (!alive) continue;
+        const life = cellularLifeLevel(x, y, time, density, cadence);
+        if (life <= 0.01) continue;
         const color = sampleGradient(
           paletteColors,
-          neighbors / 8 + generation * 0.017,
+          x / state.width * 0.18 +
+            y / state.height * 0.12 +
+            time * 0.018 +
+            life * 0.28,
         );
-        paintEffectPixel(target, x, y, color);
+        const gain = 0.1 + life ** 0.72 * 0.9;
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * gain)),
+        );
       }
     }
   },
   snow(time, target, paletteColors) {
     const count = Math.max(
       12,
-      Math.round(state.width * effectControl("snow", "density") / 34),
+      Math.round(
+        state.width *
+          state.height *
+          effectControl("snow", "density") /
+          1_100,
+      ),
     );
     const drift = effectControl("snow", "drift") / 100;
     for (let flake = 0; flake < count; flake += 1) {
-      const fallSpeed = 1.2 + hashUnit(flake * 41 + 3) * 3.4;
+      const depth = 0.35 + hashUnit(flake * 41 + 3) * 0.65;
+      const fallSpeed = 0.7 + depth * 3.2;
       const cycle = time * fallSpeed + hashUnit(flake * 67 + 5) * state.height;
       const y = Math.floor(cycle % (state.height + 2)) - 1;
       const x = Math.floor(
@@ -2672,18 +2725,41 @@ const effectPainters = {
       );
       const color = sampleGradient(
         paletteColors,
-        hashUnit(flake * 131 + 17),
+        0.62 + hashUnit(flake * 131 + 17) * 0.3,
       );
-      paintEffectPixel(target, x, y, color);
+      paintEffectPixel(
+        target,
+        x,
+        y,
+        color.map((channel) => clampByte(channel * depth)),
+      );
+      if (depth > 0.7) {
+        paintEffectPixel(
+          target,
+          x,
+          y - 1,
+          color.map((channel) => clampByte(channel * depth * 0.22)),
+        );
+      }
+      if (depth > 0.88) {
+        paintEffectPixel(
+          target,
+          x + 1,
+          y,
+          color.map((channel) => clampByte(channel * depth * 0.42)),
+        );
+      }
     }
   },
   blobs(time, target, paletteColors) {
     const count = effectControl("blobs", "count");
     const size = effectControl("blobs", "size") / 100;
+    const sigma = 1.8 + size * 5.4;
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         let field = 0;
-        let hue = 0;
+        let strongest = 0;
+        let strongestBlob = 0;
         for (let blob = 0; blob < count; blob += 1) {
           const centerX =
             state.width *
@@ -2692,16 +2768,21 @@ const effectPainters = {
             state.height *
             (0.5 + Math.cos(time * (0.27 + blob * 0.041) + blob * 1.7) * 0.42);
           const distance = Math.hypot(x - centerX, y - centerY);
-          const contribution = Math.exp(-distance / (1.2 + size * 5.5));
+          const contribution = Math.exp(
+            -(distance * distance) / (2 * sigma * sigma),
+          );
           field += contribution;
-          hue += contribution * (blob / count);
+          if (contribution > strongest) {
+            strongest = contribution;
+            strongestBlob = blob;
+          }
         }
-        if (field < 0.18) continue;
+        if (field < 0.32) continue;
         const color = sampleGradient(
           paletteColors,
-          hue / Math.max(field, 0.001) + time * 0.02,
+          strongestBlob / count + time * 0.025 + field * 0.08,
         );
-        const gain = Math.min(1, (field - 0.14) * 1.4);
+        const gain = Math.min(1, (field - 0.28) * 1.7);
         paintEffectPixel(
           target,
           x,
@@ -2719,14 +2800,17 @@ const effectPainters = {
       const speed = 1.4 + hashUnit(ball * 73 + 7) * 2.8;
       const spanX = Math.max(1, state.width - radius * 2);
       const spanY = Math.max(1, state.height - radius * 2);
-      const rawX = (time * speed * 2 + hashUnit(ball * 101 + 13) * spanX * 2) %
+      const rawX =
+        (time * speed * 2 + hashUnit(ball * 101 + 13) * spanX * 2) %
         (spanX * 2);
-      const rawY = (time * speed + hashUnit(ball * 127 + 17) * spanY * 2) %
-        (spanY * 2);
       const centerX = radius + (rawX > spanX ? spanX * 2 - rawX : rawX);
-      const linearY = rawY > spanY ? spanY * 2 - rawY : rawY;
+      const bounce = Math.abs(
+        Math.sin(time * speed * 0.72 + hashUnit(ball * 127 + 17) * Math.PI * 2),
+      );
       const centerY =
-        radius + spanY * Math.pow(linearY / spanY, 1 + gravity * 1.8);
+        radius +
+        spanY *
+          (1 - Math.pow(bounce, 0.62 + (1 - gravity) * 0.9));
       const color = sampleGradient(paletteColors, ball / count + time * 0.025);
       const minX = Math.floor(centerX - radius);
       const maxX = Math.ceil(centerX + radius);
@@ -2735,13 +2819,26 @@ const effectPainters = {
       for (let y = minY; y <= maxY; y += 1) {
         for (let x = minX; x <= maxX; x += 1) {
           const distance = Math.hypot(x - centerX, y - centerY);
-          if (distance > radius) continue;
-          const gain = Math.max(0.2, 1 - distance / radius * 0.55);
+          if (
+            distance > radius ||
+            x < 0 ||
+            y < 0 ||
+            x >= state.width ||
+            y >= state.height
+          ) {
+            continue;
+          }
+          const edge = distance / radius;
+          const gain = Math.max(0.18, 1 - edge * edge * 0.72);
+          const offset = (y * state.width + x) * 3;
+          const current = target.subarray(offset, offset + 3);
           paintEffectPixel(
             target,
             x,
             y,
-            color.map((channel) => clampByte(channel * gain)),
+            color.map((channel, index) =>
+              clampByte(current[index] + channel * gain),
+            ),
           );
         }
       }
@@ -2902,6 +2999,43 @@ async function bakeCurrentLook() {
   }
 }
 
+function renderEffectPreviews() {
+  const previousZone = state.zone;
+  state.zone = { type: "all" };
+  try {
+    EFFECT_CATALOG.forEach((effect) => {
+      const canvas = document.querySelector(
+        `[data-effect-preview="${effect.id}"]`,
+      );
+      if (!canvas || !effectPainters[effect.id]) return;
+      const pixels = renderEffectPreview(
+        effectPainters[effect.id],
+        {
+          width: state.width,
+          height: state.height,
+          time: EFFECT_PREVIEW_TIMES[effect.id] * state.effectSpeed,
+          palette: state.palette.colors,
+          intensity: state.effectIntensity,
+        },
+      );
+      drawRgbCanvas(canvas, pixels, state.width, state.height);
+      canvas.parentElement.dataset.preview =
+        `${state.width}×${state.height} CODE FRAME`;
+    });
+  } finally {
+    state.zone = previousZone;
+  }
+}
+
+function queueEffectPreviewRender() {
+  if (effectPreviewQueued || !document.querySelector(".effect-grid")) return;
+  effectPreviewQueued = true;
+  requestAnimationFrame(() => {
+    effectPreviewQueued = false;
+    renderEffectPreviews();
+  });
+}
+
 function initializeEffectCatalog() {
   const grid = document.querySelector(".effect-grid");
   grid.replaceChildren();
@@ -2910,8 +3044,10 @@ function initializeEffectCatalog() {
     button.className = `effect-card effect-card--${effect.id}`;
     button.dataset.effect = effect.id;
     button.type = "button";
-    const visual = document.createElement("span");
-    visual.className = "effect-visual";
+    const visual = document.createElement("canvas");
+    visual.className = "effect-preview-canvas";
+    visual.dataset.effectPreview = effect.id;
+    visual.setAttribute("aria-hidden", "true");
     const name = document.createElement("strong");
     name.textContent = effect.name;
     const subtitle = document.createElement("small");
@@ -2923,6 +3059,7 @@ function initializeEffectCatalog() {
     });
     grid.append(button);
   });
+  renderEffectPreviews();
 }
 
 function readTextControls() {

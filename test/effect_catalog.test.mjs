@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   EFFECT_CATALOG,
+  cellularLifeLevel,
   effectById,
   hashUnit,
   normalizeEffectControls,
@@ -46,4 +47,13 @@ test("keeps inactive radar pixels true black", () => {
   assert.equal(radarLightLevel(0, 0, 0), 0.72);
   assert.equal(radarLightLevel(Math.PI, 0.18, 0), 0.18);
   assert.equal(radarLightLevel(Math.PI, 0.18, 0.9), 1);
+});
+
+test("cellular life evolves smoothly and responds to density", () => {
+  const lowDensity = cellularLifeLevel(8, 11, 1.5, 20, 5);
+  const highDensity = cellularLifeLevel(8, 11, 1.5, 80, 5);
+  const nextMoment = cellularLifeLevel(8, 11, 1.51, 20, 5);
+  assert.ok(lowDensity >= 0 && lowDensity <= 1);
+  assert.ok(highDensity >= lowDensity);
+  assert.ok(Math.abs(nextMoment - lowDensity) < 0.08);
 });

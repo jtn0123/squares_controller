@@ -1178,7 +1178,7 @@ h1 {
 
 .effect-card {
   position: relative;
-  min-height: 102px;
+  min-height: 112px;
   padding: 0;
   overflow: hidden;
   text-align: left;
@@ -1187,26 +1187,66 @@ h1 {
   background: #0b0d0b;
 }
 
+.effect-card::before {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  right: 7px;
+  padding: 3px 4px;
+  color: rgba(238, 232, 217, 0.62);
+  border: 1px solid rgba(238, 232, 217, 0.16);
+  background: rgba(3, 4, 3, 0.68);
+  content: attr(data-preview);
+  font: 650 5px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.effect-card::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 36%, rgba(3, 4, 3, 0.28) 58%, #030403 100%),
+    linear-gradient(90deg, rgba(3, 4, 3, 0.12), transparent 60%);
+  content: "";
+  pointer-events: none;
+}
+
 .effect-card:hover {
   border-color: var(--line-hot);
 }
 
-.effect-visual {
+.effect-card.active {
+  border-color: var(--acid);
+  box-shadow: inset 0 0 0 1px var(--acid);
+}
+
+.effect-card.active::before {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+  content: "ON WALL";
+}
+
+.effect-preview-canvas {
   position: absolute;
   inset: 0;
-  opacity: 0.75;
+  width: 100%;
+  height: 100%;
+  opacity: 0.82;
+  image-rendering: pixelated;
   transition: transform 350ms ease, opacity 350ms ease;
 }
 
-.effect-card:hover .effect-visual {
+.effect-card:hover .effect-preview-canvas {
   opacity: 1;
-  transform: scale(1.08);
+  transform: scale(1.035);
 }
 
 .effect-card strong,
 .effect-card small {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   left: 11px;
 }
 
@@ -1222,134 +1262,6 @@ h1 {
   color: rgba(238, 232, 217, 0.58);
   font: 600 7px/1 "Avenir Next Condensed", sans-serif;
   letter-spacing: 0.11em;
-}
-
-.effect-card--tide .effect-visual {
-  background:
-    radial-gradient(circle at 30% 30%, #d9ff5b, transparent 24%),
-    radial-gradient(circle at 72% 58%, #4b83ff, transparent 28%),
-    linear-gradient(125deg, #e74292, #071b28 64%);
-  filter: blur(8px) saturate(1.35);
-}
-
-.effect-card--radar .effect-visual {
-  background:
-    repeating-radial-gradient(circle at 40% 40%, transparent 0 12px, rgba(217, 255, 91, 0.23) 13px 14px),
-    conic-gradient(from 25deg at 40% 40%, transparent 0 70%, rgba(217, 255, 91, 0.7), transparent 88%),
-    #071008;
-}
-
-.effect-card--ember .effect-visual {
-  background:
-    radial-gradient(circle at 25% 78%, #ffcf54 0 2px, transparent 3px),
-    radial-gradient(circle at 73% 48%, #ff6b3d 0 2px, transparent 3px),
-    radial-gradient(circle at 51% 85%, #cf261e 0 4px, transparent 6px),
-    linear-gradient(to top, #721d13, #100a08 72%);
-  background-size: 31px 27px, 39px 34px, 45px 40px, auto;
-}
-
-.effect-card--orbit .effect-visual {
-  background:
-    radial-gradient(circle at 65% 42%, #57e6d5 0 4px, transparent 5px),
-    radial-gradient(circle at center, transparent 30%, rgba(87, 230, 213, 0.55) 31% 34%, transparent 35%),
-    radial-gradient(circle at center, transparent 51%, rgba(236, 95, 255, 0.45) 52% 55%, transparent 56%),
-    #081016;
-  transform: rotate(-14deg);
-}
-
-.effect-card--plasma .effect-visual {
-  background:
-    radial-gradient(circle at 22% 35%, #00f5d4, transparent 32%),
-    radial-gradient(circle at 78% 64%, #9b5de5, transparent 35%),
-    conic-gradient(from 70deg, #ff4fa3, #07111f, #ffca3a, #07111f);
-  filter: blur(7px) saturate(1.4);
-}
-
-.effect-card--confetti .effect-visual {
-  background:
-    radial-gradient(circle, #ff4fa3 0 2px, transparent 3px),
-    radial-gradient(circle, #ffca3a 0 2px, transparent 3px),
-    radial-gradient(circle, #5ce1e6 0 2px, transparent 3px),
-    #100c15;
-  background-position: 5px 8px, 18px 2px, 27px 17px;
-  background-size: 31px 27px, 37px 31px, 41px 35px;
-}
-
-.effect-card--rain .effect-visual {
-  background:
-    repeating-linear-gradient(90deg, transparent 0 10px, rgba(99, 168, 78, 0.22) 11px 12px),
-    repeating-linear-gradient(180deg, #e5ff9b 0 2px, #347038 3px 8px, transparent 9px 21px),
-    #030803;
-  background-size: auto, 14px 32px, auto;
-}
-
-.effect-card--fireworks .effect-visual {
-  background:
-    repeating-radial-gradient(circle at 25% 68%, #ffcf54 0 1px, transparent 2px 7px),
-    repeating-radial-gradient(circle at 73% 34%, #ec5fff 0 1px, transparent 2px 9px),
-    linear-gradient(#080818, #170921);
-}
-
-.effect-card--ripples .effect-visual {
-  background:
-    repeating-radial-gradient(circle at 28% 40%, transparent 0 8px, rgba(87, 230, 213, 0.65) 9px 10px),
-    repeating-radial-gradient(circle at 74% 65%, transparent 0 10px, rgba(75, 131, 255, 0.55) 11px 12px),
-    #061018;
-}
-
-.effect-card--vortex .effect-visual {
-  background:
-    repeating-conic-gradient(from 25deg at center, #4a00e0 0 10deg, #00f5d4 11deg 19deg, #0b0b0b 20deg 33deg);
-  filter: blur(2px) saturate(1.25);
-}
-
-.effect-card--galaxy .effect-visual {
-  background:
-    radial-gradient(circle at center, #fff7c7 0 2px, transparent 5px),
-    repeating-conic-gradient(from 15deg, transparent 0 22deg, rgba(137, 96, 255, 0.8) 25deg 30deg, transparent 34deg 62deg),
-    radial-gradient(circle, #332273, #05030c 70%);
-  filter: blur(1px);
-}
-
-.effect-card--waterfall .effect-visual {
-  background:
-    repeating-linear-gradient(100deg, transparent 0 8px, rgba(92, 225, 230, 0.72) 9px 14px, transparent 16px 22px),
-    linear-gradient(#143e74, #11223f 45%, #2a0e57);
-}
-
-.effect-card--life .effect-visual {
-  background:
-    linear-gradient(90deg, rgba(217, 255, 91, 0.75) 1px, transparent 1px),
-    linear-gradient(rgba(217, 255, 91, 0.75) 1px, transparent 1px),
-    radial-gradient(circle, #5b8c36 0 3px, transparent 4px),
-    #071008;
-  background-size: 9px 9px, 9px 9px, 27px 27px, auto;
-}
-
-.effect-card--snow .effect-visual {
-  background:
-    radial-gradient(circle, #f6fbff 0 1px, transparent 2px),
-    radial-gradient(circle, #85b8ff 0 2px, transparent 3px),
-    linear-gradient(#0b1b36, #172443);
-  background-position: 4px 5px, 16px 12px, 0 0;
-  background-size: 19px 17px, 31px 27px, auto;
-}
-
-.effect-card--blobs .effect-visual {
-  background:
-    radial-gradient(circle at 25% 70%, #00f5d4, transparent 31%),
-    radial-gradient(circle at 73% 32%, #ec5fff, transparent 36%),
-    radial-gradient(circle at 55% 80%, #4b83ff, transparent 32%),
-    #0a0815;
-  filter: blur(5px) saturate(1.35);
-}
-
-.effect-card--ballpit .effect-visual {
-  background:
-    radial-gradient(circle at 21% 72%, #ffca3a 0 8px, transparent 9px),
-    radial-gradient(circle at 53% 48%, #5ce1e6 0 10px, transparent 11px),
-    radial-gradient(circle at 81% 77%, #ff4fa3 0 7px, transparent 8px),
-    linear-gradient(#151020, #07060b);
 }
 
 .modulation-grid {
