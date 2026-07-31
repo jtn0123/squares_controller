@@ -228,6 +228,7 @@ class TwinklyClient:
         self.device: dict[str, Any] | None = None
         self.firmware: str | None = None
         self.mode: str | None = None
+        self.current_movie: dict[str, Any] | None = None
         self.brightness: int | None = None
         self.rotation = 0
         self.last_frame: bytes | None = None
@@ -364,6 +365,10 @@ class TwinklyClient:
         raw_layout = self.request("/led/layout/full")
         mode = self.request("/led/mode")
         brightness = self.request("/led/out/brightness")
+        mode_name = str(mode["mode"])
+        current_movie = (
+            self._read_current_movie() if mode_name == "movie" else None
+        )
 
         layout = calculate_layout(raw_layout["coordinates"])
         if int(device["number_of_led"]) != layout.led_count:
@@ -376,7 +381,8 @@ class TwinklyClient:
             self.device = device
             self.firmware = str(firmware["version"])
             self.layout = layout
-            self.mode = str(mode["mode"])
+            self.mode = mode_name
+            self.current_movie = current_movie
             self.brightness = int(brightness["value"])
         return self.status()
 
@@ -405,6 +411,11 @@ class TwinklyClient:
                 ),
                 "streamTargetFps": choose_stream_fps(self.device),
                 "mode": self.mode,
+                "currentMovie": (
+                    dict(self.current_movie)
+                    if self.current_movie is not None
+                    else None
+                ),
                 "brightness": self.brightness,
                 "brightnessControl": "realtime-rgb" if is_streaming else "device",
                 "streaming": is_streaming,
@@ -493,8 +504,13 @@ class TwinklyClient:
             return self.connect()
         mode = self.request("/led/mode")
         brightness = self.request("/led/out/brightness")
+        mode_name = str(mode["mode"])
+        current_movie = (
+            self._read_current_movie() if mode_name == "movie" else None
+        )
         with self._lock:
-            self.mode = str(mode["mode"])
+            self.mode = mode_name
+            self.current_movie = current_movie
             is_streaming = (
                 self._stream_thread is not None
                 and self._stream_thread.is_alive()
@@ -541,9 +557,32 @@ class TwinklyClient:
                 },
             )
         self.request("/led/mode", method="POST", body={"mode": mode})
+        current_movie = self._read_current_movie() if mode == "movie" else None
         with self._lock:
             self.mode = mode
+            self.current_movie = current_movie
         return self.status()
+
+    def _read_current_movie(self) -> dict[str, Any] | None:
+        try:
+            result = self.request("/led/movies/current")
+        except ConnectionError as error:
+            if "HTTP 404" not in str(error):
+                raise
+            try:
+                result = self.request("/movies/current")
+            except ConnectionError as fallback_error:
+                if "HTTP 404" in str(fallback_error):
+                    return None
+                raise
+        movie_id = result.get("id")
+        if not isinstance(movie_id, int):
+            return None
+        return {
+            key: result[key]
+            for key in ("id", "name", "unique_id")
+            if key in result
+        }
 
     def list_movies(self) -> dict[str, Any]:
         result = self.request("/movies")
@@ -655,6 +694,7 @@ class TwinklyClient:
         self.request("/led/mode", method="POST", body={"mode": "movie"})
         with self._lock:
             self.mode = "movie"
+            self.current_movie = dict(created)
         return {
             "bakedMovie": created,
             "movieCount": len(after["movies"]),

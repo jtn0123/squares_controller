@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.10.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-86%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.10.1-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-94%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -23,8 +23,8 @@ solder.
 - Target the whole wall, a panel, a row, a column, or a custom rectangle
 - Save server-persisted scenes and timed playlists with cut, crossfade, push,
   or dissolve transitions
-- See real scene thumbnails, an exact live-output monitor, active-scene state,
-  and playlist step progress in the controller UI
+- See real scene thumbnails, exact browser-output previews, honest
+  controller-local playback status, active-scene state, and playlist progress
 - Organize scenes with folders, tags, favorites, search, filters, duplication,
   inline metadata editing, and merge-or-replace JSON backups
 - Display scrolling text, a clock, and locally loaded fonts

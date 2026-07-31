@@ -61,6 +61,15 @@
             height="720"
             aria-label="Interactive 32 by 24 LED canvas"
           ></canvas>
+          <div class="stage-output-state" id="stageOutputState">
+            <div class="local-playback-visual" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+            <span id="stageOutputBadge">BROWSER PREVIEW</span>
+            <strong id="stageOutputName">CURRENT CANVAS</strong>
+            <small id="stageOutputMeta">PIXEL FRAME / 30% / WHOLE WALL</small>
+            <p id="stageOutputNote">The browser canvas is ready to send.</p>
+          </div>
           <div class="stage-scan" aria-hidden="true"></div>
           <div class="live-flag" id="liveFlag">
             <span></span>
@@ -245,6 +254,26 @@
             <button class="action-button" id="stockButton" type="button">
               ↩ RETURN TO STOCK
             </button>
+          </div>
+          <div class="output-signal" id="outputSignal" data-mode="idle">
+            <div class="output-signal-title">
+              <span>OUTPUT PATH</span>
+              <strong id="outputSignalHeadline">CHECKING CONTROLLER</strong>
+            </div>
+            <div class="signal-path" aria-label="Browser to panel signal path">
+              <div data-signal-node="0" data-state="idle">
+                <i></i><small>BROWSER</small><strong>WAITING</strong>
+              </div>
+              <span aria-hidden="true">→</span>
+              <div data-signal-node="1" data-state="idle">
+                <i></i><small>RELAY</small><strong>WAITING</strong>
+              </div>
+              <span aria-hidden="true">→</span>
+              <div data-signal-node="2" data-state="idle">
+                <i></i><small>PANEL</small><strong>WAITING</strong>
+              </div>
+            </div>
+            <small id="outputSignalNote">Reading the local output state.</small>
           </div>
         </section>
 
@@ -453,6 +482,9 @@
                 height="24"
                 aria-label="Live scene output preview"
               ></canvas>
+              <div class="local-playback-visual" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </div>
               <span id="sceneMonitorBadge">LIVE OUTPUT</span>
             </div>
             <div class="scene-monitor-copy">

@@ -183,7 +183,7 @@ label:has(input:focus-visible) {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(330px, 390px);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(18px, 2.2vw, 36px);
   width: min(1640px, 100%);
   margin: 0 auto;
@@ -238,6 +238,8 @@ h1 {
 
 .stage-frame {
   position: relative;
+  display: grid;
+  place-items: center;
   width: 100%;
   padding: clamp(16px, 2.2vw, 30px);
   overflow: hidden;
@@ -260,13 +262,116 @@ h1 {
 
 #pixelCanvas {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  height: min(72vh, 780px);
   aspect-ratio: 4 / 3;
   touch-action: none;
   background: #050605;
   box-shadow:
     0 0 0 1px #33382e,
     0 0 60px rgba(217, 255, 91, 0.035);
+}
+
+.stage-output-state {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  width: min(360px, calc(100% - 84px));
+  padding: 22px;
+  color: var(--paper);
+  border: 1px solid #4d5942;
+  background: rgba(5, 7, 5, 0.94);
+  box-shadow:
+    0 24px 65px rgba(0, 0, 0, 0.56),
+    inset 0 0 0 1px rgba(217, 255, 91, 0.04);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.stage-frame[data-output-state="controller"] .stage-output-state,
+.stage-frame[data-output-state="off"] .stage-output-state,
+.stage-frame[data-output-state="offline"] .stage-output-state,
+.stage-frame[data-output-state="idle"] .stage-output-state {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stage-output-state > span {
+  margin-top: 13px;
+  color: var(--acid);
+  font: 800 8px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.2em;
+}
+
+.stage-output-state > strong {
+  margin-top: 8px;
+  font: 750 18px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.stage-output-state > small,
+.stage-output-state > p {
+  color: #7d8678;
+  font: 650 8px/1.35 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.stage-output-state > small {
+  margin-top: 6px;
+}
+
+.stage-output-state > p {
+  max-width: 270px;
+  margin: 13px 0 0;
+}
+
+.stage-frame[data-output-state="off"] .stage-output-state > span,
+.stage-frame[data-output-state="offline"] .stage-output-state > span {
+  color: var(--signal);
+}
+
+.local-playback-visual {
+  position: relative;
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  width: 92px;
+  height: 58px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid #4e5b3f;
+  background:
+    radial-gradient(circle, rgba(217, 255, 91, 0.3) 0 1px, transparent 1.5px)
+    0 0 / 8px 8px,
+    #070a07;
+}
+
+.stage-output-state .local-playback-visual {
+  display: grid;
+}
+
+.local-playback-visual i {
+  align-self: end;
+  height: var(--local-height, 70%);
+  background: var(--acid);
+  box-shadow: 0 0 14px rgba(217, 255, 91, 0.25);
+  opacity: 0.72;
+  animation: local-pulse 1.25s ease-in-out infinite alternate;
+}
+
+.local-playback-visual i:nth-child(2) {
+  --local-height: 42%;
+  animation-delay: -420ms;
+}
+
+.local-playback-visual i:nth-child(3) {
+  --local-height: 86%;
+  animation-delay: -780ms;
 }
 
 .stage-scan {
@@ -700,14 +805,21 @@ h1 {
 
 .control-rack {
   align-self: start;
+  column-count: 3;
+  column-gap: 0;
+  column-rule: 1px solid var(--line);
   border: 1px solid var(--line);
   background: rgba(14, 17, 14, 0.88);
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
 }
 
 .rack-section {
+  display: inline-block;
+  width: 100%;
   padding: 20px;
+  vertical-align: top;
   border-bottom: 1px solid var(--line);
+  break-inside: avoid-column;
 }
 
 .rack-section:last-child {
@@ -774,6 +886,110 @@ h1 {
   display: grid;
   grid-template-columns: 0.8fr 1.45fr;
   gap: 7px;
+}
+
+.output-signal {
+  margin-top: 13px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: #070907;
+}
+
+.output-signal[data-mode="local"] {
+  border-color: #586742;
+  box-shadow: inset 3px 0 0 var(--acid-dark);
+}
+
+.output-signal[data-mode="realtime"] {
+  border-color: #718742;
+  box-shadow: inset 3px 0 0 var(--acid);
+}
+
+.output-signal[data-mode="offline"] {
+  border-color: var(--signal);
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+
+.output-signal-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #667060;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.output-signal-title strong {
+  color: var(--paper);
+  text-align: right;
+}
+
+.signal-path {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: 5px;
+}
+
+.signal-path > span {
+  color: #4c5548;
+  font-size: 11px;
+}
+
+.signal-path > div {
+  display: grid;
+  grid-template-columns: 6px 1fr;
+  gap: 3px 5px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #2d342b;
+  background: #0a0d0a;
+}
+
+.signal-path i {
+  grid-row: 1 / 3;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4b5149;
+}
+
+.signal-path [data-state="active"] i {
+  background: var(--acid);
+  box-shadow: 0 0 9px rgba(217, 255, 91, 0.75);
+}
+
+.signal-path [data-state="warning"] i,
+.signal-path [data-state="error"] i {
+  background: var(--signal);
+  box-shadow: 0 0 9px rgba(255, 107, 61, 0.65);
+}
+
+.signal-path small,
+.output-signal > small {
+  color: #5f675c;
+  font: 650 6px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.signal-path strong {
+  overflow: hidden;
+  color: #a3aa9e;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signal-path [data-state="active"] strong {
+  color: var(--acid);
+}
+
+.output-signal > small {
+  display: block;
+  margin-top: 8px;
 }
 
 .action-button,
@@ -1491,6 +1707,42 @@ h1 {
   box-shadow: inset 0 0 22px rgba(217, 255, 91, 0.04);
   content: "";
   pointer-events: none;
+}
+
+.scene-monitor-screen > .local-playback-visual {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: min(80%, 92px);
+  height: min(72%, 58px);
+  transform: translate(-50%, -50%);
+}
+
+.scene-monitor[data-state="controller"] .scene-monitor-screen > .local-playback-visual,
+.scene-monitor[data-state="off"] .scene-monitor-screen > .local-playback-visual,
+.scene-monitor[data-state="offline"] .scene-monitor-screen > .local-playback-visual {
+  display: grid;
+}
+
+.scene-monitor[data-state="controller"] #sceneMonitorCanvas,
+.scene-monitor[data-state="off"] #sceneMonitorCanvas,
+.scene-monitor[data-state="offline"] #sceneMonitorCanvas {
+  opacity: 0.16;
+}
+
+.scene-monitor[data-state="controller"] {
+  border-color: #607044;
+}
+
+.scene-monitor[data-state="controller"] .scene-monitor-copy > strong {
+  color: var(--acid);
+}
+
+.scene-monitor[data-state="off"] .local-playback-visual,
+.scene-monitor[data-state="offline"] .local-playback-visual {
+  opacity: 0.25;
+  filter: grayscale(1);
 }
 
 #sceneMonitorCanvas,
@@ -2405,28 +2657,18 @@ h1 {
   to { top: 97%; }
 }
 
+@keyframes local-pulse {
+  from { height: 24%; opacity: 0.28; }
+  to { height: var(--local-height, 70%); opacity: 0.82; }
+}
+
 @media (max-width: 1080px) {
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
   .control-rack {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .rack-section {
-    border-right: 1px solid var(--line);
-  }
-
-  .rack-section:nth-child(even) {
-    border-right: 0;
+    column-count: 2;
   }
 
   .system-section {
-    grid-column: 1 / -1;
-    border-right: 0;
-    border-bottom: 0;
+    border-bottom: 1px solid var(--line);
   }
 }
 
@@ -2483,15 +2725,19 @@ h1 {
   }
 
   .control-rack {
-    grid-template-columns: 1fr;
+    column-count: 1;
   }
 
   .rack-section,
   .rack-section:nth-child(even),
   .system-section {
-    grid-column: auto;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  #pixelCanvas {
+    width: 100%;
+    height: auto;
   }
 
   .rack-section:last-child {

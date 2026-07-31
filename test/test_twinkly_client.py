@@ -75,6 +75,75 @@ class TwinklyClientTests(unittest.TestCase):
         self.assertEqual(status["streamTargetFps"], 23.26)
         client.close(restore_movie=False)
 
+    def test_refresh_status_exposes_the_active_controller_movie(self) -> None:
+        client = self.connected_client()
+
+        def request(path, **_kwargs):
+            if path == "/led/mode":
+                return {"mode": "movie"}
+            if path == "/led/out/brightness":
+                return {"value": 24}
+            if path == "/led/movies/current":
+                raise ConnectionError(
+                    "Twinkly /led/movies/current failed with HTTP 404."
+                )
+            if path == "/movies/current":
+                return {
+                    "id": 14,
+                    "name": "Color Plasma",
+                    "unique_id": "movie-14",
+                }
+            raise AssertionError(f"Unexpected request: {path}")
+
+        with patch.object(client, "request", side_effect=request):
+            status = client.refresh_status()
+
+        self.assertEqual(
+            status["currentMovie"],
+            {
+                "id": 14,
+                "name": "Color Plasma",
+                "unique_id": "movie-14",
+            },
+        )
+        client.close(restore_movie=False)
+
+    def test_non_movie_status_clears_a_stale_controller_movie(self) -> None:
+        client = self.connected_client()
+        client.current_movie = {"id": 14, "name": "Color Plasma"}
+
+        def request(path, **_kwargs):
+            if path == "/led/mode":
+                return {"mode": "off"}
+            if path == "/led/out/brightness":
+                return {"value": 24}
+            raise AssertionError(f"Unexpected request: {path}")
+
+        with patch.object(client, "request", side_effect=request):
+            status = client.refresh_status()
+
+        self.assertIsNone(status["currentMovie"])
+        client.close(restore_movie=False)
+
+    def test_missing_current_movie_endpoint_keeps_status_available(self) -> None:
+        client = self.connected_client()
+
+        def request(path, **_kwargs):
+            if path == "/led/mode":
+                return {"mode": "movie"}
+            if path == "/led/out/brightness":
+                return {"value": 24}
+            if path in {"/led/movies/current", "/movies/current"}:
+                raise ConnectionError(f"Twinkly {path} failed with HTTP 404.")
+            raise AssertionError(f"Unexpected request: {path}")
+
+        with patch.object(client, "request", side_effect=request):
+            status = client.refresh_status()
+
+        self.assertEqual(status["mode"], "movie")
+        self.assertIsNone(status["currentMovie"])
+        client.close(restore_movie=False)
+
     def test_stream_telemetry_separates_unique_and_repeated_frames(self) -> None:
         client = self.connected_client()
         client._record_stream_delivery(1.000, 0.999, 7)

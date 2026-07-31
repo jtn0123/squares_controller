@@ -70,6 +70,10 @@ import {
   movieFrameCount,
   packMovieFrames,
 } from "./movie_model.js";
+import {
+  outputPresentation,
+  outputSignalPath,
+} from "./output_model.js";
 
 const canvas = document.querySelector("#pixelCanvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -167,6 +171,7 @@ const state = {
   streamTelemetry: normalizeStreamTelemetry(null),
   measuredFrameRate: 30,
   movieLibrary: { availableFrames: 0, maxCapacity: 0 },
+  controllerStatus: null,
 };
 
 function toast(message, error = false) {
@@ -201,6 +206,7 @@ function setConnection(status, errorMessage = "") {
 }
 
 function applyStatus(status, { syncBrightness = true } = {}) {
+  state.controllerStatus = status;
   setConnection(status);
   const controllerVersion = status.controllerVersion;
   const controllerReadout = document.querySelector("#controllerReadout");
@@ -238,7 +244,11 @@ function applyStatus(status, { syncBrightness = true } = {}) {
   stage.classList.toggle("is-live", status.streaming);
   document.querySelector("#liveFlag").lastChild.textContent = status.streaming
     ? " LIVE"
-    : " PREVIEW";
+    : status.mode === "movie" || status.mode === "demo"
+      ? " PANEL LOCAL"
+      : status.mode === "off"
+        ? " OFF"
+        : " PREVIEW";
 
   const rotation = Number(status.rotation ?? 0);
   state.rotation = rotation;
@@ -261,6 +271,27 @@ function applyStatus(status, { syncBrightness = true } = {}) {
     renderZoneControls();
     render();
   }
+
+  setOutputContext(outputPresentation(status, state.outputContext));
+  updateOutputSignal(status);
+}
+
+function updateOutputSignal(status) {
+  const signal = outputSignalPath({
+    ...status,
+    streamTelemetry: state.streamTelemetry,
+  });
+  const panel = document.querySelector("#outputSignal");
+  if (!panel) return;
+  panel.dataset.mode = signal.mode;
+  document.querySelector("#outputSignalHeadline").textContent = signal.headline;
+  signal.nodes.forEach((node, index) => {
+    const element = document.querySelector(`[data-signal-node="${index}"]`);
+    element.dataset.state = node.state;
+    element.querySelector("small").textContent = node.label;
+    element.querySelector("strong").textContent = node.value;
+  });
+  document.querySelector("#outputSignalNote").textContent = signal.note;
 }
 
 function updateStreamTelemetry(raw) {
@@ -283,6 +314,13 @@ function updateStreamTelemetry(raw) {
     telemetry.p95GapMs ? `${telemetry.p95GapMs.toFixed(2)} ms` : "—";
   document.querySelector("#streamMissedReadout").textContent =
     telemetry.missedDeadlines.toLocaleString();
+  if (state.controllerStatus) {
+    state.controllerStatus = {
+      ...state.controllerStatus,
+      streamTelemetry: telemetry,
+    };
+    updateOutputSignal(state.controllerStatus);
+  }
 }
 
 async function loadStreamTelemetry() {
@@ -297,6 +335,20 @@ async function loadMovies() {
   const used = Math.max(0, library.maxCapacity - library.availableFrames);
   document.querySelector("#movieCapacityReadout").textContent =
     `${used} / ${library.maxCapacity} FRAMES USED`;
+  const currentId = state.controllerStatus?.currentMovie?.id;
+  const currentMovie = library.movies.find((movie) => movie.id === currentId);
+  if (currentMovie && state.controllerStatus?.mode === "movie") {
+    applyStatus(
+      {
+        ...state.controllerStatus,
+        currentMovie: {
+          ...state.controllerStatus.currentMovie,
+          ...currentMovie,
+        },
+      },
+      { syncBrightness: false },
+    );
+  }
   return library;
 }
 
@@ -463,16 +515,17 @@ function updateSceneMonitor() {
     (item) => item.id === state.activePlaylistId,
   );
   monitor.dataset.state = output.kind;
+  stage.dataset.outputState = output.kind;
   document.querySelector("#sceneMonitorBadge").textContent = playlist
     ? "PLAYLIST LIVE"
-    : output.kind === "scene"
-      ? "SCENE LIVE"
-      : "LIVE OUTPUT";
+    : output.badge ??
+      (output.kind === "scene" ? "SCENE LIVE" : "LIVE OUTPUT");
   document.querySelector("#sceneMonitorKicker").textContent = playlist
     ? `PLAYLIST / ${playlist.name}`
-    : output.kind === "scene"
-      ? `${output.source ?? "SAVED"} SCENE`
-      : "PROGRAM MONITOR";
+    : output.kicker ??
+      (output.kind === "scene"
+        ? `${output.source ?? "SAVED"} SCENE`
+        : "PROGRAM MONITOR");
   document.querySelector("#sceneMonitorName").textContent = output.name;
 
   const effectName =
@@ -483,7 +536,14 @@ function updateSceneMonitor() {
   );
   const zone = describeZone(scene?.zone ?? state.zone);
   document.querySelector("#sceneMonitorMeta").textContent =
-    `${effectName} / ${brightness}% / ${zone}`;
+    output.meta ?? `${effectName} / ${brightness}% / ${zone}`;
+  document.querySelector("#stageOutputBadge").textContent =
+    output.badge ?? "BROWSER PREVIEW";
+  document.querySelector("#stageOutputName").textContent = output.name;
+  document.querySelector("#stageOutputMeta").textContent =
+    output.meta ?? `${effectName} / ${brightness}% / ${zone}`;
+  document.querySelector("#stageOutputNote").textContent =
+    output.note ?? "The browser canvas is ready to send.";
 
   const progressElement = document.querySelector("#sceneProgress");
   const progressFill = document.querySelector("#sceneProgressFill");
@@ -504,9 +564,10 @@ function updateSceneMonitor() {
     progressFill.style.width = "0%";
     progressElement.setAttribute("aria-valuenow", "0");
     progressLabel.textContent =
-      output.kind === "scene"
+      output.note ??
+      (output.kind === "scene"
         ? "OUTPUT MIRRORS THIS SCENE"
-        : "OUTPUT MIRRORS THE WALL";
+        : "OUTPUT MIRRORS THE WALL");
   }
 }
 
@@ -518,6 +579,12 @@ function setOutputContext(output) {
     scene: output.scene ?? null,
     source: output.source ?? null,
     effect: output.effect ?? output.scene?.effect ?? null,
+    badge: output.badge ?? null,
+    kicker: output.kicker ?? null,
+    meta: output.meta ?? null,
+    note: output.note ?? null,
+    playback: output.playback ?? null,
+    controllerMovie: output.controllerMovie ?? null,
   };
   renderPresets();
   updateSceneMonitor();
@@ -1509,16 +1576,10 @@ async function setMode(mode) {
   stopMedia();
   stopAnimation();
   try {
-    applyStatus(
-      await api("/api/mode", {
-        method: "POST",
-        body: JSON.stringify({ mode }),
-      }),
-    );
-    setOutputContext({
-      kind: mode === "off" ? "off" : "stock",
-      name: mode === "off" ? "OUTPUT OFF" : "TWINKLY STOCK MODE",
-    });
+    applyStatus(await api("/api/mode", {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    }));
     toast(mode === "off" ? "Panel switched off." : "Stock Twinkly animation restored.");
   } catch (error) {
     toast(error.message, true);
@@ -2031,7 +2092,6 @@ async function bakeCurrentLook() {
       }),
     });
     applyStatus(result.status);
-    setOutputContext({ kind: "stock", name: `${name} / PANEL LOCAL` });
     await loadMovies();
     toast(`${name} is now looping from the panel controller.`);
   } catch (error) {

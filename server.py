@@ -40,7 +40,7 @@ ALLOW_UNAUTHENTICATED_LAN = (
     os.environ.get("ALLOW_UNAUTHENTICATED_LAN", "0") == "1"
 )
 MAX_BODY_BYTES = 2_000_000
-APP_VERSION = "0.10.0"
+APP_VERSION = "0.10.1"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
