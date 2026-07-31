@@ -47,6 +47,36 @@ test("dissolve is deterministic and reaches both endpoints", () => {
   );
 });
 
+test("wipe and radial transitions reveal spatial regions", () => {
+  assert.deepEqual(
+    Array.from(transitionFrame(from, to, 2, 2, "wipe", 0.5)),
+    [255, 0, 0, 100, 100, 100, 0, 0, 255, 255, 255, 255],
+  );
+  assert.deepEqual(
+    Array.from(
+      transitionFrame(
+        new Uint8Array(27),
+        new Uint8Array(27).fill(255),
+        3,
+        3,
+        "radial",
+        0.1,
+      ),
+    ),
+    [
+      0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 255, 255, 255, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ],
+  );
+});
+
+test("shift and pixelate transitions preserve frame dimensions", () => {
+  for (const type of ["shift", "pixelate"]) {
+    assert.equal(transitionFrame(from, to, 2, 2, type, 0.5).length, from.length);
+  }
+});
+
 test("normalizes transition settings", () => {
   assert.deepEqual(normalizeTransition({ type: "push", duration: 9000 }), {
     type: "push",

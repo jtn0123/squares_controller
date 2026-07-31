@@ -1160,6 +1160,55 @@ h1 {
   filter: blur(2px) saturate(1.25);
 }
 
+.effect-card--galaxy .effect-visual {
+  background:
+    radial-gradient(circle at center, #fff7c7 0 2px, transparent 5px),
+    repeating-conic-gradient(from 15deg, transparent 0 22deg, rgba(137, 96, 255, 0.8) 25deg 30deg, transparent 34deg 62deg),
+    radial-gradient(circle, #332273, #05030c 70%);
+  filter: blur(1px);
+}
+
+.effect-card--waterfall .effect-visual {
+  background:
+    repeating-linear-gradient(100deg, transparent 0 8px, rgba(92, 225, 230, 0.72) 9px 14px, transparent 16px 22px),
+    linear-gradient(#143e74, #11223f 45%, #2a0e57);
+}
+
+.effect-card--life .effect-visual {
+  background:
+    linear-gradient(90deg, rgba(217, 255, 91, 0.75) 1px, transparent 1px),
+    linear-gradient(rgba(217, 255, 91, 0.75) 1px, transparent 1px),
+    radial-gradient(circle, #5b8c36 0 3px, transparent 4px),
+    #071008;
+  background-size: 9px 9px, 9px 9px, 27px 27px, auto;
+}
+
+.effect-card--snow .effect-visual {
+  background:
+    radial-gradient(circle, #f6fbff 0 1px, transparent 2px),
+    radial-gradient(circle, #85b8ff 0 2px, transparent 3px),
+    linear-gradient(#0b1b36, #172443);
+  background-position: 4px 5px, 16px 12px, 0 0;
+  background-size: 19px 17px, 31px 27px, auto;
+}
+
+.effect-card--blobs .effect-visual {
+  background:
+    radial-gradient(circle at 25% 70%, #00f5d4, transparent 31%),
+    radial-gradient(circle at 73% 32%, #ec5fff, transparent 36%),
+    radial-gradient(circle at 55% 80%, #4b83ff, transparent 32%),
+    #0a0815;
+  filter: blur(5px) saturate(1.35);
+}
+
+.effect-card--ballpit .effect-visual {
+  background:
+    radial-gradient(circle at 21% 72%, #ffca3a 0 8px, transparent 9px),
+    radial-gradient(circle at 53% 48%, #5ce1e6 0 10px, transparent 11px),
+    radial-gradient(circle at 81% 77%, #ff4fa3 0 7px, transparent 8px),
+    linear-gradient(#151020, #07060b);
+}
+
 .modulation-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1403,6 +1452,41 @@ h1 {
   color: #555e51;
   font: 650 5px/1.25 "Avenir Next Condensed", sans-serif;
   letter-spacing: 0.1em;
+}
+
+.effect-tuning {
+  margin-top: 7px;
+}
+
+.effect-control-grid {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.effect-control-grid > small {
+  color: #596155;
+  font: 650 6px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.09em;
+}
+
+.effect-control-grid label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+  color: #757e71;
+  font: 700 6px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.effect-control-grid output {
+  color: var(--acid);
+}
+
+.effect-control-grid input {
+  grid-column: 1 / -1;
 }
 
 .palette-stop-list {

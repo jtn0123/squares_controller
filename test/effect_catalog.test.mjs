@@ -5,17 +5,26 @@ import {
   EFFECT_CATALOG,
   effectById,
   hashUnit,
+  normalizeEffectControls,
   radarLightLevel,
 } from "../public/effect_catalog.js";
 
-test("publishes a unique ten-effect 2D catalog", () => {
-  assert.equal(EFFECT_CATALOG.length, 10);
-  assert.equal(new Set(EFFECT_CATALOG.map((effect) => effect.id)).size, 10);
+test("publishes a unique sixteen-effect 2D catalog", () => {
+  assert.equal(EFFECT_CATALOG.length, 16);
+  assert.equal(new Set(EFFECT_CATALOG.map((effect) => effect.id)).size, 16);
   EFFECT_CATALOG.forEach((effect) => {
     assert.match(effect.id, /^[a-z][a-z0-9-]+$/);
     assert.ok(effect.name.length > 0);
     assert.ok(effect.subtitle.length > 0);
   });
+});
+
+test("normalizes only the selected effect's compact advanced controls", () => {
+  assert.deepEqual(
+    normalizeEffectControls("galaxy", { arms: 99, twist: "4.5", unknown: 4 }),
+    { arms: 6, twist: 4.5 },
+  );
+  assert.deepEqual(normalizeEffectControls("unknown", { arms: 3 }), {});
 });
 
 test("looks effects up by stable ID", () => {

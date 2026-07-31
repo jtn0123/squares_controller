@@ -1,4 +1,13 @@
-const TRANSITION_TYPES = new Set(["cut", "crossfade", "push", "dissolve"]);
+const TRANSITION_TYPES = new Set([
+  "cut",
+  "crossfade",
+  "push",
+  "dissolve",
+  "wipe",
+  "shift",
+  "radial",
+  "pixelate",
+]);
 
 function clampProgress(value) {
   return Math.max(0, Math.min(1, Number(value) || 0));
@@ -43,6 +52,68 @@ export function transitionFrame(from, to, width, height, type, rawProgress) {
         const source = x < revealed ? to : from;
         const sourceOffset = (y * width + sourceX) * 3;
         result.set(source.subarray(sourceOffset, sourceOffset + 3), destinationOffset);
+      }
+    }
+    return result;
+  }
+
+  if (type === "wipe") {
+    const revealed = Math.ceil(width * progress);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 3;
+        const source = x < revealed ? to : from;
+        result.set(source.subarray(offset, offset + 3), offset);
+      }
+    }
+    return result;
+  }
+
+  if (type === "shift") {
+    const shift = Math.max(1, Math.round(width * progress));
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const destinationOffset = (y * width + x) * 3;
+        const incoming = x >= width - shift;
+        const sourceX = incoming ? x - (width - shift) : x + shift;
+        const source = incoming ? to : from;
+        const sourceOffset = (y * width + sourceX) * 3;
+        result.set(source.subarray(sourceOffset, sourceOffset + 3), destinationOffset);
+      }
+    }
+    return result;
+  }
+
+  if (type === "radial") {
+    const centerX = (width - 1) / 2;
+    const centerY = (height - 1) / 2;
+    const maximum = Math.max(1, Math.hypot(centerX, centerY));
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 3;
+        const source =
+          Math.hypot(x - centerX, y - centerY) <= maximum * progress
+            ? to
+            : from;
+        result.set(source.subarray(offset, offset + 3), offset);
+      }
+    }
+    return result;
+  }
+
+  if (type === "pixelate") {
+    const blockSize = Math.max(
+      1,
+      Math.round((1 - progress) * Math.min(width, height) * 0.4),
+    );
+    const blocksWide = Math.ceil(width / blockSize);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const block =
+          Math.floor(y / blockSize) * blocksWide + Math.floor(x / blockSize);
+        const source = pixelHash(block) < progress ? to : from;
+        const offset = (y * width + x) * 3;
+        result.set(source.subarray(offset, offset + 3), offset);
       }
     }
     return result;

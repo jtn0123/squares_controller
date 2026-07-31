@@ -43,6 +43,7 @@ import {
   EFFECT_CATALOG,
   effectById,
   hashUnit,
+  normalizeEffectControls,
   radarLightLevel,
 } from "./effect_catalog.js";
 import {
@@ -128,6 +129,7 @@ const state = {
   toastTimer: null,
   effectSpeed: 1,
   effectIntensity: 0.75,
+  effectControls: {},
   rotation: 0,
   backendWarningShown: false,
   stateEvents: null,
@@ -1348,6 +1350,68 @@ function updateModulationVisuals() {
   updateRangeFill(effectIntensity);
 }
 
+function effectControl(effect, control) {
+  return normalizeEffectControls(
+    effect,
+    state.effectControls[effect],
+  )[control];
+}
+
+function renderEffectControls(effectId = state.animationName) {
+  const grid = document.querySelector("#effectControlGrid");
+  const count = document.querySelector("#effectControlCount");
+  if (!grid || !count) return;
+  grid.replaceChildren();
+  const effect = effectById(effectId);
+  const controls = effect?.controls ?? [];
+  if (!controls.length) {
+    count.textContent = effect ? "NO EXTRA KNOBS" : "SELECT EFFECT";
+    const note = document.createElement("small");
+    note.textContent = effect
+      ? "THIS EFFECT USES SPEED + EFFECT LEVEL ONLY."
+      : "RUN AN EFFECT TO SEE ITS OPTIONAL CONTROLS.";
+    grid.append(note);
+    return;
+  }
+  state.effectControls[effectId] = normalizeEffectControls(
+    effectId,
+    state.effectControls[effectId],
+  );
+  count.textContent = `${controls.length} CONTROL${controls.length === 1 ? "" : "S"}`;
+  controls.forEach((control) => {
+    const label = document.createElement("label");
+    label.htmlFor = `effect-control-${effectId}-${control.id}`;
+    const name = document.createElement("span");
+    name.textContent = control.label;
+    const value = document.createElement("output");
+    const input = document.createElement("input");
+    input.className = "range range--compact";
+    input.id = `effect-control-${effectId}-${control.id}`;
+    input.type = "range";
+    input.min = control.min;
+    input.max = control.max;
+    input.step = control.step;
+    input.value = state.effectControls[effectId][control.id];
+    const renderValue = () => {
+      value.textContent =
+        control.step < 1
+          ? Number(input.value).toFixed(1)
+          : String(Math.round(Number(input.value)));
+      updateRangeFill(input);
+    };
+    input.addEventListener("input", () => {
+      state.effectControls[effectId] = normalizeEffectControls(effectId, {
+        ...state.effectControls[effectId],
+        [control.id]: input.value,
+      });
+      renderValue();
+    });
+    renderValue();
+    label.append(name, value, input);
+    grid.append(label);
+  });
+}
+
 function availablePalettes() {
   return [...CURATED_PALETTES, ...state.library.palettes];
 }
@@ -2037,6 +2101,7 @@ function startGeneratedEffect(name, { preserveOutput = false } = {}) {
   stopMedia();
   stopAnimation();
   state.animationName = name;
+  renderEffectControls(name);
   if (!preserveOutput) {
     setOutputContext({
       kind: "effect",
@@ -2089,12 +2154,13 @@ function paintEffectPixel(target, x, y, rgb) {
 
 const effectPainters = {
   tide(time, target, paletteColors) {
+    const scale = effectControl("tide", "scale") / 52;
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         const wave =
-          Math.sin(x * 0.24 + time * 1.3) +
-          Math.cos(y * 0.31 - time * 0.95) +
-          Math.sin((x + y) * 0.11 + time * 0.7);
+          Math.sin(x * 0.24 * scale + time * 1.3) +
+          Math.cos(y * 0.31 * scale - time * 0.95) +
+          Math.sin((x + y) * 0.11 * scale + time * 0.7);
         const phase = (x * 0.018 - y * 0.011 + time * 0.075 + wave * 0.08);
         const color = sampleGradient(paletteColors, phase);
         const gain = 0.58 + (wave + 3) * 0.075;
@@ -2111,15 +2177,18 @@ const effectPainters = {
     const centerX = (state.width - 1) / 2;
     const centerY = (state.height - 1) / 2;
     const sweep = time * 1.4;
+    const trail = effectControl("radar", "trail") / 72;
+    const rings = effectControl("radar", "rings") / 100;
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         const dx = x - centerX;
         const dy = y - centerY;
         const angle = Math.atan2(dy, dx);
         const delta = Math.atan2(Math.sin(angle - sweep), Math.cos(angle - sweep));
-        const ring = Math.abs(Math.sin(Math.hypot(dx, dy) * 1.15)) < 0.08 ? 0.18 : 0;
+        const ring =
+          Math.abs(Math.sin(Math.hypot(dx, dy) * 1.15)) < 0.08 ? rings : 0;
         const spark = ((x * 17 + y * 31) % 71 === 0) ? 0.65 : 0;
-        const value = radarLightLevel(delta, ring, spark);
+        const value = radarLightLevel(delta / trail, ring, spark);
         const color = sampleGradient(
           paletteColors,
           angle / (Math.PI * 2) + time * 0.035,
@@ -2134,13 +2203,14 @@ const effectPainters = {
     }
   },
   ember(time, target, paletteColors) {
+    const turbulence = effectControl("ember", "turbulence") / 55;
     for (let y = 0; y < state.height; y += 1) {
       for (let x = 0; x < state.width; x += 1) {
         const rise = 1 - y / state.height;
         const noise =
-          Math.sin(x * 1.31 + time * 3.1) *
-          Math.sin(y * 0.73 - time * 2.3) *
-          Math.sin((x + y) * 0.42 + time);
+          Math.sin(x * 1.31 + time * 3.1 * turbulence) *
+          Math.sin(y * 0.73 - time * 2.3 * turbulence) *
+          Math.sin((x + y) * 0.42 + time * turbulence);
         const heat = Math.max(0, rise * 0.72 + noise * 0.33 - 0.08);
         const color = sampleGradient(paletteColors, heat * 0.82);
         paintEffectPixel(
@@ -2198,7 +2268,10 @@ const effectPainters = {
     }
   },
   confetti(time, target, paletteColors) {
-    const particleCount = Math.max(36, Math.round(state.width * 1.8));
+    const particleCount = Math.max(
+      12,
+      Math.round(state.width * 1.8 * effectControl("confetti", "density") / 58),
+    );
     for (let particle = 0; particle < particleCount; particle += 1) {
       const speed = 2.5 + hashUnit(particle * 31 + 7) * 6;
       const x = Math.floor(hashUnit(particle * 17 + 3) * state.width);
@@ -2218,15 +2291,16 @@ const effectPainters = {
     }
   },
   rain(time, target, paletteColors) {
+    const trailLength = effectControl("rain", "trail");
     for (let x = 0; x < state.width; x += 1) {
       const speed = 4 + hashUnit(x * 37 + 5) * 8;
       const head = Math.floor(
         (time * speed + hashUnit(x * 71 + 9) * state.height * 2) %
           (state.height + 10),
       );
-      for (let trail = 0; trail < 10; trail += 1) {
+      for (let trail = 0; trail < trailLength; trail += 1) {
         const y = head - trail;
-        const gain = Math.max(0, 1 - trail / 10);
+        const gain = Math.max(0, 1 - trail / trailLength);
         const color = sampleGradient(
           paletteColors,
           x / state.width + trail * 0.025,
@@ -2242,7 +2316,8 @@ const effectPainters = {
   },
   fireworks(time, target, paletteColors) {
     const maximumRadius = Math.hypot(state.width, state.height) * 0.32;
-    for (let burst = 0; burst < 4; burst += 1) {
+    const burstCount = effectControl("fireworks", "bursts");
+    for (let burst = 0; burst < burstCount; burst += 1) {
       const cycle = time * 0.42 + burst * 0.29;
       const epoch = Math.floor(cycle);
       const age = cycle - epoch;
@@ -2318,6 +2393,182 @@ const effectPainters = {
           y,
           color.map((channel) => clampByte(channel * (0.32 + pulse * 0.68))),
         );
+      }
+    }
+  },
+  galaxy(time, target, paletteColors) {
+    const centerX = (state.width - 1) / 2;
+    const centerY = (state.height - 1) / 2;
+    const arms = effectControl("galaxy", "arms");
+    const twist = effectControl("galaxy", "twist");
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const dx = (x - centerX) / state.width;
+        const dy = (y - centerY) / state.height;
+        const radius = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+        const spiral = Math.cos(angle * arms - radius * twist * 18 + time);
+        const dust = hashUnit(x * 197 + y * 389) > 0.965 ? 0.65 : 0;
+        const core = Math.exp(-radius * 16);
+        const gain = Math.max(0, spiral) ** 7 * Math.max(0, 1 - radius * 1.7);
+        const color = sampleGradient(
+          paletteColors,
+          angle / (Math.PI * 2) + time * 0.025 + radius,
+        );
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) =>
+            clampByte(channel * Math.min(1, gain + core + dust)),
+          ),
+        );
+      }
+    }
+  },
+  waterfall(time, target, paletteColors) {
+    const width = effectControl("waterfall", "width");
+    const turbulence = effectControl("waterfall", "turbulence") / 100;
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        const stream = Math.floor(x / width);
+        const phase =
+          y / state.height +
+          time * (0.2 + hashUnit(stream * 37 + 5) * 0.32) +
+          Math.sin(y * 0.23 + time + stream) * turbulence * 0.09;
+        const crest = Math.max(0, Math.sin(phase * Math.PI * 6)) ** 3;
+        const color = sampleGradient(
+          paletteColors,
+          phase + stream * 0.13,
+        );
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * (0.12 + crest * 0.88))),
+        );
+      }
+    }
+  },
+  life(time, target, paletteColors) {
+    const density = effectControl("life", "density") / 100;
+    const generation = Math.floor(time * effectControl("life", "cadence"));
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        let neighbors = 0;
+        for (let oy = -1; oy <= 1; oy += 1) {
+          for (let ox = -1; ox <= 1; ox += 1) {
+            if (ox === 0 && oy === 0) continue;
+            const nx = (x + ox + state.width) % state.width;
+            const ny = (y + oy + state.height) % state.height;
+            if (hashUnit(nx * 313 + ny * 571 + generation * 911) < density) {
+              neighbors += 1;
+            }
+          }
+        }
+        const seeded =
+          hashUnit(x * 313 + y * 571 + (generation - 1) * 911) < density;
+        const alive = neighbors === 3 || (seeded && neighbors === 2);
+        if (!alive) continue;
+        const color = sampleGradient(
+          paletteColors,
+          neighbors / 8 + generation * 0.017,
+        );
+        paintEffectPixel(target, x, y, color);
+      }
+    }
+  },
+  snow(time, target, paletteColors) {
+    const count = Math.max(
+      12,
+      Math.round(state.width * effectControl("snow", "density") / 34),
+    );
+    const drift = effectControl("snow", "drift") / 100;
+    for (let flake = 0; flake < count; flake += 1) {
+      const fallSpeed = 1.2 + hashUnit(flake * 41 + 3) * 3.4;
+      const cycle = time * fallSpeed + hashUnit(flake * 67 + 5) * state.height;
+      const y = Math.floor(cycle % (state.height + 2)) - 1;
+      const x = Math.floor(
+        (
+          hashUnit(flake * 97 + 11) * state.width +
+          Math.sin(time * 0.7 + flake) * drift * 4 +
+          state.width
+        ) % state.width,
+      );
+      const color = sampleGradient(
+        paletteColors,
+        hashUnit(flake * 131 + 17),
+      );
+      paintEffectPixel(target, x, y, color);
+    }
+  },
+  blobs(time, target, paletteColors) {
+    const count = effectControl("blobs", "count");
+    const size = effectControl("blobs", "size") / 100;
+    for (let y = 0; y < state.height; y += 1) {
+      for (let x = 0; x < state.width; x += 1) {
+        let field = 0;
+        let hue = 0;
+        for (let blob = 0; blob < count; blob += 1) {
+          const centerX =
+            state.width *
+            (0.5 + Math.sin(time * (0.31 + blob * 0.037) + blob * 2.1) * 0.42);
+          const centerY =
+            state.height *
+            (0.5 + Math.cos(time * (0.27 + blob * 0.041) + blob * 1.7) * 0.42);
+          const distance = Math.hypot(x - centerX, y - centerY);
+          const contribution = Math.exp(-distance / (1.2 + size * 5.5));
+          field += contribution;
+          hue += contribution * (blob / count);
+        }
+        if (field < 0.18) continue;
+        const color = sampleGradient(
+          paletteColors,
+          hue / Math.max(field, 0.001) + time * 0.02,
+        );
+        const gain = Math.min(1, (field - 0.14) * 1.4);
+        paintEffectPixel(
+          target,
+          x,
+          y,
+          color.map((channel) => clampByte(channel * gain)),
+        );
+      }
+    }
+  },
+  ballpit(time, target, paletteColors) {
+    const count = effectControl("ballpit", "count");
+    const gravity = effectControl("ballpit", "gravity") / 100;
+    for (let ball = 0; ball < count; ball += 1) {
+      const radius = 1.2 + hashUnit(ball * 43 + 3) * 2.2;
+      const speed = 1.4 + hashUnit(ball * 73 + 7) * 2.8;
+      const spanX = Math.max(1, state.width - radius * 2);
+      const spanY = Math.max(1, state.height - radius * 2);
+      const rawX = (time * speed * 2 + hashUnit(ball * 101 + 13) * spanX * 2) %
+        (spanX * 2);
+      const rawY = (time * speed + hashUnit(ball * 127 + 17) * spanY * 2) %
+        (spanY * 2);
+      const centerX = radius + (rawX > spanX ? spanX * 2 - rawX : rawX);
+      const linearY = rawY > spanY ? spanY * 2 - rawY : rawY;
+      const centerY =
+        radius + spanY * Math.pow(linearY / spanY, 1 + gravity * 1.8);
+      const color = sampleGradient(paletteColors, ball / count + time * 0.025);
+      const minX = Math.floor(centerX - radius);
+      const maxX = Math.ceil(centerX + radius);
+      const minY = Math.floor(centerY - radius);
+      const maxY = Math.ceil(centerY + radius);
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          const distance = Math.hypot(x - centerX, y - centerY);
+          if (distance > radius) continue;
+          const gain = Math.max(0.2, 1 - distance / radius * 0.55);
+          paintEffectPixel(
+            target,
+            x,
+            y,
+            color.map((channel) => clampByte(channel * gain)),
+          );
+        }
       }
     }
   },
@@ -2704,6 +2955,10 @@ function transitionToFrame(target, transition) {
 
 async function loadPreset(preset, options = {}) {
   stopMedia();
+  state.effectControls =
+    preset.effectControls && typeof preset.effectControls === "object"
+      ? structuredClone(preset.effectControls)
+      : {};
   effectSpeed.value = preset.speed ?? 100;
   effectIntensity.value = preset.intensity ?? 75;
   updateModulationVisuals();
@@ -3054,6 +3309,7 @@ async function saveCurrentPreset() {
     transition: state.transition,
     segments: state.segments,
     segmentTransform: state.segmentTransform,
+    effectControls: state.effectControls,
   });
   const folder = document.querySelector("#sceneFolder").value.trim();
   const tags = parseSceneTags(document.querySelector("#sceneTags").value);
