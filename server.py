@@ -21,6 +21,7 @@ from src.command_api import (
     validate_bind_security,
 )
 from src.library_store import LibraryStore
+from src.movie_payload import decode_movie_payload
 from src.state_broker import StateBroker, StateEvent
 from src.twinkly_client import TwinklyClient
 
@@ -39,7 +40,7 @@ ALLOW_UNAUTHENTICATED_LAN = (
     os.environ.get("ALLOW_UNAUTHENTICATED_LAN", "0") == "1"
 )
 MAX_BODY_BYTES = 2_000_000
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.10.0"
 STATE_HEARTBEAT_SECONDS = 15.0
 state_broker = StateBroker()
 library_store = LibraryStore(LIBRARY_PATH)
@@ -209,6 +210,33 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         if path == "/api/v1/capabilities":
             self.send_json(HTTPStatus.OK, capability_payload())
             return
+        if path == "/api/telemetry":
+            try:
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"streamTelemetry": get_client().stream_telemetry()},
+                )
+            except (ConnectionError, KeyError, ValueError) as error:
+                self.send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
+                )
+            return
+        if path == "/api/movies":
+            try:
+                movies = get_client().list_movies()
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "movies": movies["movies"],
+                        "availableFrames": int(movies.get("available_frames", 0)),
+                        "maxCapacity": int(movies.get("max_capacity", 0)),
+                    },
+                )
+            except (ConnectionError, KeyError, TypeError, ValueError) as error:
+                self.send_json(
+                    HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
+                )
+            return
         if path == "/api/v1/state":
             try:
                 status = get_client().refresh_status()
@@ -296,6 +324,12 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                     HTTPStatus.OK,
                     {"apiVersion": API_VERSION, "result": result},
                 )
+                return
+            if path == "/api/movies/bake":
+                movie = decode_movie_payload(body)
+                baked = get_client().bake_movie(**movie)
+                publish_controller_state(baked["status"], "movie:bake")
+                self.send_json(HTTPStatus.OK, baked)
                 return
             if path == "/api/frame":
                 raw_pixels = body.get("pixels")

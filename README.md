@@ -4,8 +4,8 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.9.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-68%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.10.0-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-86%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -31,6 +31,10 @@ solder.
 - Schedule sleep, wake, brightness, stock-mode, and off actions
 - Rotate the complete display to 0°, 90°, 180°, or 270°
 - Control live brightness while custom frames are streaming
+- Inspect advertised, measured, target, and delivered frame cadence plus relay
+  gap, repeat, and missed-deadline telemetry
+- Bake a finite effect, video clip, or static look into unused controller movie
+  storage for browser-free playback without overwriting existing movies
 - Integrate local tools through a versioned JSON API, OpenAPI document, CLI,
   Server-Sent Events, and a Home Assistant example
 - Return to the original Twinkly animation at any time
@@ -140,19 +144,22 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 32 Python and 41 browser-model tests. It covers
+The current suite contains 41 Python and 45 browser-model tests. It covers
 device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media
-controls, scene organization, and playlists.
+controls, scene organization, playlists, relay telemetry, and safe movie
+payloads.
 
 ## Frame-rate notes
 
-The browser and controller relay now share a deadline-aligned 25 ms frame clock.
-Actual-device testing raised new browser frames from 18.17 to 39.998 FPS and the
-panel-bound relay from 25 to 40 FPS without a new runtime dependency or
-transport protocol. The controller advertises 40 FPS; higher-rate UDP stress
-testing is documented separately from displayed-frame capability.
+The connected controller advertises 40 FPS but reports a measured 38.46 FPS
+clock. Realtime output therefore runs on an independent, deadline-aligned
+37.5 FPS relay clock to leave narrow sampling headroom. The UI reports actual
+delivery gaps, repeated inputs, and missed deadlines; those host measurements
+do not claim that every frame lit physically. Controller-local movies use the
+controller's integer 38 FPS playback path and remove browser, HTTP, Python
+scheduling, and Wi-Fi cadence from ongoing playback.
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for the measurements.
 
 ## How it works

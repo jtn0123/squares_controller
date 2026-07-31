@@ -45,6 +45,8 @@
             <span><b id="resolutionReadout">32×24</b> MATRIX</span>
             <span><b id="pixelReadout">768</b> NODES</span>
             <span><b id="fpsReadout">40</b> FPS CAP</span>
+            <span><b id="measuredFpsReadout">—</b> PANEL FPS</span>
+            <span><b id="relayFpsReadout">—</b> RELAY FPS</span>
           </div>
         </div>
 
@@ -471,6 +473,30 @@
               <small id="sceneProgressLabel">OUTPUT MIRRORS THE WALL</small>
             </div>
           </div>
+          <div class="panel-bake">
+            <div class="panel-bake-heading">
+              <span>PANEL-LOCAL PLAYBACK</span>
+              <strong id="movieCapacityReadout">CHECKING STORAGE</strong>
+            </div>
+            <div class="panel-bake-controls">
+              <input
+                id="bakeMovieName"
+                type="text"
+                maxlength="32"
+                placeholder="MOVIE NAME"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <label>
+                <span>SECONDS</span>
+                <input id="bakeDuration" type="number" min="1" max="15" value="5" />
+              </label>
+              <button id="bakeMovieButton" type="button">BAKE TO PANEL</button>
+            </div>
+            <small>
+              ADDS A NEW LOOP / NEVER OVERWRITES / RUNS WITHOUT THIS BROWSER
+            </small>
+          </div>
           <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
           <div class="preset-composer">
             <input
@@ -697,6 +723,27 @@
               <button data-rotation="180" type="button">180°</button>
               <button data-rotation="270" type="button">270°</button>
             </div>
+          </div>
+          <div
+            class="stream-diagnostics"
+            id="streamDiagnostics"
+            data-health="idle"
+          >
+            <div class="stream-diagnostics-title">
+              <span>OUTPUT CLOCK</span>
+              <strong id="streamHealthReadout">WAITING</strong>
+            </div>
+            <div class="stream-diagnostics-grid">
+              <div><small>RELAY</small><b id="streamActualReadout">—</b></div>
+              <div><small>TARGET</small><b id="streamTargetReadout">—</b></div>
+              <div><small>UNIQUE</small><b id="streamUniqueReadout">0</b></div>
+              <div><small>REPEATS</small><b id="streamRepeatReadout">0</b></div>
+              <div><small>P95 GAP</small><b id="streamGapReadout">—</b></div>
+              <div><small>MISSED</small><b id="streamMissedReadout">0</b></div>
+            </div>
+            <small class="stream-diagnostics-note">
+              HOST DELIVERY / PHYSICAL OUTPUT REQUIRES CAMERA VALIDATION
+            </small>
           </div>
           <dl class="system-list">
             <div><dt>ROUTE</dt><dd id="routeReadout">—</dd></div>

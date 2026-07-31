@@ -8,6 +8,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
@@ -164,6 +165,35 @@ def oriented_raster_to_device_frame(
     return raster_to_device_frame(native, layout)
 
 
+def oriented_raster_movie_to_device(
+    pixels: bytes | bytearray | list[int],
+    *,
+    frame_count: int,
+    width: int,
+    height: int,
+    layout: Layout,
+    rotation: int | float | str,
+) -> bytes:
+    source = bytes(pixels)
+    frame_size = layout.led_count * 3
+    if frame_count < 1 or len(source) != frame_count * frame_size:
+        raise ValueError(
+            f"Expected {frame_count * frame_size} movie RGB values; "
+            f"received {len(source)}."
+        )
+    output = bytearray(len(source))
+    for frame_index in range(frame_count):
+        offset = frame_index * frame_size
+        output[offset : offset + frame_size] = oriented_raster_to_device_frame(
+            source[offset : offset + frame_size],
+            width,
+            height,
+            layout,
+            rotation,
+        )
+    return bytes(output)
+
+
 def scale_frame_brightness(frame: bytes, brightness: int | float) -> bytes:
     """Apply the controller's logical brightness to a realtime RGB frame."""
     percent = max(0, min(100, round(float(brightness))))
@@ -224,10 +254,18 @@ class TwinklyClient:
         *,
         method: str = "GET",
         body: dict[str, Any] | None = None,
+        raw_body: bytes | None = None,
+        content_type: str = "application/json",
         token: str | None = None,
     ) -> dict[str, Any]:
-        payload = None if body is None else json.dumps(body).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        if body is not None and raw_body is not None:
+            raise ValueError("A request cannot contain JSON and binary bodies.")
+        payload = (
+            raw_body
+            if raw_body is not None
+            else None if body is None else json.dumps(body).encode("utf-8")
+        )
+        headers = {"Content-Type": content_type}
         if token:
             headers["X-Auth-Token"] = token
         request = urllib.request.Request(
@@ -299,6 +337,26 @@ class TwinklyClient:
                 raise
             token = self.authenticate(force=True)
             return self._fetch_json(path, method=method, body=body, token=token)
+
+    def _request_bytes(self, path: str, payload: bytes) -> dict[str, Any]:
+        token = self.authenticate()
+        try:
+            return self._fetch_json(
+                path,
+                method="POST",
+                raw_body=payload,
+                content_type="application/octet-stream",
+                token=token,
+            )
+        except PermissionError:
+            token = self.authenticate(force=True)
+            return self._fetch_json(
+                path,
+                method="POST",
+                raw_body=payload,
+                content_type="application/octet-stream",
+                token=token,
+            )
 
     def connect(self) -> dict[str, Any]:
         device = self.request("/gestalt")
@@ -486,6 +544,123 @@ class TwinklyClient:
         with self._lock:
             self.mode = mode
         return self.status()
+
+    def list_movies(self) -> dict[str, Any]:
+        result = self.request("/movies")
+        if not isinstance(result.get("movies"), list):
+            raise ConnectionError("Twinkly returned an invalid movie list.")
+        return result
+
+    def bake_movie(
+        self,
+        name: str,
+        pixels: bytes | bytearray | list[int],
+        *,
+        width: int,
+        height: int,
+        frame_count: int,
+        fps: int | float,
+    ) -> dict[str, Any]:
+        if self.layout is None or self.device is None:
+            self.connect()
+        assert self.layout is not None
+        assert self.device is not None
+
+        movie_name = str(name).strip().upper()
+        if not movie_name or len(movie_name) > 32:
+            raise ValueError("Movie name must contain 1 to 32 characters.")
+        requested_fps = round(float(fps))
+        measured_fps = float(
+            self.device.get("measured_frame_rate", self.device["frame_rate"])
+        )
+        movie_fps = min(requested_fps, max(1, int(measured_fps)))
+        if requested_fps < 1:
+            raise ValueError("Movie FPS must be positive.")
+
+        movie_data = oriented_raster_movie_to_device(
+            pixels,
+            frame_count=frame_count,
+            width=width,
+            height=height,
+            layout=self.layout,
+            rotation=self.rotation,
+        )
+        before = self.list_movies()
+        available_frames = int(before.get("available_frames", 0))
+        if frame_count > available_frames:
+            raise ValueError(
+                f"Movie needs {frame_count} frames but the controller has "
+                f"{available_frames} available movie frames."
+            )
+        if any(
+            str(movie.get("name", "")).strip().upper() == movie_name
+            for movie in before["movies"]
+        ):
+            raise ValueError(
+                "A controller movie already uses that name. Choose a new name."
+            )
+
+        unique_id = str(uuid.uuid4())
+        self.request(
+            "/movies/new",
+            method="POST",
+            body={
+                "name": movie_name,
+                "unique_id": unique_id,
+                "descriptor_type": "rgb_raw",
+                "leds_per_frame": self.layout.led_count,
+                "frames_number": frame_count,
+                "fps": movie_fps,
+            },
+        )
+        self._request_bytes("/movies/full", movie_data)
+        after = self.list_movies()
+        created = next(
+            (
+                movie
+                for movie in after["movies"]
+                if movie.get("unique_id") == unique_id
+            ),
+            None,
+        )
+        if created is None or not isinstance(created.get("id"), int):
+            raise ConnectionError(
+                "Movie uploaded but the controller did not return its identity."
+            )
+
+        self.stop_stream()
+        self.request(
+            "/led/out/brightness",
+            method="POST",
+            body={
+                "mode": "enabled",
+                "type": "A",
+                "value": self.brightness if self.brightness is not None else 100,
+            },
+        )
+        try:
+            self.request(
+                "/led/movies/current",
+                method="POST",
+                body={"id": created["id"]},
+            )
+        except ConnectionError as error:
+            if "HTTP 404" not in str(error):
+                raise
+            self.request(
+                "/movies/current",
+                method="POST",
+                body={"id": created["id"]},
+            )
+        self.request("/led/mode", method="POST", body={"mode": "movie"})
+        with self._lock:
+            self.mode = "movie"
+        return {
+            "bakedMovie": created,
+            "movieCount": len(after["movies"]),
+            "availableFrames": int(after.get("available_frames", 0)),
+            "status": self.status(),
+        }
 
     def set_raster_frame(
         self, pixels: bytes | bytearray | list[int], width: int, height: int

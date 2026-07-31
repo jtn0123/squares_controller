@@ -1383,6 +1383,91 @@ h1 {
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
+.panel-bake {
+  margin: 0 0 12px;
+  padding: 9px;
+  border: 1px solid #48533a;
+  background:
+    linear-gradient(110deg, rgba(217, 255, 91, 0.06), transparent 62%),
+    #070907;
+}
+
+.panel-bake-heading {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: #71796d;
+  font: 700 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.11em;
+}
+
+.panel-bake-heading strong {
+  color: var(--acid);
+}
+
+.panel-bake-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 62px 92px;
+  gap: 5px;
+}
+
+.panel-bake-controls input,
+.panel-bake-controls button {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--paper);
+  background: #050705;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.07em;
+}
+
+.panel-bake-controls input {
+  padding: 0 8px;
+}
+
+.panel-bake-controls label {
+  position: relative;
+}
+
+.panel-bake-controls label span {
+  position: absolute;
+  top: 4px;
+  left: 7px;
+  z-index: 1;
+  color: #596055;
+  font: 650 5px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.panel-bake-controls label input {
+  width: 100%;
+  padding-top: 8px;
+}
+
+.panel-bake-controls button {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+  cursor: pointer;
+}
+
+.panel-bake-controls button:disabled {
+  color: #70766d;
+  border-color: #31362f;
+  background: #171a16;
+  cursor: wait;
+}
+
+.panel-bake > small {
+  display: block;
+  margin-top: 7px;
+  color: #596055;
+  font: 650 6px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.09em;
+}
+
 .scene-monitor[data-state="scene"] {
   border-color: #6b7e3d;
   box-shadow:
@@ -2181,6 +2266,82 @@ h1 {
 
 .system-list .good {
   color: var(--acid);
+}
+
+.stream-diagnostics {
+  margin: 11px 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(217, 255, 91, 0.035), transparent 55%),
+    #070907;
+}
+
+.stream-diagnostics[data-health="locked"] {
+  border-color: #6b7e3d;
+}
+
+.stream-diagnostics[data-health="warning"] {
+  border-color: var(--signal);
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+
+.stream-diagnostics-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font: 750 7px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.stream-diagnostics-title span {
+  color: #71796d;
+}
+
+.stream-diagnostics-title strong {
+  color: #8b9386;
+}
+
+.stream-diagnostics[data-health="locked"] .stream-diagnostics-title strong {
+  color: var(--acid);
+}
+
+.stream-diagnostics[data-health="warning"] .stream-diagnostics-title strong {
+  color: var(--signal);
+}
+
+.stream-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.stream-diagnostics-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.stream-diagnostics-grid small,
+.stream-diagnostics-note {
+  color: #5f675c;
+  font: 650 6px/1.2 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.stream-diagnostics-grid b {
+  color: var(--paper);
+  font: 750 10px/1 "Avenir Next Condensed", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.stream-diagnostics-note {
+  display: block;
+  margin-top: 7px;
 }
 
 .project-credit {

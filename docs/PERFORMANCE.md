@@ -3,17 +3,21 @@
 Squares Controller has four independent timing stages:
 
 1. Procedural effects, uploaded media, microphone visuals, and screen capture
-   use a phase-aligned 25 ms clock.
+   prepare new frames on a phase-aligned browser clock.
 2. The browser keeps only the latest pending frame, permits one HTTP upload at
-   a time, and starts uploads at most once every 25 ms.
-3. The Python relay repeats the most recent complete frame on a 25 ms deadline
-   clock. Missed deadlines are skipped instead of sent as catch-up bursts.
-4. The connected Twinkly Squares master reports a 40 FPS device capability.
+   a time, and discards obsolete queued work.
+3. The Python relay repeats the most recent complete frame on an independent
+   37.5 FPS deadline clock. Missed deadlines are skipped instead of sent as
+   catch-up bursts.
+4. The connected Twinkly Squares master advertises 40 FPS and reports a
+   measured 38.46 FPS clock.
+5. Finite looks can instead be stored and played by the controller at 38 FPS,
+   removing the first three realtime timing stages during playback.
 
 ## Actual-device measurements
 
-The initial and first-pass results used Signal Sweep; the current
-deadline-alignment result used Plasma Field. Both were measured through the
+The initial and first-pass results used Signal Sweep; the 40 FPS
+deadline-alignment result used Plasma Field. All were measured through the
 browser and over the Mac's Wi-Fi socket to the same 768-LED, 12-panel Squares
 installation:
 
@@ -34,6 +38,13 @@ Plasma Field was rendering during the final check. The relay repeats the newest
 frame when browser timing does not supply a new one for a particular 25 ms
 deadline.
 
+A later live-device trial aligned the relay below the controller's measured
+38.46 FPS clock. Over 804 sends it averaged 37.50 FPS with no full missed
+deadlines. Browser generation supplied 706 unique frames and the relay repeated
+98 latest frames. Host scheduling still produced a 29.403 ms p95 send gap and
+31.481 ms maximum gap. These measurements prove transport cadence, not optical
+display cadence; the app labels them accordingly.
+
 ## Higher-rate controller stress trial
 
 The connected Squares master returned `frame_rate: 40` from its live
@@ -53,7 +64,10 @@ traffic for a short trial. It does not prove that the LED engine displays more
 than the 40 unique frames per second declared by the controller because the
 realtime UDP protocol provides no displayed-frame acknowledgement. The sharp
 REST-latency increase at 75 and 100 FPS also makes those rates a worse production
-default. Squares Controller therefore keeps the device-advertised 40 FPS target.
+default. Slow-motion optical testing then showed obvious missing counter frames
+at 60 FPS and roughly one or two missing frames per 15 at 40 FPS. Squares
+Controller therefore no longer treats successful UDP transmission as displayed
+frame proof.
 
 ## Software-only measurements
 
@@ -75,8 +89,10 @@ cadence on a modern Mac or ordinary local Wi-Fi.
 
 ## Further optimization threshold
 
-The present transport reaches the device's reported native cadence without a
-new dependency or protocol. A binary endpoint, persistent socket, or permanent
-telemetry layer should only be added if longer trials or larger layouts show a
-measured regression. Server-side procedural rendering remains the larger option
-if animations must continue at full speed while the browser is suspended.
+Realtime output now exposes permanent relay telemetry, while finite output can
+be baked to unused controller storage. Controller-local playback is the
+preferred high-fidelity path because it removes browser timing, JSON upload,
+Python wakeup jitter, and Wi-Fi timing from each displayed frame. Realtime mode
+remains necessary for painting, live audio, and screen mirroring; its fastest
+optically lossless target still requires camera validation rather than another
+transport-only benchmark.

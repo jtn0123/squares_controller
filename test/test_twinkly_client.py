@@ -12,6 +12,7 @@ from src.twinkly_client import (
     next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
+    oriented_raster_movie_to_device,
     raster_to_device_frame,
     scale_frame_brightness,
     stream_interval_seconds,
@@ -173,6 +174,116 @@ class TwinklyClientTests(unittest.TestCase):
             raster_to_device_frame(
                 bytes([0, 0, 0]), Layout(2, 1, 2, (0, 1))
             )
+
+    def test_reorders_every_raster_movie_frame_into_device_order(self) -> None:
+        layout = Layout(2, 1, 2, (1, 0))
+        first = bytes([255, 0, 0, 0, 0, 255])
+        second = bytes([0, 255, 0, 255, 255, 0])
+
+        movie = oriented_raster_movie_to_device(
+            first + second,
+            frame_count=2,
+            width=2,
+            height=1,
+            layout=layout,
+            rotation=0,
+        )
+
+        self.assertEqual(
+            movie,
+            bytes([0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 0]),
+        )
+
+    def test_bakes_additive_controller_movie_without_overwriting_library(self) -> None:
+        client = self.connected_client()
+        client.layout = Layout(2, 1, 2, (1, 0))
+        client.device["number_of_led"] = 2
+        client.device["frame_rate"] = 40
+        client.device["measured_frame_rate"] = 38.46
+        client.brightness = 24
+        frames = bytes(
+            [
+                255, 0, 0, 0, 0, 255,
+                0, 255, 0, 255, 255, 0,
+            ]
+        )
+        before = {
+            "movies": [{"id": 0, "name": "STOCK"}],
+            "available_frames": 100,
+            "max_capacity": 100,
+        }
+        after = {
+            "movies": [
+                {"id": 0, "name": "STOCK"},
+                {"id": 1, "name": "CODEX LOOP", "unique_id": "new-id"},
+            ],
+            "available_frames": 98,
+            "max_capacity": 100,
+        }
+
+        def request(path, **kwargs):
+            if path == "/movies" and request.movie_reads == 0:
+                request.movie_reads += 1
+                return before
+            if path == "/movies":
+                return after
+            if path == "/movies/new":
+                body = kwargs["body"]
+                after["movies"][1]["unique_id"] = body["unique_id"]
+                return {"code": 1000}
+            return {"code": 1000}
+
+        request.movie_reads = 0
+        with (
+            patch.object(client, "request", side_effect=request) as api_request,
+            patch.object(
+                client, "_request_bytes", return_value={"code": 1000}
+            ) as upload,
+        ):
+            result = client.bake_movie(
+                "Codex Loop",
+                frames,
+                width=2,
+                height=1,
+                frame_count=2,
+                fps=38,
+            )
+
+        create_call = next(
+            call for call in api_request.call_args_list
+            if call.args[0] == "/movies/new"
+        )
+        self.assertEqual(create_call.kwargs["body"]["descriptor_type"], "rgb_raw")
+        self.assertEqual(create_call.kwargs["body"]["fps"], 38)
+        upload.assert_called_once_with(
+            "/movies/full",
+            bytes([0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 0]),
+        )
+        self.assertEqual(result["bakedMovie"]["id"], 1)
+        self.assertEqual(result["status"]["mode"], "movie")
+        client.close(restore_movie=False)
+
+    def test_rejects_movie_larger_than_free_controller_capacity(self) -> None:
+        client = self.connected_client()
+        with patch.object(
+            client,
+            "request",
+            return_value={
+                "movies": [],
+                "available_frames": 1,
+                "max_capacity": 100,
+            },
+        ):
+            with self.assertRaisesRegex(ValueError, "available movie frames"):
+                client.bake_movie(
+                    "Too Long",
+                    bytes([0, 0, 0, 1, 1, 1]),
+                    width=1,
+                    height=1,
+                    frame_count=2,
+                    fps=38,
+                )
+        client.close(restore_movie=False)
 
     def test_scales_realtime_frame_brightness(self) -> None:
         frame = bytes([0, 1, 127, 128, 254, 255])
