@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 config.json
+.env
 .squares/
 node_modules/
 npm-debug.log*

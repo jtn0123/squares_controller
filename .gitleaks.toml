@@ -1,0 +1,81 @@
+# Gitleaks configuration for squares_controller
+# Reduces false positives for this specific project.
+#
+# The rules below are deliberately wider than the obvious `mqtt_password = "..."`
+# shape. A previous version matched only quoted assignments containing the
+# literal word "mqtt", so a bare `MQPASS=<digits>` in a launchd helper script sat
+# in a public repo undetected until a manual read found it. Shell scripts assign
+# secrets bare and abbreviate the variable name; the rules have to cover that.
+
+title = "squares_controller gitleaks config"
+
+[allowlist]
+description = "Allowlisted files and patterns"
+
+# Example/sample files only. Note there is deliberately no blanket '.*\.md$'
+# entry: docs are exactly where a copy-pasted working command tends to land.
+paths = [
+    '''\.env\.example$''',
+    '''device\.sample\.yaml$''',
+    '''requirements.*\.txt$''',
+]
+
+# Placeholder values, not private IP ranges. The old config allowlisted every
+# 10.x and 192.168.x address globally, which suppressed the broker host that
+# appeared alongside the leaked password.
+regexes = [
+    '''(?i)your[_-]?(mqtt|wifi)?[_-]?pass''',
+    '''(?i)YOUR_[A-Z_]*(PASS|SSID|TOKEN|KEY)''',
+    '''(?i)(changeme|placeholder|example|redacted|xxxxx+)''',
+    '''\$\{[A-Z_]+\}''',       # ${MQTT_PASSWORD} style indirection
+    '''\$[A-Z_]{3,}''',        # $MQTT_PASS style indirection
+    '''["']?:\?[A-Z_ ]+not set''',  # ${VAR:?VAR not set} shell guards
+]
+
+# Bare shell-style assignment of a credential: PASS=hunter2, MQPASS=<digits>,
+# MQTT_PASSWORD=..., BROKER_PASS=... Unquoted or quoted, any variable name
+# ending in PASS/PASSWD/PASSWORD/SECRET/TOKEN.
+[[rules]]
+id = "bare-credential-assignment"
+description = "Bare credential assignment (shell/env style)"
+regex = '''(?i)\b[A-Z0-9_]*(?:PASS(?:WD|WORD)?|SECRET|TOKEN)\s*=\s*["']?([^\s"'#$][^\s"'#]*)'''
+secretGroup = 1
+keywords = ["pass", "secret", "token"]
+
+# Credentials passed as command-line flags: mosquitto_pub -P <pw>,
+# mosquitto_sub -u <user> -P <pw>, curl -u user:pw.
+[[rules]]
+id = "mqtt-client-password-flag"
+description = "MQTT client password passed on the command line"
+regex = '''mosquitto_(?:pub|sub|rr)\b[^\n|]*?\s-P\s+["']?([^\s"'$][^\s"']*)'''
+secretGroup = 1
+keywords = ["mosquitto_pub", "mosquitto_sub", "mosquitto_rr"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(?:api[_\s]?key|apikey)["']?\s*[:=]\s*["']([a-zA-Z0-9]{32,})["']'''
+secretGroup = 1
+entropy = 4.5
+keywords = ["api", "key"]
+
+[rules.allowlist]
+paths = [
+    '''.*\.example''',
+    '''.*\.sample''',
+]
+
+# Quoted assignment form, kept from the original config.
+[[rules]]
+id = "mqtt-password"
+description = "MQTT Password"
+regex = '''(?i)mqtt[_\s]?pass(?:word)?["']?\s*[:=]\s*["']([^"']+)["']'''
+secretGroup = 1
+keywords = ["mqtt", "pass"]
+
+[[rules]]
+id = "wifi-password"
+description = "WiFi Password"
+regex = '''(?i)wifi[_\s]?pass(?:word)?["']?\s*[:=]\s*["']([^"']+)["']'''
+secretGroup = 1
+keywords = ["wifi", "pass"]

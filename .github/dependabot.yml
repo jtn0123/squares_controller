@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Keeps the SHA-pinned action references in .github/workflows current --
+  # pinning to a commit means no automatic patch pickup, so this is what closes
+  # the loop.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # package.json declares no dependencies today (the test runner is node's
+  # built-in --test), so this will stay quiet until one is added. It is here so
+  # the first dependency added is covered from the start.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # No pip ecosystem entry: the Python side (server.py, src/*.py) is
+  # stdlib-only and the repo has no requirements.txt / pyproject.toml for
+  # dependabot to read.
