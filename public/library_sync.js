@@ -57,6 +57,10 @@ async function migrateBrowserPresets() {
 
   const browserPresets = readSavedPresets();
   try {
+    // Remove each preset from storage as soon as its POST succeeds, so a
+    // failure mid-migration cannot re-post (and duplicate) earlier scenes
+    // on the next page load.
+    const remaining = [...browserPresets];
     for (const preset of browserPresets) {
       const portablePreset = { ...preset };
       delete portablePreset.id;
@@ -64,6 +68,8 @@ async function migrateBrowserPresets() {
         method: "POST",
         body: JSON.stringify(portablePreset),
       });
+      remaining.shift();
+      localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(remaining));
     }
     localStorage.removeItem(PRESET_STORAGE_KEY);
     localStorage.setItem(PRESET_MIGRATION_KEY, "done");
@@ -108,7 +114,9 @@ export function initializeLibraryTransfer() {
       link.href = URL.createObjectURL(blob);
       link.download = `squares-library-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
-      URL.revokeObjectURL(link.href);
+      // Revoke after the download has started; a synchronous revoke can
+      // race the browser's read of the blob URL.
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
       toast("Library backup exported.");
     } catch (error) {
       toast(error.message, true);

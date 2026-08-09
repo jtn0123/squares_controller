@@ -116,11 +116,14 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         )
 
     def log_message(self, message_format: str, *args: Any) -> None:
-        if self.path.startswith("/api/") and args and str(args[0]).startswith("5"):
+        # self.path is unset until the request line has parsed; send_error
+        # can log before that point.
+        path = getattr(self, "path", "")
+        if path.startswith("/api/") and args and str(args[0]).startswith("5"):
             super().log_message(message_format, *args)
 
     def end_headers(self) -> None:
-        if not self.path.startswith("/api/"):
+        if not getattr(self, "path", "").startswith("/api/"):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
@@ -431,7 +434,11 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             return True
         if path == "/api/movies/bake":
             movie = decode_movie_payload(body)
-            baked = self.ctx.get_client().bake_movie(**movie)
+            # Baking switches panel modes over several seconds; hold the
+            # frame lock so a concurrent frame upload cannot restart the
+            # realtime relay mid-bake.
+            with self.ctx.frame_mode_lock:
+                baked = self.ctx.get_client().bake_movie(**movie)
             self.ctx.publish(baked["status"], "movie:bake")
             self.send_json(HTTPStatus.OK, baked)
             return True

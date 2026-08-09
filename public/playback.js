@@ -32,6 +32,7 @@ export function releaseAudioResources() {
   if (audioContext && audioContext.state !== "closed") {
     void audioContext.close().catch(() => {});
   }
+  if (state.animationName === "audio") state.animationName = null;
   updateAudioMeters();
   $("#mediaModeReadout").textContent = "IDLE";
 }

@@ -23,7 +23,8 @@
 }
 
 .automation-row.inactive {
-  opacity: 0.48;
+  opacity: 0.72;
+  filter: saturate(0.4);
 }
 
 .automation-copy {
@@ -96,7 +97,7 @@
 .runtime-policy-grid label {
   display: grid;
   gap: 5px;
-  color: #697264;
+  color: var(--muted);
   font: 700 8px/1 var(--font-condensed);
   letter-spacing: 0.11em;
 }
@@ -228,7 +229,7 @@
 }
 
 .stream-diagnostics-title span {
-  color: #71796d;
+  color: var(--muted);
 }
 
 .stream-diagnostics-title strong {

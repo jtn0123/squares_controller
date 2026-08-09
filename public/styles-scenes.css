@@ -124,7 +124,7 @@
 
 .preset-tool {
   min-height: 25px;
-  color: #70786c;
+  color: var(--muted);
   border-right: 1px solid var(--line);
   font: 750 8px/1 var(--font-condensed);
   letter-spacing: 0.07em;
@@ -232,7 +232,14 @@
 }
 
 .library-actions input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  border: 0;
 }
 
 .playlist-step-composer {

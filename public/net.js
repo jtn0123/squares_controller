@@ -8,6 +8,8 @@ const RECONNECT_MAX_MS = 30_000;
 let reconnectTimer = null;
 let reconnectDelay = RECONNECT_MIN_MS;
 let reconnectProbe = null;
+let reconnectInFlight = false;
+let frameDeferTimer = null;
 
 export function toast(message, error = false) {
   toastElement.textContent = message;
@@ -21,6 +23,9 @@ export async function api(path, options = {}) {
   let response;
   try {
     response = await fetch(path, {
+      // A server that accepts but never answers must not wedge the frame
+      // sender; time out and surface the same unreachable error.
+      signal: options.signal ?? AbortSignal.timeout(10_000),
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -73,10 +78,15 @@ export function onConnectionLost(probe) {
 }
 
 function beginReconnect() {
-  if (reconnectTimer || !reconnectProbe) return;
+  if (reconnectTimer || reconnectInFlight || !reconnectProbe) return;
   const attempt = async () => {
     reconnectTimer = null;
-    await reconnectProbe();
+    reconnectInFlight = true;
+    try {
+      await reconnectProbe();
+    } finally {
+      reconnectInFlight = false;
+    }
     if (state.connected) return;
     reconnectDelay = Math.min(RECONNECT_MAX_MS, reconnectDelay * 1.6);
     reconnectTimer = setTimeout(() => void attempt(), reconnectDelay);
@@ -98,11 +108,18 @@ export function scheduleFrame() {
 }
 
 export async function flushFrame() {
-  if (!state.frameQueued || !state.connected) return;
+  if (!state.frameQueued || !state.connected || state.frameSending) return;
   const now = performance.now();
   const delay = Math.max(0, state.nextFrameAt - now);
   if (delay > 0) {
-    setTimeout(() => void flushFrame(), delay);
+    // One pending timer at a time, or overlapping schedules can start
+    // two concurrent uploads when the deadline passes.
+    if (frameDeferTimer === null) {
+      frameDeferTimer = setTimeout(() => {
+        frameDeferTimer = null;
+        void flushFrame();
+      }, delay);
+    }
     return;
   }
   state.frameQueued = false;

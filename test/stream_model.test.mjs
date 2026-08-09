@@ -59,12 +59,22 @@ test("classifies idle, locked, and missed-deadline relay states", () => {
   assert.equal(
     streamHealth({
       sentFrames: 100,
-      targetFps: 37.5,
-      actualFps: 37.5,
-      p95GapMs: 55,
+      targetFps: 40,
+      actualFps: 40,
+      p95GapMs: 50,
+    }),
+    "locked",
+    "a gap of exactly twice the frame period is still healthy",
+  );
+  assert.equal(
+    streamHealth({
+      sentFrames: 100,
+      targetFps: 40,
+      actualFps: 40,
+      p95GapMs: 50.1,
     }),
     "warning",
-    "gaps beyond a full extra frame period need attention",
+    "gaps beyond twice the frame period need attention",
   );
   assert.equal(
     streamHealth({

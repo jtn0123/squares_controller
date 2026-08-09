@@ -20,6 +20,8 @@ def run_automation(
         return client.set_mode("movie")
     if action == "brightness":
         return client.set_brightness(item["value"])
-    # "wake": restore the stock animation, then apply the stored brightness.
-    client.set_mode("movie")
-    return client.set_brightness(item["value"])
+    if action == "wake":
+        # Restore the stock animation, then apply the stored brightness.
+        client.set_mode("movie")
+        return client.set_brightness(item["value"])
+    raise ValueError(f"Automation action {action} has no runner.")

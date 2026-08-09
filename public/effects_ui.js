@@ -109,12 +109,17 @@ export function renderGeneratedFrame(
       ctx,
     );
     overlayBuffer.fill(0);
-    const overlayPalette =
-      [...CURATED_PALETTES, ...state.library.palettes].find(
-        (palette) => palette.id === state.overlay.paletteId,
-      ) ?? CURATED_PALETTES[0];
-    if (includeOverlay && state.overlay.enabled) {
-      effectPainters[state.overlay.effect](
+    // A persisted layer can reference an unknown effect id; a missing
+    // painter must degrade to no overlay, not throw inside the frame loop.
+    const overlayPainter = effectPainters[state.overlay.effect];
+    const overlayActive =
+      includeOverlay && state.overlay.enabled && Boolean(overlayPainter);
+    if (overlayActive) {
+      const overlayPalette =
+        [...CURATED_PALETTES, ...state.library.palettes].find(
+          (palette) => palette.id === state.overlay.paletteId,
+        ) ?? CURATED_PALETTES[0];
+      overlayPainter(
         time * segment.speed * 0.87 + 0.61,
         overlayBuffer,
         overlayPalette.colors,
@@ -141,7 +146,7 @@ export function renderGeneratedFrame(
           clampByte(primaryBuffer[sourceOffset + 2] * segment.intensity),
         ];
         const mixed =
-          includeOverlay && state.overlay.enabled
+          overlayActive
             ? blendRgb(
                 base,
                 [

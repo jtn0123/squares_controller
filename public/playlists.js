@@ -58,7 +58,12 @@ export function renderPlaylistDraft() {
   });
 }
 
+// Increments on every stop/start; a step chain that awaited across a
+// restart of the same playlist sees a stale run and exits.
+let playlistRun = 0;
+
 export function stopPlaylist(showNotice = false) {
+  playlistRun += 1;
   clearTimeout(state.playlistTimer);
   clearInterval(state.playlistProgressTimer);
   state.playlistTimer = null;
@@ -72,6 +77,7 @@ export function stopPlaylist(showNotice = false) {
 }
 
 async function runPlaylistStep(playlist, index) {
+  const run = playlistRun;
   if (state.activePlaylistId !== playlist.id) return;
   const step = playlist.steps[index];
   const scene = sceneForId(step.sceneId);
@@ -88,7 +94,8 @@ async function runPlaylistStep(playlist, index) {
       duration: state.transition.duration,
     },
   });
-  if (!loaded || state.activePlaylistId !== playlist.id) return;
+  if (!loaded || run !== playlistRun) return;
+  if (state.activePlaylistId !== playlist.id) return;
   state.activePlaylistStep = {
     index,
     startedAt: Date.now(),
@@ -97,6 +104,7 @@ async function runPlaylistStep(playlist, index) {
   };
   updateSceneMonitor();
   state.playlistTimer = setTimeout(() => {
+    if (run !== playlistRun) return;
     const next = advancePlaylist(index, playlist.steps.length, playlist.repeat);
     if (next.done) {
       stopPlaylist();

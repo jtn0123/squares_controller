@@ -34,7 +34,7 @@ def load_store_with_recovery(
 ) -> StoreT:
     try:
         return factory(path)
-    except ValueError as error:
+    except (OSError, ValueError) as error:
         quarantine = quarantine_corrupt_file(path)
         warnings.append(
             f"{label} was unreadable and has been moved to "

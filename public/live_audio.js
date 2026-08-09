@@ -143,7 +143,7 @@ async function startMicrophoneInput() {
     toast(
       error?.name === "NotAllowedError"
         ? "Microphone permission was not granted."
-        : error.message,
+        : error?.message ?? String(error),
       true,
     );
   }
@@ -197,7 +197,7 @@ async function startScreenCapture() {
     toast(
       error?.name === "NotAllowedError"
         ? "Screen sharing was cancelled."
-        : error.message,
+        : error?.message ?? String(error),
       true,
     );
   }

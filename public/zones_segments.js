@@ -101,23 +101,18 @@ export function initializeZones() {
     } else applyZone({ type: "all" }, true);
   });
   $("#zoneIndex").addEventListener("input", (event) => {
-    applyZone(
-      { type: state.zone.type, index: Number(event.target.value) - 1 },
-      true,
-    );
+    // No toast per keystroke; the canvas outline is the live feedback.
+    applyZone({ type: state.zone.type, index: Number(event.target.value) - 1 });
   });
   ["zoneX", "zoneY", "zoneWidth", "zoneHeight"].forEach((id) => {
     $(`#${id}`).addEventListener("input", () => {
-      applyZone(
-        {
-          type: "custom",
-          x: Number($("#zoneX").value) - 1,
-          y: Number($("#zoneY").value) - 1,
-          width: Number($("#zoneWidth").value),
-          height: Number($("#zoneHeight").value),
-        },
-        true,
-      );
+      applyZone({
+        type: "custom",
+        x: Number($("#zoneX").value) - 1,
+        y: Number($("#zoneY").value) - 1,
+        width: Number($("#zoneWidth").value),
+        height: Number($("#zoneHeight").value),
+      });
     });
   });
   renderZoneControls();

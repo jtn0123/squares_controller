@@ -82,12 +82,12 @@ def bake_movie(
     if not movie_name or len(movie_name) > 32:
         raise ValueError("Movie name must contain 1 to 32 characters.")
     requested_fps = round(float(fps))
+    if requested_fps < 1:
+        raise ValueError("Movie FPS must be positive.")
     measured_fps = float(
         client.device.get("measured_frame_rate", client.device["frame_rate"])
     )
     movie_fps = min(requested_fps, max(1, int(measured_fps)))
-    if requested_fps < 1:
-        raise ValueError("Movie FPS must be positive.")
 
     movie_data = oriented_raster_movie_to_device(
         pixels,

@@ -195,11 +195,15 @@ export async function loadMovies() {
 }
 
 function readSavedRotation() {
+  // null means "no stored choice": a fresh browser must adopt the
+  // panel's rotation instead of resetting it to 0.
   try {
-    const rotation = Number(localStorage.getItem(ROTATION_STORAGE_KEY) ?? 0);
-    return [0, 90, 180, 270].includes(rotation) ? rotation : 0;
+    const raw = localStorage.getItem(ROTATION_STORAGE_KEY);
+    if (raw === null) return null;
+    const rotation = Number(raw);
+    return [0, 90, 180, 270].includes(rotation) ? rotation : null;
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -228,6 +232,7 @@ export async function loadStatus() {
     let status = await api("/api/status");
     const savedRotation = readSavedRotation();
     if (
+      savedRotation !== null &&
       Object.hasOwn(status, "rotation") &&
       savedRotation !== status.rotation
     ) {

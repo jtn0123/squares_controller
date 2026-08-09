@@ -241,19 +241,26 @@ class TwinklyClientTests(unittest.TestCase):
             )
 
     def test_client_uses_cached_permutation_for_frames(self) -> None:
+        import src.twinkly_client as client_module
+
         client = self.connected_client()
         client.layout = Layout(2, 1, 2, (1, 0))
         frame = bytes([255, 0, 0, 0, 0, 255])
 
-        self.assertEqual(
-            client._oriented_device_frame(frame, 2, 1),
-            bytes([0, 0, 255, 255, 0, 0]),
-        )
-        # Second call hits the cache and must produce the same mapping.
-        self.assertEqual(
-            client._oriented_device_frame(frame, 2, 1),
-            bytes([0, 0, 255, 255, 0, 0]),
-        )
+        with patch.object(
+            client_module,
+            "fused_channel_permutation",
+            wraps=client_module.fused_channel_permutation,
+        ) as fused:
+            self.assertEqual(
+                client._oriented_device_frame(frame, 2, 1),
+                bytes([0, 0, 255, 255, 0, 0]),
+            )
+            self.assertEqual(
+                client._oriented_device_frame(frame, 2, 1),
+                bytes([0, 0, 255, 255, 0, 0]),
+            )
+        fused.assert_called_once()
         with self.assertRaisesRegex(ValueError, "must be 2x1"):
             client._oriented_device_frame(frame, 1, 2)
         client.close(restore_movie=False)
@@ -454,8 +461,11 @@ class TwinklyClientTests(unittest.TestCase):
              "close": lambda _self: None},
         )()
 
+        entered_mode_change = threading.Event()
+
         def slow_request(path, **_kwargs):
             if path == "/led/mode":
+                entered_mode_change.set()
                 time.sleep(0.08)
             return {}
 
@@ -464,9 +474,9 @@ class TwinklyClientTests(unittest.TestCase):
                 target=lambda: client.set_mode("movie")
             )
             mode_thread.start()
-            time.sleep(0.02)
-            # A frame arriving mid-transition must wait for the mode change
-            # instead of restarting the stream underneath it.
+            # Only send the frame once the mode change is provably inside
+            # its device call, so the interleaving is deterministic.
+            self.assertTrue(entered_mode_change.wait(timeout=2))
             client.set_raster_frame(bytes(6), 2, 1)
             mode_thread.join(timeout=2)
 

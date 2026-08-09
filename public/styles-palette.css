@@ -52,7 +52,7 @@
 
 .panel-zone-grid {
   display: grid;
-  grid-template-columns: repeat(var(--panel-columns), 1fr);
+  grid-template-columns: repeat(var(--panel-columns, 4), 1fr);
   gap: 4px;
 }
 
@@ -113,7 +113,7 @@
   justify-content: space-between;
   min-height: 31px;
   padding: 0 8px;
-  color: #788173;
+  color: var(--muted);
   cursor: pointer;
   font: 750 8px/1 var(--font-condensed);
   letter-spacing: 0.12em;
@@ -146,7 +146,7 @@
 .advanced-studio > small {
   display: block;
   padding: 0 8px 8px;
-  color: #555e51;
+  color: var(--muted);
   font: 650 8px/1.25 var(--font-condensed);
   letter-spacing: 0.1em;
 }
@@ -173,7 +173,7 @@
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 5px;
-  color: #757e71;
+  color: var(--muted);
   font: 700 8px/1 var(--font-condensed);
   letter-spacing: 0.1em;
 }

@@ -124,8 +124,7 @@
                     "required": [
                       "action",
                       "width",
-                      "height",
-                      "pixels"
+                      "height"
                     ],
                     "properties": {
                       "action": {
@@ -146,8 +145,25 @@
                           "minimum": 0,
                           "maximum": 255
                         }
+                      },
+                      "pixelsBase64": {
+                        "type": "string",
+                        "contentEncoding": "base64",
+                        "description": "Compact RGB payload; base64 of width*height*3 bytes."
                       }
-                    }
+                    },
+                    "anyOf": [
+                      {
+                        "required": [
+                          "pixels"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "pixelsBase64"
+                        ]
+                      }
+                    ]
                   }
                 ]
               }

@@ -123,6 +123,20 @@
   box-shadow: 0 0 12px rgba(217, 255, 91, 0.22);
 }
 
+.range::-moz-range-track {
+  height: 3px;
+  background: linear-gradient(90deg, var(--acid) var(--fill, 30%), var(--line) var(--fill, 30%));
+}
+
+.range::-moz-range-thumb {
+  width: 13px;
+  height: 18px;
+  border: 1px solid var(--acid);
+  border-radius: 0;
+  background: var(--black);
+  box-shadow: 0 0 12px rgba(217, 255, 91, 0.22);
+}
+
 .power-actions {
   display: grid;
   grid-template-columns: 0.8fr 1.45fr;
@@ -156,7 +170,7 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 9px;
-  color: #667060;
+  color: var(--muted);
   font: 750 8px/1 var(--font-condensed);
   letter-spacing: 0.12em;
 }
@@ -174,7 +188,7 @@
 }
 
 .signal-path > span {
-  color: #4c5548;
+  color: var(--muted);
   font-size: 11px;
 }
 

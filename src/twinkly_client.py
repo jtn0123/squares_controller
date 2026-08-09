@@ -68,7 +68,7 @@ class TwinklyClient:
         # (layout, rotation); the scaled frame repeats unchanged while the
         # relay holds a static look.
         self._channel_perm: tuple[int, ...] | None = None
-        self._channel_perm_key: tuple[int, int] | None = None
+        self._channel_perm_key: tuple[Layout, int] | None = None
         self._scaled_frame_cache: tuple[bytes, int, bytes] | None = None
 
     def _fetch_json(
@@ -368,7 +368,10 @@ class TwinklyClient:
         layout = self.layout
         with self._lock:
             rotation = self.rotation
-            cache_key = (id(layout), rotation)
+            # Key on the layout object itself (frozen dataclass equality),
+            # not id(): a freed layout's address can be reused by a new one
+            # with a different LED ordering.
+            cache_key = (layout, rotation)
             perm = (
                 self._channel_perm
                 if self._channel_perm_key == cache_key
@@ -420,24 +423,29 @@ class TwinklyClient:
                 with self._lock:
                     self.mode = "rt"
                 self._reset_stream_telemetry()
-                self._stream_stop.clear()
+                # Each relay thread gets its own stop event. Reusing (and
+                # clearing) a shared event could revive an old thread whose
+                # join timed out while it was blocked on a slow device call.
+                stop_event = threading.Event()
+                self._stream_stop = stop_event
                 self._stream_thread = threading.Thread(
                     target=self._stream_loop,
+                    args=(stop_event,),
                     name="twinkly-realtime",
                     daemon=True,
                 )
                 self._stream_thread.start()
         return self.status()
 
-    def _stream_loop(self) -> None:
+    def _stream_loop(self, stop_event: threading.Event) -> None:
         deadline = time.monotonic()
         interval = stream_interval_seconds(self.device)
-        while not self._stream_stop.is_set():
+        while not stop_event.is_set():
             self._send_last_frame(deadline)
             deadline = next_stream_deadline(
                 deadline, time.monotonic(), interval
             )
-            self._stream_stop.wait(max(0.0, deadline - time.monotonic()))
+            stop_event.wait(max(0.0, deadline - time.monotonic()))
 
     def _send_last_frame(self, deadline: float | None = None) -> None:
         try:

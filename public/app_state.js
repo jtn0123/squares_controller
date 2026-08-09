@@ -40,10 +40,13 @@ export const builtInPresets = [
   { id: "orbit", name: "SLOW ORBIT", effect: "orbit", speed: 42, intensity: 72, brightness: 26 },
 ];
 
+const DEFAULT_WIDTH = 32;
+const DEFAULT_HEIGHT = 24;
+
 export const state = {
-  width: 32,
-  height: 24,
-  pixels: new Uint8Array(32 * 24 * 3),
+  width: DEFAULT_WIDTH,
+  height: DEFAULT_HEIGHT,
+  pixels: new Uint8Array(DEFAULT_WIDTH * DEFAULT_HEIGHT * 3),
   brush: 1,
   erasing: false,
   drawing: false,
@@ -76,7 +79,10 @@ export const state = {
   },
   palette: normalizePalette(null),
   zone: { type: "all" },
-  segmentTransform: normalizeSegmentTransform(null, 32 * 24),
+  segmentTransform: normalizeSegmentTransform(
+    null,
+    DEFAULT_WIDTH * DEFAULT_HEIGHT,
+  ),
   segments: [],
   overlay: normalizeLayer({
     enabled: false,

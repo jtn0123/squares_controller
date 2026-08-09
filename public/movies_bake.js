@@ -12,14 +12,20 @@ import { controllerMovieFps, movieFrameCount, packMovieFrames } from "./movie_mo
 function seekVideo(video, time) {
   if (Math.abs(video.currentTime - time) < 0.0005) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const done = () => {
-      video.removeEventListener("error", failed);
-      resolve();
-    };
-    const failed = () => {
+    const settle = (fn, payload) => {
+      clearTimeout(timer);
       video.removeEventListener("seeked", done);
-      reject(new Error("The video could not be sampled."));
+      video.removeEventListener("error", failed);
+      fn(payload);
     };
+    const done = () => settle(resolve);
+    const failed = () =>
+      settle(reject, new Error("The video could not be sampled."));
+    // A stalled or partly decoded video can emit neither event.
+    const timer = setTimeout(
+      () => settle(reject, new Error("The video took too long to seek.")),
+      5_000,
+    );
     video.addEventListener("seeked", done, { once: true });
     video.addEventListener("error", failed, { once: true });
     video.currentTime = time;
@@ -37,10 +43,10 @@ async function captureMovieFrames(frameCount, fps) {
     video.pause();
     const frames = [];
     for (let index = 0; index < frameCount; index += 1) {
-      await seekVideo(
-        video,
-        Math.min(index / fps, Math.max(0, video.duration - 0.001)),
-      );
+      const durationLimit = Number.isFinite(video.duration)
+        ? Math.max(0, video.duration - 0.001)
+        : index / fps;
+      await seekVideo(video, Math.min(index / fps, durationLimit));
       const frame = renderMediaPixels(video);
       if (!frame) throw new Error("The video does not have a decodable frame.");
       frames.push(frame);

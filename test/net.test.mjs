@@ -109,6 +109,7 @@ test("a dead server marks the panel offline and stops the frame loop", async () 
 
 test("a validation error keeps the panel online and toasts once", async () => {
   setConnection({ ip: "192.168.1.50", mode: "rt" });
+  state.frameErrorShown = false;
   state.nextFrameAt = 0;
   globalThis.fetch = async () =>
     jsonResponse(400, JSON.stringify({ error: "Expected 12 RGB values." }));

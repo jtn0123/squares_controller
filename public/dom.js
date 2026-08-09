@@ -8,7 +8,10 @@ export const canvas = $("#pixelCanvas");
 export const context = canvas.getContext("2d", { alpha: false });
 export const sceneMonitorCanvas = $("#sceneMonitorCanvas");
 export const mediaCanvas = document.createElement("canvas");
-export const mediaContext = mediaCanvas.getContext("2d", { alpha: false });
+export const mediaContext = mediaCanvas.getContext("2d", {
+  alpha: false,
+  willReadFrequently: true,
+});
 export const stage = $(".stage-frame");
 export const colorPicker = $("#colorPicker");
 export const colorValue = $("#colorValue");

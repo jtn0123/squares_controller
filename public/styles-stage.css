@@ -93,7 +93,7 @@
 .brush-dot {
   display: block;
   border-radius: 50%;
-  background: currentColor;
+  background: currentcolor;
 }
 
 .brush-dot--1 {
@@ -142,7 +142,7 @@
 
 .palette-strip span {
   margin-left: auto;
-  color: #646b5f;
+  color: var(--muted);
   font: 600 8px/1 var(--font-condensed);
   letter-spacing: 0.14em;
 }
@@ -237,7 +237,7 @@
   align-items: center;
   gap: 7px;
   padding: 10px 11px 4px;
-  color: #6f786b;
+  color: var(--muted);
   font: 700 8px/1 var(--font-condensed);
   letter-spacing: 0.11em;
 }
@@ -370,7 +370,7 @@
 
 .live-input-actions small {
   grid-column: 1 / -1;
-  color: #5f675b;
+  color: var(--muted);
   font: 650 8px/1.4 var(--font-condensed);
   letter-spacing: 0.11em;
 }
@@ -423,7 +423,7 @@
   grid-template-columns: 28px 1fr;
   align-items: center;
   gap: 5px;
-  color: #6c7567;
+  color: var(--muted);
   font: 700 8px/1 var(--font-condensed);
   letter-spacing: 0.08em;
 }

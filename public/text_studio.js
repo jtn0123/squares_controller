@@ -63,7 +63,9 @@ function startTextMode(text, clock = false) {
   const textContext = textCanvas.getContext("2d");
   // One sampling surface for the whole run; allocating a canvas per tick
   // is one of the most expensive things a frame loop can do.
-  const sampleContext = document.createElement("canvas").getContext("2d");
+  const sampleContext = document
+    .createElement("canvas")
+    .getContext("2d", { willReadFrequently: true });
   let offset = state.width;
   let previousFrame = 0;
 
