@@ -29,6 +29,13 @@ from src.state_broker import StateBroker, StateEvent
 MAX_BODY_BYTES = 2_000_000
 BAKE_BODY_OVERHEAD_BYTES = 65_536
 STATE_HEARTBEAT_SECONDS = 15.0
+# A frame source that stays silent this long has stopped producing; any
+# other tab may then start streaming without an explicit takeover.
+FRAME_SOURCE_IDLE_SECONDS = 2.0
+
+
+class FrameSourceBusyError(Exception):
+    """Another client currently owns the frame stream."""
 
 # The keys of a status payload that describe the streaming state a browser
 # must react to; frame uploads publish an event only when these change.
@@ -61,6 +68,10 @@ class AppContext:
     storage_warnings: list[str] = field(default_factory=list)
     boot_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     frame_mode_lock: threading.Lock = field(default_factory=threading.Lock)
+    # Single-driver arbitration: only one browser tab may stream frames at
+    # a time. Guarded by frame_mode_lock.
+    frame_source_id: str | None = None
+    frame_source_seen: float = 0.0
 
     def get_client(self) -> Any:
         if self.client is None:
@@ -350,8 +361,35 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             },
         )
 
+    def _claim_frame_source(self, body: dict[str, Any]) -> None:
+        """Enforce one streaming tab at a time (caller holds frame_mode_lock).
+
+        Two clients streaming concurrently fight last-writer-wins for the
+        wall, which shows up as heavy frame drops. The first tagged source
+        owns the stream; another source is rejected with 409 until the
+        owner goes idle or the newcomer claims it from a user gesture.
+        Untagged bodies (scripts, external API callers) stay ungoverned.
+        """
+        source = body.get("source")
+        if not isinstance(source, str) or not source:
+            return
+        now = time.monotonic()
+        owner = self.ctx.frame_source_id
+        if (
+            owner is not None
+            and owner != source
+            and not body.get("claim")
+            and now - self.ctx.frame_source_seen <= FRAME_SOURCE_IDLE_SECONDS
+        ):
+            raise FrameSourceBusyError(
+                "Another controller tab is driving the wall."
+            )
+        self.ctx.frame_source_id = source
+        self.ctx.frame_source_seen = now
+
     def _execute_frame(self, body: dict[str, Any]) -> dict[str, Any]:
         with self.ctx.frame_mode_lock:
+            self._claim_frame_source(body)
             result = execute_command(
                 self.ctx.get_client(), {**body, "action": "frame"}
             )
@@ -377,6 +415,8 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
             )
+        except FrameSourceBusyError as error:
+            self.send_json(HTTPStatus.CONFLICT, {"error": str(error)})
         except ConnectionError as error:
             self.send_json(
                 HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
