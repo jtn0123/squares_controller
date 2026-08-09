@@ -152,7 +152,10 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    print(f"Squares Local is available at http://127.0.0.1:{PORT}")
+    print(
+        f"Squares Local is available at 127.0.0.1:{PORT} "
+        "(open in a browser)"
+    )
     if HOST not in {"127.0.0.1", "localhost", "::1"}:
         print(f"Also listening on {HOST}:{PORT}")
     if ctx.client is None:

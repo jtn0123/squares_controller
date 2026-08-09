@@ -32,27 +32,29 @@ function seekVideo(video, time) {
   });
 }
 
+async function captureVideoFrames(video, frameCount, fps) {
+  if (state.mediaFrame) cancelAnimationFrame(state.mediaFrame);
+  state.mediaFrame = null;
+  video.pause();
+  const frames = [];
+  for (let index = 0; index < frameCount; index += 1) {
+    const durationLimit = Number.isFinite(video.duration)
+      ? Math.max(0, video.duration - 0.001)
+      : index / fps;
+    await seekVideo(video, Math.min(index / fps, durationLimit));
+    const frame = renderMediaPixels(video);
+    if (!frame) throw new Error("The video does not have a decodable frame.");
+    frames.push(frame);
+  }
+  return frames;
+}
+
 async function captureMovieFrames(frameCount, fps) {
   const video =
     state.mediaElement instanceof HTMLVideoElement && !state.mediaStream
       ? state.mediaElement
       : null;
-  if (video) {
-    if (state.mediaFrame) cancelAnimationFrame(state.mediaFrame);
-    state.mediaFrame = null;
-    video.pause();
-    const frames = [];
-    for (let index = 0; index < frameCount; index += 1) {
-      const durationLimit = Number.isFinite(video.duration)
-        ? Math.max(0, video.duration - 0.001)
-        : index / fps;
-      await seekVideo(video, Math.min(index / fps, durationLimit));
-      const frame = renderMediaPixels(video);
-      if (!frame) throw new Error("The video does not have a decodable frame.");
-      frames.push(frame);
-    }
-    return frames;
-  }
+  if (video) return captureVideoFrames(video, frameCount, fps);
 
   if (state.animationName === "clip" && state.clip.frames.length) {
     return Array.from({ length: frameCount }, (_, index) => {
