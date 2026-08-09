@@ -13,11 +13,7 @@ import { setOutputContext, updateBrightnessVisual } from "./monitor.js";
 import { renderClipTimeline } from "./draw_tools.js";
 import { queueEffectPreviewRender } from "./effects_ui.js";
 import { renderSegmentStudio, renderZoneControls } from "./zones_segments.js";
-import {
-  brightnessFromStatus,
-  shouldApplyStatus,
-  statusOptionsForSource,
-} from "./status_sync.js";
+import { shouldApplyStatus, statusOptionsForSource } from "./status_sync.js";
 import { setUploadTargetFps } from "./frame_timing.js";
 import { normalizeZone } from "./zone_model.js";
 import { normalizeSegment, normalizeSegmentTransform } from "./segment_model.js";
@@ -72,11 +68,10 @@ export function applyStatus(
   $("#modeReadout").textContent = status.streaming
     ? "LIVE"
     : status.mode.toUpperCase();
-  const visibleBrightness = brightnessFromStatus({
-    currentBrightness: brightnessSlider.value,
-    statusBrightness: status.brightness,
-    syncBrightness,
-  });
+  // Frame-driven refreshes must not yank a slider the user is holding.
+  const visibleBrightness = syncBrightness
+    ? Number(status.brightness)
+    : Number(brightnessSlider.value);
   brightnessSlider.value = String(visibleBrightness);
   updateBrightnessVisual(visibleBrightness);
   stage.classList.toggle("is-live", status.streaming);
@@ -258,10 +253,10 @@ export async function loadStatus(): Promise<void> {
       });
     }
     applyIfCurrent(epoch, status);
-  } catch (caught) {
-    const error = caught as Error;
-    setConnection(null, error.message);
-    toast(error.message, true);
+  } catch (error) {
+    const message = (error as Error).message;
+    setConnection(null, message);
+    toast(message, true);
   }
 }
 
@@ -343,9 +338,8 @@ async function setMode(
     });
     applyIfCurrent(epoch, status);
     toast(mode === "off" ? "Panel switched off." : "Stock Twinkly animation restored.");
-  } catch (caught) {
-    const error = caught as Error;
-    toast(error.message, true);
+  } catch (error) {
+    toast((error as Error).message, true);
   } finally {
     buttons.forEach((button) => {
       button.disabled = false;
@@ -368,9 +362,8 @@ export function initializeStatusControls(): void {
           body: JSON.stringify({ value: Number(requestedBrightness) }),
         });
         applyIfCurrent(epoch, status);
-      } catch (caught) {
-        const error = caught as Error;
-        toast(error.message, true);
+      } catch (error) {
+        toast((error as Error).message, true);
       }
     }, 120);
   });
@@ -402,9 +395,8 @@ export function initializeStatusControls(): void {
         render();
         scheduleFrame();
         toast(`Display rotated to ${degrees}°.`);
-      } catch (caught) {
-        const error = caught as Error;
-        toast(error.message, true);
+      } catch (error) {
+        toast((error as Error).message, true);
       }
     });
   });

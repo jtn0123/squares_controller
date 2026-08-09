@@ -141,7 +141,9 @@ export function normalizeEffectControls(
 }
 
 export function hashUnit(seed: number): number {
-  let value = Number(seed) | 0;
+  // The shift/imul steps below coerce to int32 anyway, so truncation here
+  // yields bit-identical hashes to the old `| 0` coercion.
+  let value = Math.trunc(Number(seed)) || 0;
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
   value ^= value >>> 16;

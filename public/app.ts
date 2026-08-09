@@ -101,11 +101,6 @@ onControlLost(() => {
   toast("Another tab took the wall. Click any effect to take it back.", true);
 });
 
-void loadStatus().then(() => {
-  void loadMovies().catch(() => {
-    $("#movieCapacityReadout").textContent = "STORAGE UNAVAILABLE";
-  });
-});
 void initializeLibrary();
 startStateSync();
 setInterval(() => {
@@ -115,3 +110,12 @@ setInterval(() => {
   void loadAutomations().catch(() => {});
 }, 60_000);
 setInterval(() => void loadStreamTelemetry().catch(() => {}), 2_000);
+
+// Boot status last so every listener above is wired before the first
+// payload lands; movie capacity is cosmetic and may fail on its own.
+await loadStatus();
+try {
+  await loadMovies();
+} catch {
+  $("#movieCapacityReadout").textContent = "STORAGE UNAVAILABLE";
+}

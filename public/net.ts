@@ -9,9 +9,19 @@ const RECONNECT_MAX_MS = 30_000;
 // a human acting in this tab always wins the wall from a background tab.
 const GESTURE_CLAIM_WINDOW_MS = 1_500;
 
-const CLIENT_ID =
-  globalThis.crypto?.randomUUID?.() ??
-  `tab-${Math.random().toString(36).slice(2)}`;
+function randomClientId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return uuid;
+  // Older non-secure contexts lack randomUUID but keep getRandomValues;
+  // the id only distinguishes tabs, it is not a credential.
+  const bytes = globalThis.crypto?.getRandomValues?.(new Uint8Array(8));
+  if (bytes) {
+    return `tab-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  }
+  return `tab-${performance.now().toString(36)}`;
+}
+
+const CLIENT_ID = randomClientId();
 
 // Errors from api() carry the HTTP status (0 when the fetch itself failed).
 export interface ApiError extends Error {
@@ -149,12 +159,10 @@ export async function flushFrame(): Promise<void> {
   if (delay > 0) {
     // One pending timer at a time, or overlapping schedules can start
     // two concurrent uploads when the deadline passes.
-    if (frameDeferTimer === null) {
-      frameDeferTimer = setTimeout(() => {
-        frameDeferTimer = null;
-        void flushFrame();
-      }, delay);
-    }
+    frameDeferTimer ??= setTimeout(() => {
+      frameDeferTimer = null;
+      void flushFrame();
+    }, delay);
     return;
   }
   state.frameQueued = false;
@@ -172,18 +180,18 @@ export async function flushFrame(): Promise<void> {
       }),
     });
     state.frameErrorShown = false;
-  } catch (caught) {
-    const error = caught as ApiError;
-    if (error.status === 409) {
+  } catch (error) {
+    const apiError = error as ApiError;
+    if (apiError.status === 409) {
       // Another tab owns the wall: stop producing instead of fighting it
       // frame-for-frame. A fresh user gesture here claims it back.
       state.frameQueued = false;
       controlLostHandler?.();
-    } else if (!error.status || error.status >= 500) {
+    } else if (!apiError.status || apiError.status >= 500) {
       // The server or panel is gone: mark the panel offline so the effect
       // loop stops posting, tell the user once, and probe in the background.
       state.frameQueued = false;
-      setConnection(null, error.message);
+      setConnection(null, apiError.message);
       if (!state.frameErrorShown) {
         state.frameErrorShown = true;
         toast("Panel connection lost. Retrying in the background…", true);
@@ -191,7 +199,7 @@ export async function flushFrame(): Promise<void> {
       beginReconnect();
     } else if (!state.frameErrorShown) {
       state.frameErrorShown = true;
-      toast(error.message, true);
+      toast(apiError.message, true);
     }
   } finally {
     state.frameSending = false;

@@ -49,7 +49,9 @@ function normalizeFolder(value: unknown): string {
 export function parseSceneTags(value: unknown): string[] {
   const raw: readonly unknown[] = Array.isArray(value)
     ? value
-    : String(value ?? "").split(",");
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
   const tags: string[] = [];
   for (const item of raw) {
     if (typeof item !== "string") continue;

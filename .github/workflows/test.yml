@@ -33,7 +33,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # --ignore-scripts: typescript is the only dependency and needs no
+      # lifecycle scripts; this blocks supply-chain install hooks.
+      - run: npm ci --ignore-scripts
       # The strict TypeScript compile IS the type gate; it also emits the
       # JS and assembles index.html that the tests and server run against.
       - run: npm run build

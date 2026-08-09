@@ -5,7 +5,6 @@
 // markers and this script inlines them. No dependencies, runs in `npm
 // run build` after tsc.
 import { readFile, readdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 
 const partialsDir = new URL("../public/partials/", import.meta.url);
 const shellPath = new URL("../public/partials/_shell.html", import.meta.url);

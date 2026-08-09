@@ -105,17 +105,14 @@ export function updateSceneMonitor(): void {
   $("#stageOutputNote").textContent =
     output.note ?? "The browser canvas is ready to send.";
 
-  const progressElement = $("#sceneProgress");
-  const progressFill = $("#sceneProgressFill");
+  const progressElement = $<HTMLProgressElement>("#sceneProgress");
   const progressLabel = $("#sceneProgressLabel");
   if (playlist && state.activePlaylistStep) {
     const progress = playlistStepProgress(
       state.activePlaylistStep.startedAt,
       state.activePlaylistStep.duration,
     );
-    const percent = Math.round(progress.progress * 100);
-    progressFill.style.width = `${percent}%`;
-    progressElement.setAttribute("aria-valuenow", String(percent));
+    progressElement.value = Math.round(progress.progress * 100);
     // Once the step's time is spent we are loading/crossfading into the
     // next scene; "0s LEFT" would read as a stall.
     const remaining =
@@ -127,8 +124,7 @@ export function updateSceneMonitor(): void {
       ` / ${remaining}` +
       ` / ${state.activePlaylistStep.transition.toUpperCase()}`;
   } else {
-    progressFill.style.width = "0%";
-    progressElement.setAttribute("aria-valuenow", "0");
+    progressElement.value = 0;
     progressLabel.textContent =
       output.note ??
       (output.kind === "scene"

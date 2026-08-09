@@ -136,58 +136,57 @@ export function outputPresentation(
   };
 }
 
-export function outputSignalPath(status: ControllerStatus): OutputSignalPath {
-  if (!status?.connected) {
-    return {
-      mode: "offline",
-      headline: "NO CONTROLLER SIGNAL",
-      nodes: ["BROWSER", "RELAY", "PANEL"].map((label) => ({
-        label,
-        value: "OFFLINE",
-        state: "error",
-      })),
-      note: "Reconnect the local controller to inspect output.",
-    };
-  }
+function offlineSignalPath(): OutputSignalPath {
+  return {
+    mode: "offline",
+    headline: "NO CONTROLLER SIGNAL",
+    nodes: ["BROWSER", "RELAY", "PANEL"].map((label) => ({
+      label,
+      value: "OFFLINE",
+      state: "error",
+    })),
+    note: "Reconnect the local controller to inspect output.",
+  };
+}
 
-  if (status.streaming) {
-    const actual = Number(status.streamTelemetry?.actualFps);
-    const relayValue =
-      Number.isFinite(actual) && actual > 0 ? `${actual.toFixed(2)} FPS` : "STARTING";
-    const missed = Number(status.streamTelemetry?.missedDeadlines) || 0;
-    return {
-      mode: "realtime",
-      headline: missed ? "REALTIME / CHECK TIMING" : "REALTIME PATH ACTIVE",
-      nodes: [
-        { label: "BROWSER", value: "LIVE FRAMES", state: "active" },
-        {
-          label: "RELAY",
-          value: relayValue,
-          state: missed ? "warning" : "active",
-        },
-        { label: "PANEL", value: "RT MODE", state: "active" },
-      ],
-      note: "Delivery timing is measured here; physical light still requires camera validation.",
-    };
-  }
+function realtimeSignalPath(status: ControllerStatus): OutputSignalPath {
+  const actual = Number(status.streamTelemetry?.actualFps);
+  const relayValue =
+    Number.isFinite(actual) && actual > 0 ? `${actual.toFixed(2)} FPS` : "STARTING";
+  const missed = Number(status.streamTelemetry?.missedDeadlines) || 0;
+  return {
+    mode: "realtime",
+    headline: missed ? "REALTIME / CHECK TIMING" : "REALTIME PATH ACTIVE",
+    nodes: [
+      { label: "BROWSER", value: "LIVE FRAMES", state: "active" },
+      {
+        label: "RELAY",
+        value: relayValue,
+        state: missed ? "warning" : "active",
+      },
+      { label: "PANEL", value: "RT MODE", state: "active" },
+    ],
+    note: "Delivery timing is measured here; physical light still requires camera validation.",
+  };
+}
 
-  const mode = String(status.mode ?? "").toLowerCase();
-  if (mode === "movie" || mode === "demo") {
-    const fps = Number(status.currentMovie?.fps);
-    const panelValue =
-      Number.isFinite(fps) && fps > 0 ? `LOCAL ${fps} FPS` : "LOCAL LOOP";
-    return {
-      mode: "local",
-      headline: "PANEL-LOCAL PLAYBACK",
-      nodes: [
-        { label: "BROWSER", value: "STANDBY", state: "idle" },
-        { label: "RELAY", value: "BYPASSED", state: "idle" },
-        { label: "PANEL", value: panelValue, state: "active" },
-      ],
-      note: "The animation is running from controller memory, independent of this page.",
-    };
-  }
+function localPlaybackSignalPath(status: ControllerStatus): OutputSignalPath {
+  const fps = Number(status.currentMovie?.fps);
+  const panelValue =
+    Number.isFinite(fps) && fps > 0 ? `LOCAL ${fps} FPS` : "LOCAL LOOP";
+  return {
+    mode: "local",
+    headline: "PANEL-LOCAL PLAYBACK",
+    nodes: [
+      { label: "BROWSER", value: "STANDBY", state: "idle" },
+      { label: "RELAY", value: "BYPASSED", state: "idle" },
+      { label: "PANEL", value: panelValue, state: "active" },
+    ],
+    note: "The animation is running from controller memory, independent of this page.",
+  };
+}
 
+function idleSignalPath(mode: string): OutputSignalPath {
   return {
     mode: mode === "off" ? "off" : "idle",
     headline: mode === "off" ? "PANEL OUTPUT OFF" : "OUTPUT IDLE",
@@ -204,4 +203,12 @@ export function outputSignalPath(status: ControllerStatus): OutputSignalPath {
       ? "The controller confirms that output is off."
       : "No active output path is reported.",
   };
+}
+
+export function outputSignalPath(status: ControllerStatus): OutputSignalPath {
+  if (!status?.connected) return offlineSignalPath();
+  if (status.streaming) return realtimeSignalPath(status);
+  const mode = String(status.mode ?? "").toLowerCase();
+  if (mode === "movie" || mode === "demo") return localPlaybackSignalPath(status);
+  return idleSignalPath(mode);
 }

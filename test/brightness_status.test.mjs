@@ -2,33 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  brightnessFromStatus,
   shouldApplyStatus,
   statusOptionsForSource,
 } from "../public/status_sync.js";
 
-test("live frame status cannot overwrite a brightness edit", () => {
-  assert.equal(
-    brightnessFromStatus({
-      currentBrightness: 5,
-      statusBrightness: 20,
-      syncBrightness: false,
-    }),
-    5,
-  );
-});
-
-test("authoritative status refreshes can update brightness", () => {
-  assert.equal(
-    brightnessFromStatus({
-      currentBrightness: 5,
-      statusBrightness: 20,
-      syncBrightness: true,
-    }),
-    20,
-  );
-});
-
+// The brightness decision itself now lives inline in status_view's
+// applyStatus; the source→sync policy tested here is what drives it.
 test("frame broadcasts preserve brightness edits", () => {
   assert.deepEqual(statusOptionsForSource("frame"), {
     syncBrightness: false,

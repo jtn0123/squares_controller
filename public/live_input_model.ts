@@ -125,6 +125,83 @@ function paint(
   frame[offset + 2] = Math.round(rgb[2] * gain);
 }
 
+// Shared inputs for the per-mode cell evaluators below.
+interface AudioCellContext {
+  columns: number;
+  rows: number;
+  frequencies: ArrayLike<number>;
+  sensitivity: number;
+  metrics: AudioMetrics;
+  pulse: number;
+  time: number;
+}
+
+interface AudioCellSample {
+  intensity: number;
+  position: number;
+}
+
+function spectrumCell(
+  x: number,
+  y: number,
+  { columns, rows, frequencies, sensitivity }: AudioCellContext,
+): AudioCellSample {
+  const position = columns === 1 ? 0 : x / (columns - 1);
+  const binIndex = Math.min(
+    frequencies.length - 1,
+    Math.floor(position * frequencies.length),
+  );
+  const energy = clamp((frequencies[binIndex] / 255) * sensitivity, 0, 1);
+  const litRows = Math.ceil(energy * rows);
+  if (y < rows - litRows) return { intensity: 0, position };
+  const vertical = (rows - y) / Math.max(1, litRows);
+  return { intensity: 0.42 + vertical * 0.58, position };
+}
+
+function bandsCell(
+  x: number,
+  y: number,
+  { columns, rows, metrics }: AudioCellContext,
+): AudioCellSample {
+  const basePosition = columns === 1 ? 0 : x / (columns - 1);
+  const bandIndex = Math.min(2, Math.floor((x / columns) * 3));
+  const energy = [metrics.bass, metrics.mid, metrics.treble][bandIndex];
+  const litRows = Math.ceil(energy * rows);
+  if (y < rows - litRows) return { intensity: 0, position: basePosition };
+  return {
+    intensity: 0.38 + energy * 0.62,
+    position: (bandIndex + (rows - y) / rows) / 3,
+  };
+}
+
+function haloCell(
+  x: number,
+  y: number,
+  { columns, rows, metrics, pulse, time }: AudioCellContext,
+): AudioCellSample {
+  const dx = (x - (columns - 1) / 2) / Math.max(1, columns / 2);
+  const dy = (y - (rows - 1) / 2) / Math.max(1, rows / 2);
+  const distance = Math.hypot(dx, dy);
+  const radius = 0.16 + metrics.bass * 0.48 + pulse * 0.14;
+  const thickness = 0.07 + metrics.mid * 0.13;
+  const ring = Math.max(0, 1 - Math.abs(distance - radius) / thickness);
+  const core =
+    Math.max(0, 1 - distance / Math.max(0.08, radius)) * metrics.level * 0.28;
+  return {
+    intensity: clamp(ring * (0.45 + metrics.level * 0.55) + core, 0, 1),
+    position: distance * 0.62 + time * 0.035,
+  };
+}
+
+const AUDIO_CELLS: Record<
+  AudioMode,
+  (x: number, y: number, context: AudioCellContext) => AudioCellSample
+> = {
+  spectrum: spectrumCell,
+  bands: bandsCell,
+  halo: haloCell,
+};
+
 export function renderAudioFrame({
   width,
   height,
@@ -144,56 +221,25 @@ export function renderAudioFrame({
       ? bins
       : new Uint8Array(1);
   const metrics = measureAudioBands(frequencies, settings.sensitivity);
-  const pulse = clamp(beatPulse, 0, 1);
+  const context: AudioCellContext = {
+    columns,
+    rows,
+    frequencies,
+    sensitivity: settings.sensitivity,
+    metrics,
+    pulse: clamp(beatPulse, 0, 1),
+    time: Number(time),
+  };
+  const cell = AUDIO_CELLS[settings.mode];
 
   for (let y = 0; y < rows; y += 1) {
     for (let x = 0; x < columns; x += 1) {
-      const offset = (y * columns + x) * 3;
-      let intensity = 0;
-      let position = columns === 1 ? 0 : x / (columns - 1);
-
-      if (settings.mode === "spectrum") {
-        const binIndex = Math.min(
-          frequencies.length - 1,
-          Math.floor(position * frequencies.length),
-        );
-        const energy = clamp(
-          (frequencies[binIndex] / 255) * settings.sensitivity,
-          0,
-          1,
-        );
-        const litRows = Math.ceil(energy * rows);
-        if (y >= rows - litRows) {
-          const vertical = (rows - y) / Math.max(1, litRows);
-          intensity = 0.42 + vertical * 0.58;
-        }
-      } else if (settings.mode === "bands") {
-        const bandIndex = Math.min(2, Math.floor((x / columns) * 3));
-        const energy = [metrics.bass, metrics.mid, metrics.treble][bandIndex];
-        const litRows = Math.ceil(energy * rows);
-        if (y >= rows - litRows) {
-          intensity = 0.38 + energy * 0.62;
-          position = (bandIndex + (rows - y) / rows) / 3;
-        }
-      } else {
-        const dx = (x - (columns - 1) / 2) / Math.max(1, columns / 2);
-        const dy = (y - (rows - 1) / 2) / Math.max(1, rows / 2);
-        const distance = Math.hypot(dx, dy);
-        const radius = 0.16 + metrics.bass * 0.48 + pulse * 0.14;
-        const thickness = 0.07 + metrics.mid * 0.13;
-        const ring = Math.max(0, 1 - Math.abs(distance - radius) / thickness);
-        const core = Math.max(0, 1 - distance / Math.max(0.08, radius)) *
-          metrics.level *
-          0.28;
-        intensity = clamp(ring * (0.45 + metrics.level * 0.55) + core, 0, 1);
-        position = distance * 0.62 + Number(time) * 0.035;
-      }
-
+      const { intensity, position } = cell(x, y, context);
       if (intensity > 0) {
         paint(
           frame,
-          offset,
-          sampleGradient(palette, position + Number(time) * 0.018),
+          (y * columns + x) * 3,
+          sampleGradient(palette, position + context.time * 0.018),
           intensity,
         );
       }

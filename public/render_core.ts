@@ -28,11 +28,12 @@ export function drawRgbCanvas(
   if (targetCanvas.width !== width) targetCanvas.width = width;
   if (targetCanvas.height !== height) targetCanvas.height = height;
   const targetContext = targetCanvas.getContext("2d", { alpha: false })!;
-  let image = imageDataCache.get(targetCanvas);
-  if (!image || image.width !== width || image.height !== height) {
-    image = targetContext.createImageData(width, height);
-    imageDataCache.set(targetCanvas, image);
-  }
+  const cached = imageDataCache.get(targetCanvas);
+  const image =
+    cached?.width === width && cached.height === height
+      ? cached
+      : targetContext.createImageData(width, height);
+  if (image !== cached) imageDataCache.set(targetCanvas, image);
   for (let source = 0, destination = 0; source < pixels.length; source += 3) {
     image.data[destination] = pixels[source];
     image.data[destination + 1] = pixels[source + 1];

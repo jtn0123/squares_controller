@@ -122,6 +122,12 @@ function loadMediaFile(file: File): void {
   state.animationName = "media";
   setOutputContext({ kind: "media", name: file.name.toUpperCase() });
   const url = URL.createObjectURL(file);
+  if (!url.startsWith("blob:")) {
+    // createObjectURL always yields a local blob: URL; making the
+    // invariant explicit keeps user file content from ever being treated
+    // as a navigable URL.
+    throw new Error("Media object URLs must be blob: URLs.");
+  }
   state.mediaUrl = url;
 
   if (file.type.startsWith("video/")) {
