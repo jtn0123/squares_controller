@@ -5,7 +5,7 @@ import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { setOutputContext } from "./monitor.js";
 import { adjustRgb, fitRect, normalizeMediaControls } from "./media_model.js";
-import { alignFrameTime, FRAME_INTERVAL_MS } from "./frame_timing.js";
+import { alignFrameTime, uploadInterval } from "./frame_timing.js";
 
 function currentMediaControls() {
   return normalizeMediaControls({
@@ -78,7 +78,7 @@ export function drawMediaFrame() {
 export function startMediaLoop(kind) {
   const tick = (now) => {
     if (!state.mediaElement) return;
-    if (now - state.mediaLastFrame >= FRAME_INTERVAL_MS) {
+    if (now - state.mediaLastFrame >= uploadInterval()) {
       drawMediaFrame();
       state.mediaLastFrame = alignFrameTime(state.mediaLastFrame, now);
     }

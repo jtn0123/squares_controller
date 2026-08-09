@@ -18,6 +18,7 @@ import {
   shouldApplyStatus,
   statusOptionsForSource,
 } from "./status_sync.js";
+import { setUploadTargetFps } from "./frame_timing.js";
 import { normalizeZone } from "./zone_model.js";
 import { normalizeSegment, normalizeSegmentTransform } from "./segment_model.js";
 import { normalizeStreamTelemetry, streamHealth } from "./stream_model.js";
@@ -58,6 +59,9 @@ export function applyStatus(status, { syncBrightness = true } = {}) {
   $("#measuredFpsReadout").textContent =
     Number(status.measuredFrameRate ?? status.frameRate).toFixed(2);
   state.measuredFrameRate = Number(status.measuredFrameRate ?? status.frameRate);
+  // Pace frame production just under the relay rate so every produced
+  // frame ships; producing faster than the relay drops frames visibly.
+  setUploadTargetFps(status.streamTargetFps ?? state.measuredFrameRate);
   updateStreamTelemetry(status.streamTelemetry);
   $("#firmwareReadout").textContent = `FW ${status.firmware}`;
   $("#routeReadout").textContent = status.ip;

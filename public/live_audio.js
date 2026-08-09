@@ -16,7 +16,11 @@ import {
   normalizeAudioControls,
   renderAudioFrame,
 } from "./live_input_model.js";
-import { alignFrameTime, FRAME_INTERVAL_MS } from "./frame_timing.js";
+import {
+  alignFrameTime,
+  FRAME_INTERVAL_MS,
+  uploadInterval,
+} from "./frame_timing.js";
 
 function currentAudioControls() {
   return normalizeAudioControls({
@@ -99,7 +103,7 @@ async function startMicrophoneInput() {
       ) {
         return;
       }
-      if (now - state.audioLastFrame >= FRAME_INTERVAL_MS) {
+      if (now - state.audioLastFrame >= uploadInterval()) {
         const settings = currentAudioControls();
         state.audioAnalyser.getByteFrequencyData(state.audioData);
         const metrics = measureAudioBands(
