@@ -24,7 +24,7 @@ export async function api(path, options = {}) {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        ...(options.headers ?? {}),
+        ...options.headers,
       },
     });
   } catch {
@@ -87,7 +87,7 @@ function beginReconnect() {
 export function bytesToBase64(bytes) {
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 32_768) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768));
+    binary += String.fromCodePoint(...bytes.subarray(offset, offset + 32_768));
   }
   return btoa(binary);
 }

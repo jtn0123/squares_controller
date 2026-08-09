@@ -8,7 +8,12 @@ import {
 import { api, scheduleFrame, toast } from "./net.js";
 import { stopAnimation, stopMedia } from "./playback.js";
 import { drawRgbCanvas, invalidateSceneMirror, render } from "./render_core.js";
-import { sceneKey, scenePreviewPixels, setOutputContext } from "./monitor.js";
+import {
+  sceneKey,
+  scenePreviewPixels,
+  sceneRowLabel,
+  setOutputContext,
+} from "./monitor.js";
 import { effectPainters } from "./effect_painters.js";
 import {
   renderGeneratedFrame,
@@ -95,8 +100,7 @@ function transitionToFrame(target, transition) {
   });
 }
 
-export async function loadPreset(preset, options = {}) {
-  stopMedia();
+function applyPresetEnvironment(preset, options) {
   state.effectControls =
     preset.effectControls && typeof preset.effectControls === "object"
       ? structuredClone(preset.effectControls)
@@ -131,35 +135,44 @@ export async function loadPreset(preset, options = {}) {
     state.transition = normalizeTransition(preset.transition);
     updateTransitionControls();
   }
+}
+
+function presetHasRunnableEffect(preset) {
+  return Boolean(
+    preset.effect && effectById(preset.effect) && effectPainters[preset.effect],
+  );
+}
+
+function presetTargetFrame(preset) {
+  if (presetHasRunnableEffect(preset)) {
+    const target = new Uint8Array(state.pixels.length);
+    renderGeneratedFrame(preset.effect, 0, state.pixels.slice(), target);
+    return target;
+  }
+  if (
+    preset.width !== state.width ||
+    preset.height !== state.height ||
+    !Array.isArray(preset.pixels) ||
+    preset.pixels.length !== state.pixels.length
+  ) {
+    throw new Error("This preset was saved for a different panel layout.");
+  }
+  return new Uint8Array(preset.pixels);
+}
+
+export async function loadPreset(preset, options = {}) {
+  stopMedia();
+  applyPresetEnvironment(preset, options);
   const selectedTransition = normalizeTransition(
     options.transition ?? preset.transition ?? state.transition,
   );
 
   try {
     await sendBrightness(preset.brightness ?? brightnessSlider.value);
-    let target;
-    if (preset.effect && effectById(preset.effect) && effectPainters[preset.effect]) {
-      target = new Uint8Array(state.pixels.length);
-      renderGeneratedFrame(
-        preset.effect,
-        0,
-        state.pixels.slice(),
-        target,
-      );
-    } else {
-      if (
-        preset.width !== state.width ||
-        preset.height !== state.height ||
-        !Array.isArray(preset.pixels) ||
-        preset.pixels.length !== state.pixels.length
-      ) {
-        throw new Error("This preset was saved for a different panel layout.");
-      }
-      target = new Uint8Array(preset.pixels);
-    }
+    const target = presetTargetFrame(preset);
     const completed = await transitionToFrame(target, selectedTransition);
     if (!completed) return false;
-    if (preset.effect && effectById(preset.effect) && effectPainters[preset.effect]) {
+    if (presetHasRunnableEffect(preset)) {
       startGeneratedEffect(preset.effect, { preserveOutput: true });
     }
     setOutputContext({
@@ -217,12 +230,10 @@ function createPresetRow(preset, saved = false) {
   previewCanvas.setAttribute("aria-hidden", "true");
   const previewLabel = document.createElement("small");
   previewLabel.className = "scene-preview-label";
-  previewLabel.textContent =
-    state.outputContext.sceneKey === key
-      ? "ON AIR"
-      : saved
-        ? "SAVED"
-        : "BUILT-IN";
+  previewLabel.textContent = sceneRowLabel(
+    state.outputContext.sceneKey === key,
+    !saved,
+  );
   preview.append(previewCanvas, previewLabel);
 
   const previewFrame = scenePreviewPixels(preset);
@@ -419,9 +430,11 @@ export function renderPresets() {
     presetList.append(empty);
   }
   invalidateSceneMirror();
+  const totalSaved = state.library.scenes.length;
+  const savedSuffix =
+    savedScenes.length === totalSaved ? "" : ` OF ${totalSaved}`;
   $("#sceneFilterCount").textContent =
-    `${coreScenes.length} CORE / ${savedScenes.length}` +
-    `${savedScenes.length === state.library.scenes.length ? "" : ` OF ${state.library.scenes.length}`} SAVED`;
+    `${coreScenes.length} CORE / ${savedScenes.length}${savedSuffix} SAVED`;
 }
 
 export async function saveCurrentPreset() {

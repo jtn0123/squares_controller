@@ -2,11 +2,12 @@ import { $, $$ } from "./dom.js";
 import { state } from "./app_state.js";
 import { toast } from "./net.js";
 
-export function updateAudioMeters(metrics = { bass: 0, mid: 0, treble: 0 }) {
+export function updateAudioMeters(metrics) {
+  const { bass = 0, mid = 0, treble = 0 } = metrics ?? {};
   [
-    ["audioBassMeter", metrics.bass],
-    ["audioMidMeter", metrics.mid],
-    ["audioTrebleMeter", metrics.treble],
+    ["audioBassMeter", bass],
+    ["audioMidMeter", mid],
+    ["audioTrebleMeter", treble],
   ].forEach(([id, value]) => {
     $(`#${id}`).style.setProperty("--level", `${Math.round(value * 100)}%`);
   });

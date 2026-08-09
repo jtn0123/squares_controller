@@ -1,7 +1,6 @@
 import { $, effectIntensity, effectSpeed, updateRangeFill } from "./dom.js";
 import {
   EFFECT_PREVIEW_TIMES,
-  effectControl,
   painterContext,
   state,
 } from "./app_state.js";

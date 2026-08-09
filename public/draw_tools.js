@@ -69,7 +69,7 @@ export function initializeDrawTools() {
       $$("[data-brush]").forEach((item) => {
         const active = item === button;
         item.classList.toggle("active", active);
-        item.setAttribute("aria-checked", String(active));
+        item.setAttribute("aria-pressed", String(active));
       });
     });
   });

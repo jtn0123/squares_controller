@@ -228,7 +228,7 @@
 }
 
 .panel-bake-controls button:disabled {
-  color: #70766d;
+  color: var(--muted);
   border-color: #31362f;
   background: #171a16;
   cursor: wait;

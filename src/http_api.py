@@ -224,11 +224,17 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                     continue
                 self.send_state_event(event)
                 last_seen = event.version
-        except (BrokenPipeError, ConnectionResetError, OSError):
+        except OSError:
             return
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if self._get_local_route(path) or self._get_controller_route(path):
+            return
+        super().do_GET()
+
+    def _get_local_route(self, path: str) -> bool:
+        """Routes served entirely from local state (no device contact)."""
         if path == "/api/v1/health":
             self.send_json(
                 HTTPStatus.OK,
@@ -240,10 +246,29 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                     "storageWarnings": list(self.ctx.storage_warnings),
                 },
             )
-            return
+            return True
         if path == "/api/v1/capabilities":
             self.send_json(HTTPStatus.OK, capability_payload())
-            return
+            return True
+        if path in {"/api/library", "/api/library/export"}:
+            self.send_json(HTTPStatus.OK, self.ctx.library_store.snapshot())
+            return True
+        if path == "/api/automations":
+            self.send_json(
+                HTTPStatus.OK,
+                {"automations": self.ctx.automation_store.snapshot()},
+            )
+            return True
+        if path == "/api/runtime-policy":
+            self.send_json(
+                HTTPStatus.OK,
+                {"runtimePolicy": self.ctx.runtime_policy_store.snapshot()},
+            )
+            return True
+        return False
+
+    def _get_controller_route(self, path: str) -> bool:
+        """Routes that talk to the panel and answer 503 when it is away."""
         if path == "/api/telemetry":
             try:
                 self.send_json(
@@ -254,7 +279,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
                 )
-            return
+            return True
         if path == "/api/movies":
             try:
                 movies = self.ctx.get_client().list_movies()
@@ -270,50 +295,15 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
                 )
-            return
+            return True
         if path == "/api/v1/state":
             try:
-                status = self.ctx.get_client().refresh_status()
-                self.ctx.publish(status, "api")
-                library = self.ctx.library_store.snapshot()
-                automations = self.ctx.automation_store.snapshot()
-                self.send_json(
-                    HTTPStatus.OK,
-                    {
-                        "apiVersion": API_VERSION,
-                        "controller": self.ctx.controller_payload(status),
-                        "library": {
-                            "sceneCount": len(library["scenes"]),
-                            "playlistCount": len(library["playlists"]),
-                        },
-                        "automations": {
-                            "count": len(automations),
-                            "enabledCount": sum(
-                                1 for item in automations if item["enabled"]
-                            ),
-                        },
-                    },
-                )
+                self._send_v1_state()
             except (ConnectionError, KeyError, ValueError) as error:
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
                 )
-            return
-        if path in {"/api/library", "/api/library/export"}:
-            self.send_json(HTTPStatus.OK, self.ctx.library_store.snapshot())
-            return
-        if path == "/api/automations":
-            self.send_json(
-                HTTPStatus.OK,
-                {"automations": self.ctx.automation_store.snapshot()},
-            )
-            return
-        if path == "/api/runtime-policy":
-            self.send_json(
-                HTTPStatus.OK,
-                {"runtimePolicy": self.ctx.runtime_policy_store.snapshot()},
-            )
-            return
+            return True
         if path == "/api/events":
             try:
                 self.serve_state_events()
@@ -321,7 +311,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
                 )
-            return
+            return True
         if path == "/api/status":
             try:
                 status = self.ctx.get_client().refresh_status()
@@ -331,8 +321,31 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
                 )
-            return
-        super().do_GET()
+            return True
+        return False
+
+    def _send_v1_state(self) -> None:
+        status = self.ctx.get_client().refresh_status()
+        self.ctx.publish(status, "api")
+        library = self.ctx.library_store.snapshot()
+        automations = self.ctx.automation_store.snapshot()
+        self.send_json(
+            HTTPStatus.OK,
+            {
+                "apiVersion": API_VERSION,
+                "controller": self.ctx.controller_payload(status),
+                "library": {
+                    "sceneCount": len(library["scenes"]),
+                    "playlistCount": len(library["playlists"]),
+                },
+                "automations": {
+                    "count": len(automations),
+                    "enabledCount": sum(
+                        1 for item in automations if item["enabled"]
+                    ),
+                },
+            },
+        )
 
     def _execute_frame(self, body: dict[str, Any]) -> dict[str, Any]:
         with self.ctx.frame_mode_lock:
@@ -354,81 +367,13 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         try:
             body = self.read_json(self._body_limit(path))
-            if path == "/api/scenes":
-                scene = self.ctx.library_store.upsert_scene(body)
-                self.send_json(HTTPStatus.OK, {"scene": scene})
+            if self._post_store_route(path, body):
                 return
-            if path == "/api/playlists":
-                playlist = self.ctx.library_store.upsert_playlist(body)
-                self.send_json(HTTPStatus.OK, {"playlist": playlist})
+            if self._post_controller_route(path, body):
                 return
-            if path == "/api/palettes":
-                palette = self.ctx.library_store.upsert_palette(body)
-                self.send_json(HTTPStatus.OK, {"palette": palette})
-                return
-            if path == "/api/library/import":
-                imported = self.ctx.library_store.import_library(
-                    body.get("library"), merge=bool(body.get("merge", True))
-                )
-                self.send_json(HTTPStatus.OK, imported)
-                return
-            if path == "/api/automations":
-                automation = self.ctx.automation_store.upsert(body)
-                self.send_json(HTTPStatus.OK, {"automation": automation})
-                return
-            if path == "/api/runtime-policy":
-                policy = self.ctx.runtime_policy_store.update(body)
-                self.send_json(HTTPStatus.OK, {"runtimePolicy": policy})
-                return
-            if path == "/api/v1/command":
-                action = str(body.get("action", "unknown"))
-                if action == "frame":
-                    result = self._execute_frame(body)
-                else:
-                    result = execute_command(self.ctx.get_client(), body)
-                    self.ctx.publish(result, f"api:{action}")
-                self.send_json(
-                    HTTPStatus.OK,
-                    {"apiVersion": API_VERSION, "result": result},
-                )
-                return
-            if path == "/api/movies/bake":
-                movie = decode_movie_payload(body)
-                baked = self.ctx.get_client().bake_movie(**movie)
-                self.ctx.publish(baked["status"], "movie:bake")
-                self.send_json(HTTPStatus.OK, baked)
-                return
-            if path == "/api/frame":
-                result = self._execute_frame(body)
-                self.send_json(HTTPStatus.OK, result)
-                return
-            # The unversioned single-purpose routes stay for the bundled UI,
-            # but validation is shared with /api/v1/command.
-            if path == "/api/brightness":
-                result = execute_command(
-                    self.ctx.get_client(),
-                    {"action": "brightness", "value": body.get("value")},
-                )
-                source = "brightness"
-            elif path == "/api/rotation":
-                result = execute_command(
-                    self.ctx.get_client(),
-                    {"action": "rotation", "degrees": body.get("degrees")},
-                )
-                source = "rotation"
-            elif path == "/api/mode":
-                result = execute_command(
-                    self.ctx.get_client(),
-                    {"action": "mode", "mode": body.get("mode")},
-                )
-                source = "mode"
-            else:
-                self.send_json(
-                    HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
-                )
-                return
-            self.ctx.publish(result, source)
-            self.send_json(HTTPStatus.OK, result)
+            self.send_json(
+                HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
+            )
         except ConnectionError as error:
             self.send_json(
                 HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
@@ -441,6 +386,75 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             ValueError,
         ) as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _post_store_route(self, path: str, body: dict[str, Any]) -> bool:
+        if path == "/api/scenes":
+            scene = self.ctx.library_store.upsert_scene(body)
+            self.send_json(HTTPStatus.OK, {"scene": scene})
+            return True
+        if path == "/api/playlists":
+            playlist = self.ctx.library_store.upsert_playlist(body)
+            self.send_json(HTTPStatus.OK, {"playlist": playlist})
+            return True
+        if path == "/api/palettes":
+            palette = self.ctx.library_store.upsert_palette(body)
+            self.send_json(HTTPStatus.OK, {"palette": palette})
+            return True
+        if path == "/api/library/import":
+            imported = self.ctx.library_store.import_library(
+                body.get("library"), merge=bool(body.get("merge", True))
+            )
+            self.send_json(HTTPStatus.OK, imported)
+            return True
+        if path == "/api/automations":
+            automation = self.ctx.automation_store.upsert(body)
+            self.send_json(HTTPStatus.OK, {"automation": automation})
+            return True
+        if path == "/api/runtime-policy":
+            policy = self.ctx.runtime_policy_store.update(body)
+            self.send_json(HTTPStatus.OK, {"runtimePolicy": policy})
+            return True
+        return False
+
+    def _post_controller_route(self, path: str, body: dict[str, Any]) -> bool:
+        if path == "/api/v1/command":
+            action = str(body.get("action", "unknown"))
+            if action == "frame":
+                result = self._execute_frame(body)
+            else:
+                result = execute_command(self.ctx.get_client(), body)
+                self.ctx.publish(result, f"api:{action}")
+            self.send_json(
+                HTTPStatus.OK,
+                {"apiVersion": API_VERSION, "result": result},
+            )
+            return True
+        if path == "/api/movies/bake":
+            movie = decode_movie_payload(body)
+            baked = self.ctx.get_client().bake_movie(**movie)
+            self.ctx.publish(baked["status"], "movie:bake")
+            self.send_json(HTTPStatus.OK, baked)
+            return True
+        if path == "/api/frame":
+            result = self._execute_frame(body)
+            self.send_json(HTTPStatus.OK, result)
+            return True
+        # The unversioned single-purpose routes stay for the bundled UI,
+        # but validation is shared with /api/v1/command.
+        commands = {
+            "/api/brightness": ("brightness", {"value": body.get("value")}),
+            "/api/rotation": ("rotation", {"degrees": body.get("degrees")}),
+            "/api/mode": ("mode", {"mode": body.get("mode")}),
+        }
+        if path not in commands:
+            return False
+        source, arguments = commands[path]
+        result = execute_command(
+            self.ctx.get_client(), {"action": source, **arguments}
+        )
+        self.ctx.publish(result, source)
+        self.send_json(HTTPStatus.OK, result)
+        return True
 
     def do_DELETE(self) -> None:
         try:

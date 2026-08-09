@@ -16,11 +16,7 @@ export function setPixel(x, y, rgb) {
 const imageDataCache = new WeakMap();
 
 export function drawRgbCanvas(targetCanvas, pixels, width, height) {
-  if (
-    !targetCanvas ||
-    !pixels ||
-    pixels.length !== width * height * 3
-  ) {
+  if (!targetCanvas || pixels?.length !== width * height * 3) {
     return false;
   }
   if (targetCanvas.width !== width) targetCanvas.width = width;
@@ -67,43 +63,11 @@ export function renderSceneMirrors() {
   }
 }
 
-export function render() {
-  const cellWidth = canvas.width / state.width;
-  const cellHeight = canvas.height / state.height;
-  const gap = Math.max(1.5, cellWidth * 0.075);
-  context.fillStyle = "#030403";
-  context.fillRect(0, 0, canvas.width, canvas.height);
+function idleCellColor(x, y) {
+  return (x + y) % 2 ? "#0a0d0a" : "#080a08";
+}
 
-  for (let y = 0; y < state.height; y += 1) {
-    for (let x = 0; x < state.width; x += 1) {
-      const offset = (y * state.width + x) * 3;
-      const red = state.pixels[offset];
-      const green = state.pixels[offset + 1];
-      const blue = state.pixels[offset + 2];
-      const active = red + green + blue > 3;
-      context.fillStyle = active
-        ? `rgb(${red}, ${green}, ${blue})`
-        : (x + y) % 2
-          ? "#0a0d0a"
-          : "#080a08";
-      context.fillRect(
-        x * cellWidth + gap,
-        y * cellHeight + gap,
-        cellWidth - gap * 2,
-        cellHeight - gap * 2,
-      );
-      if (active) {
-        context.fillStyle = `rgba(${red}, ${green}, ${blue}, 0.18)`;
-        context.fillRect(
-          x * cellWidth,
-          y * cellHeight,
-          cellWidth,
-          cellHeight,
-        );
-      }
-    }
-  }
-
+function drawGridOverlay(cellWidth, cellHeight) {
   context.save();
   context.strokeStyle = "rgba(238, 232, 217, 0.22)";
   context.lineWidth = 3;
@@ -135,5 +99,43 @@ export function render() {
     );
   }
   context.restore();
+}
+
+export function render() {
+  const cellWidth = canvas.width / state.width;
+  const cellHeight = canvas.height / state.height;
+  const gap = Math.max(1.5, cellWidth * 0.075);
+  context.fillStyle = "#030403";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < state.height; y += 1) {
+    for (let x = 0; x < state.width; x += 1) {
+      const offset = (y * state.width + x) * 3;
+      const red = state.pixels[offset];
+      const green = state.pixels[offset + 1];
+      const blue = state.pixels[offset + 2];
+      const active = red + green + blue > 3;
+      context.fillStyle = active
+        ? `rgb(${red}, ${green}, ${blue})`
+        : idleCellColor(x, y);
+      context.fillRect(
+        x * cellWidth + gap,
+        y * cellHeight + gap,
+        cellWidth - gap * 2,
+        cellHeight - gap * 2,
+      );
+      if (active) {
+        context.fillStyle = `rgba(${red}, ${green}, ${blue}, 0.18)`;
+        context.fillRect(
+          x * cellWidth,
+          y * cellHeight,
+          cellWidth,
+          cellHeight,
+        );
+      }
+    }
+  }
+
+  drawGridOverlay(cellWidth, cellHeight);
   renderSceneMirrors();
 }

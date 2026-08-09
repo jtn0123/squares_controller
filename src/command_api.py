@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import binascii
 from typing import Any, Protocol
 
 API_VERSION = "1.0"
@@ -98,7 +97,7 @@ def execute_command(
         if isinstance(encoded, str):
             try:
                 pixels = base64.b64decode(encoded, validate=True)
-            except (binascii.Error, ValueError) as error:
+            except ValueError as error:
                 raise ValueError(
                     "Frame pixels are not valid base64."
                 ) from error

@@ -58,7 +58,8 @@ async function migrateBrowserPresets() {
   const browserPresets = readSavedPresets();
   try {
     for (const preset of browserPresets) {
-      const { id: _legacyId, ...portablePreset } = preset;
+      const portablePreset = { ...preset };
+      delete portablePreset.id;
       await api("/api/scenes", {
         method: "POST",
         body: JSON.stringify(portablePreset),

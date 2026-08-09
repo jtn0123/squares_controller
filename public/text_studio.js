@@ -20,6 +20,37 @@ function readTextControls() {
   updateRangeFill($("#fontSize"));
 }
 
+function nextScrollOffset(offset, textWidth) {
+  const step = state.textDirection === "right" ? 1 : -1;
+  const next = offset + step;
+  if (state.textDirection === "right" && next > state.width + 3) {
+    return -textWidth;
+  }
+  if (state.textDirection === "left" && next < -textWidth - 3) {
+    return state.width;
+  }
+  return next;
+}
+
+function paintSampledAlpha(image, color) {
+  for (let index = 0; index < state.width * state.height; index += 1) {
+    const x = index % state.width;
+    const y = Math.floor(index / state.width);
+    if (!zoneContains(state.zone, x, y, state.width, state.height)) continue;
+    const intensity = image[index * 4 + 3] / 255;
+    state.pixels[index * 3] = clampByte(color[0] * intensity);
+    state.pixels[index * 3 + 1] = clampByte(color[1] * intensity);
+    state.pixels[index * 3 + 2] = clampByte(color[2] * intensity);
+  }
+}
+
+function localClockText() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function startTextMode(text, clock = false) {
   stopMedia();
   stopAnimation();
@@ -49,58 +80,43 @@ function startTextMode(text, clock = false) {
     return measured;
   };
 
-  let currentText = clock
-    ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : text.toUpperCase();
+  let currentText = clock ? localClockText() : text.toUpperCase();
   let textWidth = drawText(currentText);
   if (!clock && state.textDirection === "right") offset = -textWidth;
+
+  const advance = () => {
+    if (!clock) {
+      offset = nextScrollOffset(offset, textWidth);
+      return;
+    }
+    const latest = localClockText();
+    if (latest !== currentText) {
+      currentText = latest;
+      textWidth = drawText(currentText);
+    }
+    offset = Math.floor((state.width - textWidth) / 2);
+  };
+
+  const paintFrame = () => {
+    if (sampleContext.canvas.width !== state.width) {
+      sampleContext.canvas.width = state.width;
+    }
+    if (sampleContext.canvas.height !== state.height) {
+      sampleContext.canvas.height = state.height;
+    }
+    sampleContext.clearRect(0, 0, state.width, state.height);
+    sampleContext.drawImage(textCanvas, offset, 0);
+    const image = sampleContext.getImageData(0, 0, state.width, state.height).data;
+    paintSampledAlpha(image, hexToRgb(colorPicker.value));
+    render();
+    scheduleFrame();
+  };
 
   const tick = (now) => {
     if (state.animationName !== (clock ? "clock" : "message")) return;
     if (now - previousFrame >= (clock ? 500 : 90)) {
-      if (clock) {
-        const latest = new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        if (latest !== currentText) {
-          currentText = latest;
-          textWidth = drawText(currentText);
-        }
-        offset = Math.floor((state.width - textWidth) / 2);
-      } else {
-        offset += state.textDirection === "right" ? 1 : -1;
-        if (state.textDirection === "right" && offset > state.width + 3) {
-          offset = -textWidth;
-        } else if (
-          state.textDirection === "left" &&
-          offset < -textWidth - 3
-        ) {
-          offset = state.width;
-        }
-      }
-
-      if (sampleContext.canvas.width !== state.width) {
-        sampleContext.canvas.width = state.width;
-      }
-      if (sampleContext.canvas.height !== state.height) {
-        sampleContext.canvas.height = state.height;
-      }
-      sampleContext.clearRect(0, 0, state.width, state.height);
-      sampleContext.drawImage(textCanvas, offset, 0);
-      const image = sampleContext.getImageData(0, 0, state.width, state.height).data;
-      const color = hexToRgb(colorPicker.value);
-      for (let index = 0; index < state.width * state.height; index += 1) {
-        const x = index % state.width;
-        const y = Math.floor(index / state.width);
-        if (!zoneContains(state.zone, x, y, state.width, state.height)) continue;
-        const intensity = image[index * 4 + 3] / 255;
-        state.pixels[index * 3] = clampByte(color[0] * intensity);
-        state.pixels[index * 3 + 1] = clampByte(color[1] * intensity);
-        state.pixels[index * 3 + 2] = clampByte(color[2] * intensity);
-      }
-      render();
-      scheduleFrame();
+      advance();
+      paintFrame();
       previousFrame = now;
     }
     state.animationFrame = requestAnimationFrame(tick);

@@ -138,7 +138,7 @@ export function initializePalettes() {
       return;
     }
     const colors = [...state.palette.colors];
-    colors.splice(colors.length - 1, 0, colors.at(-1));
+    colors.splice(-1, 0, colors.at(-1));
     applyPalette({ id: "custom", colors });
   });
   $("#savePaletteButton").addEventListener("click", async () => {

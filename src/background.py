@@ -34,7 +34,7 @@ def automation_loop(ctx: AppContext) -> None:
                 result = run_automation(ctx.get_client(), item)
                 ctx.publish(result, "automation")
                 print(f"Automation ran: {item['name']}")
-            except (ConnectionError, KeyError, OSError, ValueError) as error:
+            except (KeyError, OSError, ValueError) as error:
                 print(
                     f"Automation failed ({item['name']}): {error}",
                     file=sys.stderr,
@@ -53,5 +53,5 @@ def frame_loss_loop(ctx: AppContext) -> None:
                     continue
                 execute_runtime_action(ctx, action, "runtime:frame-loss")
             print(f"Frame-loss policy ran: {action}")
-        except (ConnectionError, KeyError, OSError, ValueError) as error:
+        except (KeyError, OSError, ValueError) as error:
             print(f"Frame-loss policy failed: {error}", file=sys.stderr)

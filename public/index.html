@@ -97,14 +97,14 @@
             </div>
           </div>
 
-          <div class="tool-cluster" role="radiogroup" aria-label="Brush size">
-            <button class="tool-button active" data-brush="1" type="button" role="radio" aria-checked="true">
+          <div class="tool-cluster" role="group" aria-label="Brush size">
+            <button class="tool-button active" data-brush="1" type="button" aria-pressed="true">
               <span class="brush-dot brush-dot--1"></span>1
             </button>
-            <button class="tool-button" data-brush="2" type="button" role="radio" aria-checked="false">
+            <button class="tool-button" data-brush="2" type="button" aria-pressed="false">
               <span class="brush-dot brush-dot--2"></span>2
             </button>
-            <button class="tool-button" data-brush="3" type="button" role="radio" aria-checked="false">
+            <button class="tool-button" data-brush="3" type="button" aria-pressed="false">
               <span class="brush-dot brush-dot--3"></span>3
             </button>
             <button class="tool-button" id="eraserButton" type="button" aria-pressed="false">
@@ -839,13 +839,13 @@
             <span>DISPLAY ORIENTATION</span>
             <div
               class="rotation-control"
-              role="radiogroup"
+              role="group"
               aria-label="Display orientation"
             >
-              <button class="active" data-rotation="0" type="button" role="radio" aria-checked="true">0°</button>
-              <button data-rotation="90" type="button" role="radio" aria-checked="false">90°</button>
-              <button data-rotation="180" type="button" role="radio" aria-checked="false">180°</button>
-              <button data-rotation="270" type="button" role="radio" aria-checked="false">270°</button>
+              <button class="active" data-rotation="0" type="button" aria-pressed="true">0°</button>
+              <button data-rotation="90" type="button" aria-pressed="false">90°</button>
+              <button data-rotation="180" type="button" aria-pressed="false">180°</button>
+              <button data-rotation="270" type="button" aria-pressed="false">270°</button>
             </div>
           </div>
           <details class="advanced-studio runtime-studio" id="runtimeStudio">

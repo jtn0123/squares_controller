@@ -12,16 +12,26 @@ export function sceneKey(preset, saved) {
   return `${saved ? "saved" : "built-in"}:${preset.id}`;
 }
 
+function storedPreviewPixels(preset, expected) {
+  for (const candidate of [preset.previewPixels, preset.pixels]) {
+    if (Array.isArray(candidate) && candidate.length === expected) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+// One label vocabulary for scene rows, shared with the scene list.
+export function sceneRowLabel(active, builtIn) {
+  if (active) return "ON AIR";
+  return builtIn ? "BUILT-IN" : "SAVED";
+}
+
 export function scenePreviewPixels(preset) {
   const width = Number(preset.width) || state.width;
   const height = Number(preset.height) || state.height;
   const expected = width * height * 3;
-  const stored =
-    Array.isArray(preset.previewPixels) && preset.previewPixels.length === expected
-      ? preset.previewPixels
-      : Array.isArray(preset.pixels) && preset.pixels.length === expected
-        ? preset.pixels
-        : null;
+  const stored = storedPreviewPixels(preset, expected);
   if (stored) return { pixels: new Uint8Array(stored), width, height };
   if (
     !preset.effect ||
@@ -60,16 +70,17 @@ export function updateSceneMonitor() {
   );
   monitor.dataset.state = output.kind;
   stage.dataset.outputState = output.kind;
-  $("#sceneMonitorBadge").textContent = playlist
-    ? "PLAYLIST LIVE"
-    : output.badge ??
-      (output.kind === "scene" ? "SCENE LIVE" : "LIVE OUTPUT");
-  $("#sceneMonitorKicker").textContent = playlist
-    ? `PLAYLIST / ${playlist.name}`
-    : output.kicker ??
-      (output.kind === "scene"
-        ? `${output.source ?? "SAVED"} SCENE`
-        : "PROGRAM MONITOR");
+  const isScene = output.kind === "scene";
+  let badge = output.badge ?? (isScene ? "SCENE LIVE" : "LIVE OUTPUT");
+  let kicker =
+    output.kicker ??
+    (isScene ? `${output.source ?? "SAVED"} SCENE` : "PROGRAM MONITOR");
+  if (playlist) {
+    badge = "PLAYLIST LIVE";
+    kicker = `PLAYLIST / ${playlist.name}`;
+  }
+  $("#sceneMonitorBadge").textContent = badge;
+  $("#sceneMonitorKicker").textContent = kicker;
   $("#sceneMonitorName").textContent = output.name;
 
   const effectName =
@@ -126,11 +137,10 @@ export function updatePresetSelection() {
     row.classList.toggle("active", active);
     const label = row.querySelector(".scene-preview-label");
     if (label) {
-      label.textContent = active
-        ? "ON AIR"
-        : row.classList.contains("built-in")
-          ? "BUILT-IN"
-          : "SAVED";
+      label.textContent = sceneRowLabel(
+        active,
+        row.classList.contains("built-in"),
+      );
     }
   });
   invalidateSceneMirror();

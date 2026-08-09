@@ -23,6 +23,19 @@ import { normalizeSegment, normalizeSegmentTransform } from "./segment_model.js"
 import { normalizeStreamTelemetry, streamHealth } from "./stream_model.js";
 import { mergeMovieDetails, outputPresentation, outputSignalPath } from "./output_model.js";
 
+function liveFlagLabel(status) {
+  if (status.streaming) return " LIVE";
+  if (status.mode === "movie" || status.mode === "demo") return " PANEL LOCAL";
+  if (status.mode === "off") return " OFF";
+  return " PREVIEW";
+}
+
+const STREAM_HEALTH_LABELS = {
+  locked: "CLOCK LOCKED",
+  warning: "CHECK TIMING",
+  idle: "WAITING",
+};
+
 export function applyStatus(status, { syncBrightness = true } = {}) {
   status = mergeMovieDetails(status, state.movieLibrary.movies);
   state.controllerStatus = status;
@@ -59,13 +72,7 @@ export function applyStatus(status, { syncBrightness = true } = {}) {
   brightnessSlider.value = visibleBrightness;
   updateBrightnessVisual(visibleBrightness);
   stage.classList.toggle("is-live", status.streaming);
-  $("#liveFlag").lastChild.textContent = status.streaming
-    ? " LIVE"
-    : status.mode === "movie" || status.mode === "demo"
-      ? " PANEL LOCAL"
-      : status.mode === "off"
-        ? " OFF"
-        : " PREVIEW";
+  $("#liveFlag").lastChild.textContent = liveFlagLabel(status);
 
   const rotation = Number(status.rotation ?? 0);
   state.rotation = rotation;
@@ -75,7 +82,7 @@ export function applyStatus(status, { syncBrightness = true } = {}) {
   $$("[data-rotation]").forEach((button) => {
     const active = Number(button.dataset.rotation) === rotation;
     button.classList.toggle("active", active);
-    button.setAttribute("aria-checked", String(active));
+    button.setAttribute("aria-pressed", String(active));
   });
 
   if (status.width !== state.width || status.height !== state.height) {
@@ -136,7 +143,7 @@ export function updateStreamTelemetry(raw) {
   const panel = $("#streamDiagnostics");
   panel.dataset.health = health;
   $("#streamHealthReadout").textContent =
-    health === "locked" ? "CLOCK LOCKED" : health === "warning" ? "CHECK TIMING" : "WAITING";
+    STREAM_HEALTH_LABELS[health] ?? "WAITING";
   $("#streamActualReadout").textContent =
     telemetry.actualFps ? `${telemetry.actualFps.toFixed(2)} FPS` : "—";
   $("#streamTargetReadout").textContent =
