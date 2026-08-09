@@ -1,7 +1,13 @@
 // Composition root: wires every feature module together and boots the app.
 // All logic lives in the feature modules; this file only sequences them.
 import { state } from "./app_state.js";
-import { onConnectionLost } from "./net.js";
+import {
+  noteUserGesture,
+  onConnectionLost,
+  onControlLost,
+  toast,
+} from "./net.js";
+import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { updateSceneMonitor } from "./monitor.js";
 import {
@@ -21,7 +27,11 @@ import { initializeMediaControls } from "./media_input.js";
 import { initializeLiveInputs } from "./live_audio.js";
 import { initializeTextStudio } from "./text_studio.js";
 import { initializeSceneSaving, renderPresets } from "./scenes.js";
-import { initializePlaylists, renderPlaylistDraft } from "./playlists.js";
+import {
+  initializePlaylists,
+  renderPlaylistDraft,
+  stopPlaylist,
+} from "./playlists.js";
 import { initializeMovieBaking } from "./movies_bake.js";
 import {
   initializeAutomations,
@@ -72,6 +82,24 @@ renderPlaylistDraft();
 // When frame uploads start failing, net.js probes quietly until the
 // controller answers again.
 onConnectionLost(probeStatus);
+
+// Only one tab may drive the wall. Clicks and keypresses mark this tab as
+// the human's choice (its frames carry a takeover claim); when another tab
+// wins instead, stop every producer loop here rather than fight it.
+document.addEventListener("pointerdown", noteUserGesture, {
+  capture: true,
+  passive: true,
+});
+document.addEventListener("keydown", noteUserGesture, {
+  capture: true,
+  passive: true,
+});
+onControlLost(() => {
+  stopPlaylist();
+  stopMedia();
+  stopAnimation();
+  toast("Another tab took the wall. Click any effect to take it back.", true);
+});
 
 void loadStatus().then(() => {
   void loadMovies().catch(() => {

@@ -37,7 +37,8 @@ globalThis.document = {
 };
 globalThis.window = globalThis;
 
-const { api, flushFrame, setConnection } = await import("../public/net.js");
+const { api, flushFrame, noteUserGesture, onControlLost, setConnection } =
+  await import("../public/net.js");
 const { state } = await import("../public/app_state.js");
 
 function jsonResponse(status, body) {
@@ -142,4 +143,45 @@ test("frames upload as base64 and clear the error flag on success", async () => 
   assert.equal(sentBody.height, state.height);
   assert.ok(!("pixels" in sentBody));
   assert.equal(state.frameErrorShown, false);
+});
+
+test("frames carry a stable source id and claim after a user gesture", async () => {
+  setConnection({ ip: "192.168.1.50", mode: "rt" });
+  state.nextFrameAt = 0;
+  const bodies = [];
+  globalThis.fetch = async (_path, options) => {
+    bodies.push(JSON.parse(options.body));
+    return jsonResponse(200, JSON.stringify({ streaming: true }));
+  };
+
+  state.frameQueued = true;
+  await flushFrame();
+  noteUserGesture();
+  state.frameQueued = true;
+  state.nextFrameAt = 0;
+  await flushFrame();
+
+  assert.equal(typeof bodies[0].source, "string");
+  assert.ok(bodies[0].source.length > 0);
+  assert.equal(bodies[1].source, bodies[0].source);
+  assert.equal(bodies[1].claim, true);
+});
+
+test("a 409 stops producing and hands control to the takeover handler", async () => {
+  setConnection({ ip: "192.168.1.50", mode: "rt" });
+  state.nextFrameAt = 0;
+  let lost = 0;
+  onControlLost(() => {
+    lost += 1;
+  });
+  globalThis.fetch = async () =>
+    jsonResponse(409, JSON.stringify({ error: "Another controller tab is driving the wall." }));
+
+  state.frameQueued = true;
+  await flushFrame();
+
+  assert.equal(lost, 1);
+  assert.equal(state.frameQueued, false);
+  assert.equal(state.connected, true);
+  onControlLost(null);
 });

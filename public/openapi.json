@@ -150,6 +150,14 @@
                         "type": "string",
                         "contentEncoding": "base64",
                         "description": "Compact RGB payload; base64 of width*height*3 bytes."
+                      },
+                      "source": {
+                        "type": "string",
+                        "description": "Optional client identity for single-driver arbitration. When set, frames from a different source are rejected with 409 while this source is actively streaming. Omit to bypass arbitration."
+                      },
+                      "claim": {
+                        "type": "boolean",
+                        "description": "Take over the frame stream from another source (sent by the UI after a user gesture)."
                       }
                     },
                     "anyOf": [
@@ -176,6 +184,9 @@
           },
           "400": {
             "description": "Invalid command"
+          },
+          "409": {
+            "description": "Another source currently owns the frame stream"
           }
         }
       }

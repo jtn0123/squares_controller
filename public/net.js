@@ -4,12 +4,31 @@ import { nextFrameDeadline } from "./frame_timing.js";
 
 const RECONNECT_MIN_MS = 2_000;
 const RECONNECT_MAX_MS = 30_000;
+// Frames sent this soon after a click or keypress carry a takeover claim:
+// a human acting in this tab always wins the wall from a background tab.
+const GESTURE_CLAIM_WINDOW_MS = 1_500;
+
+const CLIENT_ID =
+  globalThis.crypto?.randomUUID?.() ??
+  `tab-${Math.random().toString(36).slice(2)}`;
 
 let reconnectTimer = null;
 let reconnectDelay = RECONNECT_MIN_MS;
 let reconnectProbe = null;
 let reconnectInFlight = false;
 let frameDeferTimer = null;
+let lastGestureAt = Number.NEGATIVE_INFINITY;
+let controlLostHandler = null;
+
+export function noteUserGesture() {
+  lastGestureAt = performance.now();
+}
+
+// Registered at boot: stops every producer loop when another tab takes
+// the wall, so two clients never silently fight last-writer-wins.
+export function onControlLost(handler) {
+  controlLostHandler = handler;
+}
 
 export function toast(message, error = false) {
   toastElement.textContent = message;
@@ -132,11 +151,18 @@ export async function flushFrame() {
         width: state.width,
         height: state.height,
         pixelsBase64: bytesToBase64(state.pixels),
+        source: CLIENT_ID,
+        claim: now - lastGestureAt <= GESTURE_CLAIM_WINDOW_MS,
       }),
     });
     state.frameErrorShown = false;
   } catch (error) {
-    if (!error.status || error.status >= 500) {
+    if (error.status === 409) {
+      // Another tab owns the wall: stop producing instead of fighting it
+      // frame-for-frame. A fresh user gesture here claims it back.
+      state.frameQueued = false;
+      controlLostHandler?.();
+    } else if (!error.status || error.status >= 500) {
       // The server or panel is gone: mark the panel offline so the effect
       // loop stops posting, tell the user once, and probe in the background.
       state.frameQueued = false;

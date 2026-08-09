@@ -212,6 +212,48 @@ class ServerRouteTests(unittest.TestCase):
             self.ctx.state_broker.current().version, version_after_first
         )
 
+    def test_only_one_tagged_source_may_stream_at_a_time(self) -> None:
+        self.client.set_raster_frame.return_value = connected_status(
+            mode="rt", streaming=True
+        )
+        frame = {"width": 2, "height": 2, "pixels": [0] * 12}
+
+        # First tab starts streaming and owns the wall.
+        status, _ = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-a"}
+        )
+        self.assertEqual(status, 200)
+
+        # A second tab without a user gesture is rejected.
+        status, payload = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-b"}
+        )
+        self.assertEqual(status, 409)
+        self.assertIn("Another controller", payload["error"])
+
+        # Untagged callers (scripts, external API users) stay ungoverned.
+        status, _ = self.request("POST", "/api/frame", body=frame)
+        self.assertEqual(status, 200)
+
+        # A user gesture in the second tab takes the wall over...
+        status, _ = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-b", "claim": True}
+        )
+        self.assertEqual(status, 200)
+
+        # ...after which the first tab is the one locked out.
+        status, _ = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-a"}
+        )
+        self.assertEqual(status, 409)
+
+        # Once the owner goes idle, any tab may stream without a claim.
+        self.ctx.frame_source_seen -= 3.0
+        status, _ = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-a"}
+        )
+        self.assertEqual(status, 200)
+
     def test_state_events_resume_ignores_stale_boot_epochs(self) -> None:
         connection = HTTPConnection("127.0.0.1", self.port, timeout=5)
         # An id from a previous server process must not starve the stream.
