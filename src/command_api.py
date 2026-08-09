@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Protocol
 
 API_VERSION = "1.0"
@@ -91,16 +92,30 @@ def execute_command(
             or height < 1
         ):
             raise ValueError("Frame dimensions must be positive whole numbers.")
-        if not isinstance(raw_pixels, list):
-            raise ValueError("Frame pixels are missing.")
         expected = width * height * 3
-        if len(raw_pixels) != expected:
-            raise ValueError(f"Expected {expected} RGB values.")
-        try:
-            pixels = bytes(
-                max(0, min(255, round(float(value)))) for value in raw_pixels
-            )
-        except (OverflowError, TypeError, ValueError) as error:
-            raise ValueError("Frame pixels must be numeric RGB values.") from error
+        encoded = payload.get("pixelsBase64")
+        if isinstance(encoded, str):
+            try:
+                pixels = base64.b64decode(encoded, validate=True)
+            except ValueError as error:
+                raise ValueError(
+                    "Frame pixels are not valid base64."
+                ) from error
+            if len(pixels) != expected:
+                raise ValueError(f"Expected {expected} RGB values.")
+        elif isinstance(raw_pixels, list):
+            if len(raw_pixels) != expected:
+                raise ValueError(f"Expected {expected} RGB values.")
+            try:
+                pixels = bytes(
+                    max(0, min(255, round(float(value))))
+                    for value in raw_pixels
+                )
+            except (OverflowError, TypeError, ValueError) as error:
+                raise ValueError(
+                    "Frame pixels must be numeric RGB values."
+                ) from error
+        else:
+            raise ValueError("Frame pixels are missing.")
         return client.set_raster_frame(pixels, width, height)
     raise ValueError(f"Unknown command action: {action}")

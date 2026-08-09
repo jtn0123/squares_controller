@@ -48,6 +48,17 @@ regex = '''(?i)\b[A-Z0-9_]*(?:PASS(?:WD|WORD)?|SECRET|TOKEN)\s*=\s*["']?([^\s"'#
 secretGroup = 1
 keywords = ["pass", "secret", "token"]
 
+# Assignments whose right-hand side is a dotted code expression
+# (state.transitionToken, base64.b64encode(...), client.authenticate())
+# are source code, not leaked credentials; the named literals are test
+# fixtures whose values are deliberately fake.
+[rules.allowlist]
+regexTarget = "line"
+regexes = [
+    '''(?i)token\s*=\s*["']?[\w$]+\.\w+''',
+    '''["'](?:tok-123|stale-token)["']''',
+]
+
 # Credentials passed as command-line flags: mosquitto_pub -P <pw>,
 # mosquitto_sub -u <user> -P <pw>, curl -u user:pw.
 [[rules]]

@@ -1,3 +1,5 @@
+import { EFFECT_CATALOG } from "./effect_catalog.js";
+
 export const BLEND_MODES = Object.freeze([
   { id: "normal", name: "NORMAL" },
   { id: "add", name: "ADD LIGHT" },
@@ -44,4 +46,3 @@ export function normalizeLayer(raw) {
         : "acid",
   };
 }
-import { EFFECT_CATALOG } from "./effect_catalog.js";

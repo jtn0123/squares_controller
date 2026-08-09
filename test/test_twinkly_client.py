@@ -3,12 +3,14 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from src.twinkly_client import (
+from src.twinkly_client import TwinklyClient
+from src.twinkly_protocol import (
     Layout,
-    TwinklyClient,
+    TwinklyHTTPError,
     build_realtime_packets,
     calculate_layout,
     choose_stream_fps,
+    fused_channel_permutation,
     next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
@@ -84,9 +86,7 @@ class TwinklyClientTests(unittest.TestCase):
             if path == "/led/out/brightness":
                 return {"value": 24}
             if path == "/led/movies/current":
-                raise ConnectionError(
-                    "Twinkly /led/movies/current failed with HTTP 404."
-                )
+                raise TwinklyHTTPError("/led/movies/current", 404)
             if path == "/movies/current":
                 return {
                     "id": 14,
@@ -134,7 +134,7 @@ class TwinklyClientTests(unittest.TestCase):
             if path == "/led/out/brightness":
                 return {"value": 24}
             if path in {"/led/movies/current", "/movies/current"}:
-                raise ConnectionError(f"Twinkly {path} failed with HTTP 404.")
+                raise TwinklyHTTPError(path, 404)
             raise AssertionError(f"Unexpected request: {path}")
 
         with patch.object(client, "request", side_effect=request):
@@ -224,6 +224,46 @@ class TwinklyClientTests(unittest.TestCase):
             oriented_raster_to_device_frame(portrait, 2, 3, layout, 270)[::3],
             bytes([5, 3, 1, 6, 4, 2]),
         )
+
+    def test_fused_permutation_matches_reference_transform(self) -> None:
+        layout = calculate_layout(rectangular_coordinates(6, 4))
+        frame = bytes((index * 7) % 256 for index in range(layout.led_count * 3))
+        for rotation in (0, 90, 180, 270):
+            width, height = oriented_dimensions(layout, rotation)
+            expected = oriented_raster_to_device_frame(
+                frame, width, height, layout, rotation
+            )
+            perm = fused_channel_permutation(layout, rotation)
+            self.assertEqual(
+                bytes(map(frame.__getitem__, perm)),
+                expected,
+                f"fused permutation diverges at {rotation} degrees",
+            )
+
+    def test_client_uses_cached_permutation_for_frames(self) -> None:
+        import src.twinkly_client as client_module
+
+        client = self.connected_client()
+        client.layout = Layout(2, 1, 2, (1, 0))
+        frame = bytes([255, 0, 0, 0, 0, 255])
+
+        with patch.object(
+            client_module,
+            "fused_channel_permutation",
+            wraps=client_module.fused_channel_permutation,
+        ) as fused:
+            self.assertEqual(
+                client._oriented_device_frame(frame, 2, 1),
+                bytes([0, 0, 255, 255, 0, 0]),
+            )
+            self.assertEqual(
+                client._oriented_device_frame(frame, 2, 1),
+                bytes([0, 0, 255, 255, 0, 0]),
+            )
+        fused.assert_called_once()
+        with self.assertRaisesRegex(ValueError, "must be 2x1"):
+            client._oriented_device_frame(frame, 1, 2)
+        client.close(restore_movie=False)
 
     def test_rejects_invalid_display_rotation(self) -> None:
         layout = Layout(3, 2, 6, tuple(range(6)))
@@ -404,6 +444,47 @@ class TwinklyClientTests(unittest.TestCase):
         request.assert_not_called()
         self.assertEqual(status["brightness"], 17)
         self.assertEqual(status["brightnessControl"], "realtime-rgb")
+        client.close(restore_movie=False)
+
+    def test_mode_change_serializes_against_concurrent_frames(self) -> None:
+        import threading
+
+        client = self.connected_client()
+        client.layout = Layout(2, 1, 2, (0, 1))
+        client.token = base64.b64encode(b"12345678").decode("ascii")
+        client.token_created_at = time.monotonic()
+        client._socket.close()
+        client._socket = type(
+            "NullSocket",
+            (),
+            {"sendto": lambda _self, _packet, _address: None,
+             "close": lambda _self: None},
+        )()
+
+        entered_mode_change = threading.Event()
+
+        def slow_request(path, **_kwargs):
+            if path == "/led/mode":
+                entered_mode_change.set()
+                time.sleep(0.08)
+            return {}
+
+        with patch.object(client, "request", side_effect=slow_request):
+            mode_thread = threading.Thread(
+                target=lambda: client.set_mode("movie")
+            )
+            mode_thread.start()
+            # Only send the frame once the mode change is provably inside
+            # its device call, so the interleaving is deterministic.
+            self.assertTrue(entered_mode_change.wait(timeout=2))
+            client.set_raster_frame(bytes(6), 2, 1)
+            mode_thread.join(timeout=2)
+
+            status = client.status()
+            self.assertFalse(
+                status["mode"] == "movie" and status["streaming"],
+                "mode reports stock playback while the relay is streaming",
+            )
         client.close(restore_movie=False)
 
     def test_stock_mode_brightness_uses_device_endpoint(self) -> None:

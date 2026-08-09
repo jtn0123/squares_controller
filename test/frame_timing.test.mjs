@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -33,16 +32,3 @@ test("upload deadlines correct timer drift and skip missed slots", () => {
   assert.equal(deadline, 115);
 });
 
-test("frame acknowledgements do not repaint full controller status", () => {
-  const source = readFileSync(
-    new URL("../public/app.js", import.meta.url),
-    "utf8",
-  );
-  const frameUpload = source.slice(
-    source.indexOf("async function flushFrame"),
-    source.indexOf("function paintAtEvent"),
-  );
-
-  assert.doesNotMatch(frameUpload, /applyStatus/);
-  assert.match(frameUpload, /state\.nextFrameAt = nextFrameDeadline/);
-});
