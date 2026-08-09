@@ -11,7 +11,6 @@ from src.twinkly_protocol import (
     calculate_layout,
     choose_stream_fps,
     fused_channel_permutation,
-    next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
     oriented_raster_movie_to_device,
@@ -44,14 +43,6 @@ class TwinklyClientTests(unittest.TestCase):
         device = {"frame_rate": 25, "measured_frame_rate": 23.26}
 
         self.assertEqual(choose_stream_fps(device), 23.26)
-
-    def test_relay_skips_missed_deadlines_without_bursting(self) -> None:
-        interval = 1 / 37.5
-        self.assertAlmostEqual(next_stream_deadline(1.0, 1.01, interval), 1.0 + interval)
-        self.assertAlmostEqual(
-            next_stream_deadline(1.0, 1.04, interval),
-            1.04 + interval,
-        )
 
     @staticmethod
     def connected_client() -> TwinklyClient:
@@ -159,6 +150,11 @@ class TwinklyClientTests(unittest.TestCase):
         self.assertEqual(telemetry["missedDeadlines"], 0)
         self.assertAlmostEqual(telemetry["actualFps"], 36.36, places=2)
         self.assertEqual(telemetry["maxGapMs"], 28.0)
+        # Fresh-frame cadence excludes the keepalive repeat: the two
+        # unique sends at 1.000 and 1.055 are 55 ms apart.
+        self.assertAlmostEqual(telemetry["uniqueFps"], 18.18, places=2)
+        self.assertEqual(telemetry["p95UniqueGapMs"], 55.0)
+        self.assertEqual(telemetry["maxUniqueGapMs"], 55.0)
         client.close(restore_movie=False)
 
     def test_stream_telemetry_counts_full_deadline_misses(self) -> None:
@@ -485,6 +481,75 @@ class TwinklyClientTests(unittest.TestCase):
                 status["mode"] == "movie" and status["streaming"],
                 "mode reports stock playback while the relay is streaming",
             )
+        client.close(restore_movie=False)
+
+    def _streaming_client_with_recorder(self) -> tuple[TwinklyClient, list[bytes]]:
+        client = self.connected_client()
+        client.layout = Layout(1, 1, 1, (0,))
+        client.token = base64.b64encode(b"12345678").decode("ascii")
+        client.token_created_at = time.monotonic()
+        sent: list[bytes] = []
+        client._socket.close()
+        client._socket = type(
+            "RecordingSocket",
+            (),
+            {
+                "sendto": lambda _self, packet, _address: sent.append(packet),
+                "close": lambda _self: None,
+            },
+        )()
+        return client, sent
+
+    @staticmethod
+    def _wait_until(predicate, timeout: float = 2.0) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if predicate():
+                return True
+            time.sleep(0.005)
+        return False
+
+    def test_relay_forwards_a_fresh_frame_without_waiting_for_a_tick(self) -> None:
+        client, sent = self._streaming_client_with_recorder()
+        first = bytes([10, 20, 30])
+        second = bytes([40, 50, 60])
+
+        with (
+            patch.object(client, "request", return_value={}),
+            patch(
+                "src.twinkly_client.build_realtime_packets",
+                side_effect=lambda _token, frame: [frame],
+            ),
+        ):
+            client.set_raster_frame(first, 1, 1)
+            self.assertTrue(self._wait_until(lambda: first in sent))
+
+            posted_at = time.monotonic()
+            client.set_raster_frame(second, 1, 1)
+            self.assertTrue(self._wait_until(lambda: second in sent))
+            # The keepalive wait is 0.5 s; delivery well inside it proves
+            # the relay reacted to the frame, not to a clock tick.
+            self.assertLess(time.monotonic() - posted_at, 0.35)
+        client.close(restore_movie=False)
+
+    def test_idle_relay_repeats_the_last_frame_as_keepalive(self) -> None:
+        client, sent = self._streaming_client_with_recorder()
+        frame = bytes([7, 8, 9])
+
+        with (
+            patch("src.twinkly_client.STREAM_KEEPALIVE_SECONDS", 0.05),
+            patch.object(client, "request", return_value={}),
+            patch(
+                "src.twinkly_client.build_realtime_packets",
+                side_effect=lambda _token, packet_frame: [packet_frame],
+            ),
+        ):
+            client.set_raster_frame(frame, 1, 1)
+            self.assertTrue(
+                self._wait_until(lambda: len(sent) >= 3),
+                "idle relay stopped refreshing realtime mode",
+            )
+            self.assertEqual(set(list(sent)), {frame})
         client.close(restore_movie=False)
 
     def test_stock_mode_brightness_uses_device_endpoint(self) -> None:

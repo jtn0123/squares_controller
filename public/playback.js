@@ -37,11 +37,18 @@ export function releaseAudioResources() {
   $("#mediaModeReadout").textContent = "IDLE";
 }
 
+// Producer loops store either a requestAnimationFrame id (clip playback,
+// transitions) or a cancel function returned by startPacedLoop.
+function cancelFrameLoop(handle) {
+  if (typeof handle === "function") handle();
+  else if (handle) cancelAnimationFrame(handle);
+}
+
 export function stopAnimation(showNotice = false) {
   const wasAudio = state.animationName === "audio";
   const wasClip = state.animationName === "clip";
   state.transitionToken += 1;
-  if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
+  cancelFrameLoop(state.animationFrame);
   state.animationFrame = null;
   state.animationName = null;
   if (wasAudio) releaseAudioResources();
@@ -61,7 +68,7 @@ export function stopAnimation(showNotice = false) {
 }
 
 export function stopMedia(showNotice = false) {
-  if (state.mediaFrame) cancelAnimationFrame(state.mediaFrame);
+  cancelFrameLoop(state.mediaFrame);
   state.mediaFrame = null;
   state.mediaElement?.pause?.();
   if (state.mediaElement instanceof HTMLVideoElement) {

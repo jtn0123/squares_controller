@@ -16,11 +16,7 @@ import {
   normalizeAudioControls,
   renderAudioFrame,
 } from "./live_input_model.js";
-import {
-  alignFrameTime,
-  FRAME_INTERVAL_MS,
-  uploadInterval,
-} from "./frame_timing.js";
+import { FRAME_INTERVAL_MS, startPacedLoop } from "./frame_timing.js";
 
 function currentAudioControls() {
   return normalizeAudioControls({
@@ -103,39 +99,35 @@ async function startMicrophoneInput() {
       ) {
         return;
       }
-      if (now - state.audioLastFrame >= uploadInterval()) {
-        const settings = currentAudioControls();
-        state.audioAnalyser.getByteFrequencyData(state.audioData);
-        const metrics = measureAudioBands(
-          state.audioData,
-          settings.sensitivity,
-        );
-        state.audioBeatState = detectAudioBeat(
-          state.audioBeatState,
-          metrics.bass,
-          now,
-        );
-        state.pixels.set(
-          renderAudioFrame({
-            width: state.width,
-            height: state.height,
-            bins: state.audioData,
-            mode: settings.mode,
-            sensitivity: settings.sensitivity,
-            palette: state.palette.colors,
-            time: (now - startedAt) / 1000,
-            beatPulse: state.audioBeatState.pulse,
-          }),
-        );
-        updateAudioMeters(metrics);
-        render();
-        scheduleFrame();
-        state.audioLastFrame = alignFrameTime(state.audioLastFrame, now);
-      }
-      state.animationFrame = requestAnimationFrame(tick);
+      const settings = currentAudioControls();
+      state.audioAnalyser.getByteFrequencyData(state.audioData);
+      const metrics = measureAudioBands(
+        state.audioData,
+        settings.sensitivity,
+      );
+      state.audioBeatState = detectAudioBeat(
+        state.audioBeatState,
+        metrics.bass,
+        now,
+      );
+      state.pixels.set(
+        renderAudioFrame({
+          width: state.width,
+          height: state.height,
+          bins: state.audioData,
+          mode: settings.mode,
+          sensitivity: settings.sensitivity,
+          palette: state.palette.colors,
+          time: (now - startedAt) / 1000,
+          beatPulse: state.audioBeatState.pulse,
+        }),
+      );
+      updateAudioMeters(metrics);
+      render();
+      scheduleFrame();
     };
     $("#mediaModeReadout").textContent = "MIC LIVE";
-    state.animationFrame = requestAnimationFrame(tick);
+    state.animationFrame = startPacedLoop(tick);
     toast("Microphone visualizer is live.");
   } catch (error) {
     if (state.audioStream === stream) {

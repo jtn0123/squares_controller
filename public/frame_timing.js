@@ -34,3 +34,38 @@ export function nextFrameDeadline(previous, now, interval = uploadIntervalMs) {
   const target = previous + interval;
   return target <= now ? now + interval : target;
 }
+
+// Producer loops run on a drift-corrected timer, not requestAnimationFrame:
+// rAF quantizes every frame to the display's 60 Hz grid, so a 36 fps
+// cadence degenerates into 33/33/33/17 ms bursts — visible judder on the
+// wall. A timer fires within a millisecond or two of each deadline and the
+// deadline chain never accumulates drift. Ticks pause while the tab is
+// hidden (matching rAF) and resume immediately when it returns.
+export function startPacedLoop(tick, getIntervalMs = uploadInterval) {
+  let timer = null;
+  let deadline = 0;
+  let stopped = false;
+  const run = () => {
+    const now = performance.now();
+    if (!document.hidden) tick(now);
+    if (stopped) return;
+    deadline = nextFrameDeadline(deadline, now, getIntervalMs());
+    timer = setTimeout(run, Math.max(0, deadline - performance.now()));
+  };
+  const onVisibility = () => {
+    // A background tab's throttled timer can be minutes away; rejoin the
+    // cadence immediately when the tab becomes visible again.
+    if (!document.hidden && !stopped) {
+      clearTimeout(timer);
+      deadline = 0;
+      run();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+  timer = setTimeout(run, getIntervalMs());
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+}

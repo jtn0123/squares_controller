@@ -6,6 +6,7 @@ import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { setOutputContext } from "./monitor.js";
 import { zoneContains } from "./zone_model.js";
+import { startPacedLoop } from "./frame_timing.js";
 
 function readTextControls() {
   const select = $("#fontSelect");
@@ -67,7 +68,6 @@ function startTextMode(text, clock = false) {
     .createElement("canvas")
     .getContext("2d", { willReadFrequently: true });
   let offset = state.width;
-  let previousFrame = 0;
 
   const drawText = (content) => {
     textContext.font = `700 ${state.textSize}px ${state.textFont}`;
@@ -114,16 +114,14 @@ function startTextMode(text, clock = false) {
     scheduleFrame();
   };
 
-  const tick = (now) => {
-    if (state.animationName !== (clock ? "clock" : "message")) return;
-    if (now - previousFrame >= (clock ? 500 : 90)) {
+  state.animationFrame = startPacedLoop(
+    () => {
+      if (state.animationName !== (clock ? "clock" : "message")) return;
       advance();
       paintFrame();
-      previousFrame = now;
-    }
-    state.animationFrame = requestAnimationFrame(tick);
-  };
-  state.animationFrame = requestAnimationFrame(tick);
+    },
+    () => (clock ? 500 : 90),
+  );
 }
 
 export function initializeTextStudio() {

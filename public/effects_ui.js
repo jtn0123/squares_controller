@@ -20,7 +20,7 @@ import { CURATED_PALETTES } from "./palette_model.js";
 import { normalizeSegment, segmentSourceIndex } from "./segment_model.js";
 import { blendRgb } from "./blend_model.js";
 import { renderEffectPreview } from "./effect_preview_model.js";
-import { alignFrameTime, uploadInterval } from "./frame_timing.js";
+import { startPacedLoop, uploadInterval } from "./frame_timing.js";
 
 let effectPreviewQueued = false;
 
@@ -209,31 +209,28 @@ export function startGeneratedEffect(name, { preserveOutput = false } = {}) {
     card.classList.add("active");
     card.setAttribute("aria-pressed", "true");
   }
-  const startedAt = performance.now();
   const backdrop = state.pixels.slice();
   const primaryBuffer = new Uint8Array(state.pixels.length);
   const overlayBuffer = new Uint8Array(state.pixels.length);
-  let previousFrame = startedAt;
+  // Fixed timestep: motion advances exactly one upload interval per frame,
+  // so a late tick shifts the frame slightly in time instead of jumping
+  // the animation — even steps are what reads as smooth on the wall.
+  let time = 0;
 
-  const tick = (now) => {
+  state.animationFrame = startPacedLoop(() => {
     if (state.animationName !== name) return;
-    if (now - previousFrame >= uploadInterval()) {
-      const time = (now - startedAt) / 1000;
-      renderGeneratedFrame(
-        name,
-        time,
-        backdrop,
-        state.pixels,
-        primaryBuffer,
-        overlayBuffer,
-      );
-      render();
-      scheduleFrame();
-      previousFrame = alignFrameTime(previousFrame, now);
-    }
-    state.animationFrame = requestAnimationFrame(tick);
-  };
-  state.animationFrame = requestAnimationFrame(tick);
+    time += uploadInterval() / 1000;
+    renderGeneratedFrame(
+      name,
+      time,
+      backdrop,
+      state.pixels,
+      primaryBuffer,
+      overlayBuffer,
+    );
+    render();
+    scheduleFrame();
+  });
 }
 
 export function renderEffectPreviews() {
