@@ -3,7 +3,7 @@
   "info": {
     "title": "Squares Controller Local API",
     "version": "1.0",
-    "description": "Loopback-first JSON control for a local Twinkly Squares controller."
+    "description": "Loopback-first JSON control for a local Twinkly Squares controller. This document intentionally covers only the stable versioned /api/v1 surface (plus /api/runtime-policy); the unversioned /api/* routes are internal to the bundled web UI and share the same validation, but may change without notice. Frame commands accept either a `pixels` integer array or a compact `pixelsBase64` string."
   },
   "servers": [
     {
@@ -55,45 +55,97 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["action", "mode"],
+                    "required": [
+                      "action",
+                      "mode"
+                    ],
                     "properties": {
-                      "action": { "const": "mode" },
-                      "mode": { "enum": ["off", "movie"] }
+                      "action": {
+                        "const": "mode"
+                      },
+                      "mode": {
+                        "enum": [
+                          "off",
+                          "movie"
+                        ]
+                      }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["action", "value"],
+                    "required": [
+                      "action",
+                      "value"
+                    ],
                     "properties": {
-                      "action": { "const": "brightness" },
-                      "value": { "type": "number", "minimum": 1, "maximum": 100 }
+                      "action": {
+                        "const": "brightness"
+                      },
+                      "value": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 100
+                      }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["action", "degrees"],
+                    "required": [
+                      "action",
+                      "degrees"
+                    ],
                     "properties": {
-                      "action": { "const": "rotation" },
-                      "degrees": { "enum": [0, 90, 180, 270] }
+                      "action": {
+                        "const": "rotation"
+                      },
+                      "degrees": {
+                        "enum": [
+                          0,
+                          90,
+                          180,
+                          270
+                        ]
+                      }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["action"],
+                    "required": [
+                      "action"
+                    ],
                     "properties": {
-                      "action": { "const": "status" }
+                      "action": {
+                        "const": "status"
+                      }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["action", "width", "height", "pixels"],
+                    "required": [
+                      "action",
+                      "width",
+                      "height",
+                      "pixels"
+                    ],
                     "properties": {
-                      "action": { "const": "frame" },
-                      "width": { "type": "integer", "minimum": 1 },
-                      "height": { "type": "integer", "minimum": 1 },
+                      "action": {
+                        "const": "frame"
+                      },
+                      "width": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "height": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
                       "pixels": {
                         "type": "array",
-                        "items": { "type": "number", "minimum": 0, "maximum": 255 }
+                        "items": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 255
+                        }
                       }
                     }
                   }
@@ -131,10 +183,18 @@
                 "type": "object",
                 "properties": {
                   "startupAction": {
-                    "enum": ["unchanged", "stock", "off"]
+                    "enum": [
+                      "unchanged",
+                      "stock",
+                      "off"
+                    ]
                   },
                   "frameLossAction": {
-                    "enum": ["hold", "stock", "off"]
+                    "enum": [
+                      "hold",
+                      "stock",
+                      "off"
+                    ]
                   },
                   "frameLossSeconds": {
                     "type": "integer",

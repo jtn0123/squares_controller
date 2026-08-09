@@ -14,6 +14,11 @@ class StateEvent:
     payload: dict[str, Any]
 
 
+# Monotonically increasing counters would defeat deduplication: two statuses
+# that differ only in telemetry are the same state as far as the UI cares.
+VOLATILE_STATUS_KEYS = frozenset({"streamTelemetry"})
+
+
 class StateBroker:
     """Thread-safe, deduplicated state fan-out for browser clients."""
 
@@ -25,7 +30,14 @@ class StateBroker:
     def publish(self, payload: dict[str, Any], source: str) -> StateEvent:
         event_payload = copy.deepcopy(payload)
         fingerprint = json.dumps(
-            {"source": source, "payload": event_payload},
+            {
+                "source": source,
+                "payload": {
+                    key: value
+                    for key, value in event_payload.items()
+                    if key not in VOLATILE_STATUS_KEYS
+                },
+            },
             sort_keys=True,
             separators=(",", ":"),
         )

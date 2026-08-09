@@ -3,9 +3,10 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from src.twinkly_client import (
+from src.twinkly_client import TwinklyClient
+from src.twinkly_protocol import (
     Layout,
-    TwinklyClient,
+    TwinklyHTTPError,
     build_realtime_packets,
     calculate_layout,
     choose_stream_fps,
@@ -84,9 +85,7 @@ class TwinklyClientTests(unittest.TestCase):
             if path == "/led/out/brightness":
                 return {"value": 24}
             if path == "/led/movies/current":
-                raise ConnectionError(
-                    "Twinkly /led/movies/current failed with HTTP 404."
-                )
+                raise TwinklyHTTPError("/led/movies/current", 404)
             if path == "/movies/current":
                 return {
                     "id": 14,
@@ -134,7 +133,7 @@ class TwinklyClientTests(unittest.TestCase):
             if path == "/led/out/brightness":
                 return {"value": 24}
             if path in {"/led/movies/current", "/movies/current"}:
-                raise ConnectionError(f"Twinkly {path} failed with HTTP 404.")
+                raise TwinklyHTTPError(path, 404)
             raise AssertionError(f"Unexpected request: {path}")
 
         with patch.object(client, "request", side_effect=request):
