@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "squares",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py"],
+      "port": 4312
+    }
+  ]
+}
