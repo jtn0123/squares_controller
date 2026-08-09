@@ -46,12 +46,13 @@ function normalizeFolder(value: unknown): string {
     : "";
 }
 
+function rawTagList(value: unknown): readonly unknown[] {
+  if (Array.isArray(value)) return value;
+  return typeof value === "string" ? value.split(",") : [];
+}
+
 export function parseSceneTags(value: unknown): string[] {
-  const raw: readonly unknown[] = Array.isArray(value)
-    ? value
-    : typeof value === "string"
-      ? value.split(",")
-      : [];
+  const raw = rawTagList(value);
   const tags: string[] = [];
   for (const item of raw) {
     if (typeof item !== "string") continue;
