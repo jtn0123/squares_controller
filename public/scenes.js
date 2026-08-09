@@ -7,7 +7,7 @@ import {
 } from "./app_state.js";
 import { api, scheduleFrame, toast } from "./net.js";
 import { stopAnimation, stopMedia } from "./playback.js";
-import { drawRgbCanvas, render } from "./render_core.js";
+import { drawRgbCanvas, invalidateSceneMirror, render } from "./render_core.js";
 import { sceneKey, scenePreviewPixels, setOutputContext } from "./monitor.js";
 import { effectPainters } from "./effect_painters.js";
 import {
@@ -418,6 +418,7 @@ export function renderPresets() {
     empty.textContent = "NO SCENES MATCH THIS VIEW.";
     presetList.append(empty);
   }
+  invalidateSceneMirror();
   $("#sceneFilterCount").textContent =
     `${coreScenes.length} CORE / ${savedScenes.length}` +
     `${savedScenes.length === state.library.scenes.length ? "" : ` OF ${state.library.scenes.length}`} SAVED`;

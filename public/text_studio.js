@@ -30,6 +30,9 @@ function startTextMode(text, clock = false) {
   });
   const textCanvas = document.createElement("canvas");
   const textContext = textCanvas.getContext("2d");
+  // One sampling surface for the whole run; allocating a canvas per tick
+  // is one of the most expensive things a frame loop can do.
+  const sampleContext = document.createElement("canvas").getContext("2d");
   let offset = state.width;
   let previousFrame = 0;
 
@@ -77,9 +80,12 @@ function startTextMode(text, clock = false) {
         }
       }
 
-      const sampleContext = document.createElement("canvas").getContext("2d");
-      sampleContext.canvas.width = state.width;
-      sampleContext.canvas.height = state.height;
+      if (sampleContext.canvas.width !== state.width) {
+        sampleContext.canvas.width = state.width;
+      }
+      if (sampleContext.canvas.height !== state.height) {
+        sampleContext.canvas.height = state.height;
+      }
       sampleContext.clearRect(0, 0, state.width, state.height);
       sampleContext.drawImage(textCanvas, offset, 0);
       const image = sampleContext.getImageData(0, 0, state.width, state.height).data;

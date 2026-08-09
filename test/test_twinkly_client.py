@@ -10,6 +10,7 @@ from src.twinkly_protocol import (
     build_realtime_packets,
     calculate_layout,
     choose_stream_fps,
+    fused_channel_permutation,
     next_stream_deadline,
     oriented_dimensions,
     oriented_raster_to_device_frame,
@@ -223,6 +224,39 @@ class TwinklyClientTests(unittest.TestCase):
             oriented_raster_to_device_frame(portrait, 2, 3, layout, 270)[::3],
             bytes([5, 3, 1, 6, 4, 2]),
         )
+
+    def test_fused_permutation_matches_reference_transform(self) -> None:
+        layout = calculate_layout(rectangular_coordinates(6, 4))
+        frame = bytes((index * 7) % 256 for index in range(layout.led_count * 3))
+        for rotation in (0, 90, 180, 270):
+            width, height = oriented_dimensions(layout, rotation)
+            expected = oriented_raster_to_device_frame(
+                frame, width, height, layout, rotation
+            )
+            perm = fused_channel_permutation(layout, rotation)
+            self.assertEqual(
+                bytes(map(frame.__getitem__, perm)),
+                expected,
+                f"fused permutation diverges at {rotation} degrees",
+            )
+
+    def test_client_uses_cached_permutation_for_frames(self) -> None:
+        client = self.connected_client()
+        client.layout = Layout(2, 1, 2, (1, 0))
+        frame = bytes([255, 0, 0, 0, 0, 255])
+
+        self.assertEqual(
+            client._oriented_device_frame(frame, 2, 1),
+            bytes([0, 0, 255, 255, 0, 0]),
+        )
+        # Second call hits the cache and must produce the same mapping.
+        self.assertEqual(
+            client._oriented_device_frame(frame, 2, 1),
+            bytes([0, 0, 255, 255, 0, 0]),
+        )
+        with self.assertRaisesRegex(ValueError, "must be 2x1"):
+            client._oriented_device_frame(frame, 1, 2)
+        client.close(restore_movie=False)
 
     def test_rejects_invalid_display_rotation(self) -> None:
         layout = Layout(3, 2, 6, tuple(range(6)))

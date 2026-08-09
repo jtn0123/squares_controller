@@ -1,7 +1,7 @@
 import { $, $$, brightnessSlider, stage, sceneMonitorCanvas, updateRangeFill } from "./dom.js";
 import { state, painterContext } from "./app_state.js";
 import { clampByte } from "./color_utils.js";
-import { drawRgbCanvas } from "./render_core.js";
+import { drawRgbCanvas, invalidateSceneMirror } from "./render_core.js";
 import { effectPainters } from "./effect_painters.js";
 import { effectById } from "./effect_catalog.js";
 import { describeZone } from "./zone_model.js";
@@ -133,6 +133,7 @@ export function updatePresetSelection() {
           : "SAVED";
     }
   });
+  invalidateSceneMirror();
 }
 
 export function setOutputContext(output) {

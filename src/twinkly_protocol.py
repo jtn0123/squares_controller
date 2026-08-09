@@ -20,6 +20,7 @@ Protocol notes (XLED v1):
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Any
 import base64
@@ -227,6 +228,50 @@ def oriented_raster_movie_to_device(
     return bytes(output)
 
 
+def fused_channel_permutation(
+    layout: Layout, rotation: int | float | str
+) -> tuple[int, ...]:
+    """Channel index map for the full oriented-raster-to-device transform.
+
+    `output[k] = source[perm[k]]` reproduces
+    `oriented_raster_to_device_frame` exactly, but the mapping depends only
+    on (layout, rotation), so the relay computes it once per rotation change
+    instead of running two Python loops on every frame.
+    """
+    normalized = validate_rotation(rotation)
+    expected_width, expected_height = oriented_dimensions(layout, normalized)
+
+    # native raster index -> oriented source index
+    native_from_source = [0] * layout.led_count
+    for display_y in range(expected_height):
+        for display_x in range(expected_width):
+            if normalized == 0:
+                native_x, native_y = display_x, display_y
+            elif normalized == 90:
+                native_x = display_y
+                native_y = layout.height - 1 - display_x
+            elif normalized == 180:
+                native_x = layout.width - 1 - display_x
+                native_y = layout.height - 1 - display_y
+            else:
+                native_x = layout.width - 1 - display_y
+                native_y = display_x
+            native_from_source[native_y * layout.width + native_x] = (
+                display_y * expected_width + display_x
+            )
+
+    perm: list[int] = []
+    for raster_index in layout.device_to_raster:
+        source_offset = native_from_source[raster_index] * 3
+        perm.extend((source_offset, source_offset + 1, source_offset + 2))
+    return tuple(perm)
+
+
+@functools.lru_cache(maxsize=8)
+def _brightness_table(percent: int) -> bytes:
+    return bytes((channel * percent + 50) // 100 for channel in range(256))
+
+
 def scale_frame_brightness(frame: bytes, brightness: int | float) -> bytes:
     """Apply the controller's logical brightness to a realtime RGB frame."""
     percent = max(0, min(100, round(float(brightness))))
@@ -234,19 +279,26 @@ def scale_frame_brightness(frame: bytes, brightness: int | float) -> bytes:
         return frame
     if percent == 0:
         return bytes(len(frame))
-    return bytes((channel * percent + 50) // 100 for channel in frame)
+    # bytes.translate runs in C; the 256-entry table is cached per percent.
+    return frame.translate(_brightness_table(percent))
+
+
+@functools.lru_cache(maxsize=4)
+def _decoded_token(token: str) -> bytes:
+    token_bytes = base64.b64decode(token)
+    if len(token_bytes) != 8:
+        raise ValueError("The controller supplied an invalid realtime token.")
+    return token_bytes
 
 
 def build_realtime_packets(token: str, device_frame: bytes) -> list[bytes]:
     """Split a device-ordered RGB frame into version-3 realtime datagrams.
 
     See the module docstring for the byte layout. The decoded token must be
-    exactly 8 bytes; the controller rejects other lengths.
+    exactly 8 bytes; the controller rejects other lengths. Tokens rotate at
+    most every few hours, so the decode is cached.
     """
-    token_bytes = base64.b64decode(token)
-    if len(token_bytes) != 8:
-        raise ValueError("The controller supplied an invalid realtime token.")
-
+    token_bytes = _decoded_token(token)
     packets: list[bytes] = []
     for fragment, offset in enumerate(
         range(0, len(device_frame), FRAME_CHUNK_SIZE)

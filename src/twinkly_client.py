@@ -29,9 +29,9 @@ from src.twinkly_protocol import (
     build_realtime_packets,
     calculate_layout,
     choose_stream_fps,
+    fused_channel_permutation,
     next_stream_deadline,
     oriented_dimensions,
-    oriented_raster_to_device_frame,
     scale_frame_brightness,
     stream_interval_seconds,
     validate_rotation,
@@ -64,6 +64,12 @@ class TwinklyClient:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._frame_version = 0
         self._telemetry = StreamTelemetry()
+        # Hot-path caches: the channel permutation is pure in
+        # (layout, rotation); the scaled frame repeats unchanged while the
+        # relay holds a static look.
+        self._channel_perm: tuple[int, ...] | None = None
+        self._channel_perm_key: tuple[int, int] | None = None
+        self._scaled_frame_cache: tuple[bytes, int, bytes] | None = None
 
     def _fetch_json(
         self,
@@ -355,19 +361,47 @@ class TwinklyClient:
             fps=fps,
         )
 
+    def _oriented_device_frame(
+        self, pixels: bytes | bytearray | list[int], width: int, height: int
+    ) -> bytes:
+        assert self.layout is not None
+        layout = self.layout
+        with self._lock:
+            rotation = self.rotation
+            cache_key = (id(layout), rotation)
+            perm = (
+                self._channel_perm
+                if self._channel_perm_key == cache_key
+                else None
+            )
+        if perm is None:
+            perm = fused_channel_permutation(layout, rotation)
+            with self._lock:
+                self._channel_perm = perm
+                self._channel_perm_key = cache_key
+
+        expected_width, expected_height = oriented_dimensions(layout, rotation)
+        if int(width) != expected_width or int(height) != expected_height:
+            raise ValueError(
+                f"Frame must be {expected_width}x{expected_height} pixels "
+                f"at {rotation} degrees."
+            )
+        source = bytes(pixels)
+        expected_channels = layout.led_count * 3
+        if len(source) != expected_channels:
+            raise ValueError(
+                f"Expected {expected_channels} RGB values; "
+                f"received {len(source)}."
+            )
+        return bytes(map(source.__getitem__, perm))
+
     def set_raster_frame(
         self, pixels: bytes | bytearray | list[int], width: int, height: int
     ) -> dict[str, Any]:
         if self.layout is None:
             self.connect()
         assert self.layout is not None
-        frame = oriented_raster_to_device_frame(
-            pixels,
-            width,
-            height,
-            self.layout,
-            self.rotation,
-        )
+        frame = self._oriented_device_frame(pixels, width, height)
         with self._lock:
             self.last_frame = frame
             self._frame_version += 1
@@ -414,7 +448,12 @@ class TwinklyClient:
                 frame_version = self._frame_version
             if frame is None:
                 return
-            output_frame = scale_frame_brightness(frame, brightness)
+            cache = self._scaled_frame_cache
+            if cache is not None and cache[0] is frame and cache[1] == brightness:
+                output_frame = cache[2]
+            else:
+                output_frame = scale_frame_brightness(frame, brightness)
+                self._scaled_frame_cache = (frame, brightness, output_frame)
             for packet in build_realtime_packets(token, output_frame):
                 self._socket.sendto(packet, (self.ip, UDP_PORT))
             sent_at = time.monotonic()

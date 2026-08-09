@@ -11,6 +11,10 @@ export function setPixel(x, y, rgb) {
   state.pixels[offset + 2] = rgb[2];
 }
 
+// Reused per-canvas pixel buffers: the mirrors redraw at the frame rate,
+// and allocating a fresh ImageData each time is measurable GC churn.
+const imageDataCache = new WeakMap();
+
 export function drawRgbCanvas(targetCanvas, pixels, width, height) {
   if (
     !targetCanvas ||
@@ -22,7 +26,11 @@ export function drawRgbCanvas(targetCanvas, pixels, width, height) {
   if (targetCanvas.width !== width) targetCanvas.width = width;
   if (targetCanvas.height !== height) targetCanvas.height = height;
   const targetContext = targetCanvas.getContext("2d", { alpha: false });
-  const image = targetContext.createImageData(width, height);
+  let image = imageDataCache.get(targetCanvas);
+  if (!image || image.width !== width || image.height !== height) {
+    image = targetContext.createImageData(width, height);
+    imageDataCache.set(targetCanvas, image);
+  }
   for (let source = 0, destination = 0; source < pixels.length; source += 3) {
     image.data[destination] = pixels[source];
     image.data[destination + 1] = pixels[source + 1];
@@ -34,6 +42,15 @@ export function drawRgbCanvas(targetCanvas, pixels, width, height) {
   return true;
 }
 
+// The active scene row changes only on selection, so the render loop must
+// not pay for a descendant query per frame; monitor.js invalidates this.
+let activeMirrorCanvas = null;
+let activeMirrorStale = true;
+
+export function invalidateSceneMirror() {
+  activeMirrorStale = true;
+}
+
 export function renderSceneMirrors() {
   drawRgbCanvas(
     sceneMonitorCanvas,
@@ -41,15 +58,19 @@ export function renderSceneMirrors() {
     state.width,
     state.height,
   );
-  const activeSceneCanvas = $(".preset-row.active .scene-preview-canvas");
-  if (activeSceneCanvas) {
-    drawRgbCanvas(activeSceneCanvas, state.pixels, state.width, state.height);
+  if (activeMirrorStale) {
+    activeMirrorCanvas = $(".preset-row.active .scene-preview-canvas");
+    activeMirrorStale = false;
+  }
+  if (activeMirrorCanvas?.isConnected) {
+    drawRgbCanvas(activeMirrorCanvas, state.pixels, state.width, state.height);
   }
 }
 
 export function render() {
   const cellWidth = canvas.width / state.width;
   const cellHeight = canvas.height / state.height;
+  const gap = Math.max(1.5, cellWidth * 0.075);
   context.fillStyle = "#030403";
   context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -60,7 +81,6 @@ export function render() {
       const green = state.pixels[offset + 1];
       const blue = state.pixels[offset + 2];
       const active = red + green + blue > 3;
-      const gap = Math.max(1.5, cellWidth * 0.075);
       context.fillStyle = active
         ? `rgb(${red}, ${green}, ${blue})`
         : (x + y) % 2
