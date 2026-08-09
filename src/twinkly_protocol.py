@@ -66,11 +66,6 @@ def stream_interval_seconds(device: dict[str, Any] | None) -> float:
     return 1.0 / choose_stream_fps(device)
 
 
-def next_stream_deadline(previous: float, now: float, interval: float) -> float:
-    target = previous + interval
-    return now + interval if target <= now else target
-
-
 @dataclass(frozen=True)
 class Layout:
     width: int

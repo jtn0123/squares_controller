@@ -156,8 +156,10 @@ export function updateStreamTelemetry(raw) {
     telemetry.uniqueFrames.toLocaleString();
   $("#streamRepeatReadout").textContent =
     telemetry.repeatedFrames.toLocaleString();
+  // Fresh-frame gaps, not raw send gaps: idle keepalive repeats would
+  // otherwise read as 500 ms "stutter" while the wall holds a still frame.
   $("#streamGapReadout").textContent =
-    telemetry.p95GapMs ? `${telemetry.p95GapMs.toFixed(2)} ms` : "—";
+    telemetry.p95UniqueGapMs ? `${telemetry.p95UniqueGapMs.toFixed(2)} ms` : "—";
   $("#streamMissedReadout").textContent =
     telemetry.missedDeadlines.toLocaleString();
   if (state.controllerStatus) {

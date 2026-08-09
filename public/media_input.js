@@ -5,7 +5,7 @@ import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { setOutputContext } from "./monitor.js";
 import { adjustRgb, fitRect, normalizeMediaControls } from "./media_model.js";
-import { alignFrameTime, uploadInterval } from "./frame_timing.js";
+import { startPacedLoop } from "./frame_timing.js";
 
 function currentMediaControls() {
   return normalizeMediaControls({
@@ -76,16 +76,13 @@ export function drawMediaFrame() {
 }
 
 export function startMediaLoop(kind) {
-  const tick = (now) => {
-    if (!state.mediaElement) return;
-    if (now - state.mediaLastFrame >= uploadInterval()) {
-      drawMediaFrame();
-      state.mediaLastFrame = alignFrameTime(state.mediaLastFrame, now);
-    }
-    state.mediaFrame = requestAnimationFrame(tick);
-  };
   $("#mediaModeReadout").textContent = kind;
-  state.mediaFrame = requestAnimationFrame(tick);
+  // Video and GIF content advance on their own clock; sampling them at a
+  // steady cadence is what keeps their motion even on the wall.
+  state.mediaFrame = startPacedLoop(() => {
+    if (!state.mediaElement) return;
+    drawMediaFrame();
+  });
 }
 
 function updateMediaControls() {

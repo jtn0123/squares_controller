@@ -1,6 +1,7 @@
 const FIELDS = [
   "targetFps",
   "actualFps",
+  "uniqueFps",
   "sentFrames",
   "uniqueFrames",
   "repeatedFrames",
@@ -8,6 +9,8 @@ const FIELDS = [
   "missedDeadlines",
   "p95GapMs",
   "maxGapMs",
+  "p95UniqueGapMs",
+  "maxUniqueGapMs",
   "p95LatenessMs",
 ];
 
@@ -24,15 +27,16 @@ export function normalizeStreamTelemetry(raw) {
 export function streamHealth(raw) {
   const telemetry = normalizeStreamTelemetry(raw);
   if (telemetry.sentFrames < 2) return "idle";
-  // Ordinary OS scheduling jitter pushes p95 a few ms past the interval;
-  // the deadline-skipping relay absorbs that by design. Only a gap of more
-  // than a full extra frame period, a missed deadline, or a sagging rate
-  // means the clock is actually in trouble.
-  const expectedGap = telemetry.targetFps ? 1000 / telemetry.targetFps : 0;
+  // The relay forwards fresh frames the moment they arrive and only
+  // repeats to keep realtime mode alive, so overall send gaps say nothing
+  // about smoothness. What the wall feels is the cadence of fresh
+  // content: judge its p95 gap against its own average. Holding a static
+  // frame (no fresh cadence at all) is healthy.
+  if (telemetry.uniqueFrames < 2 || !telemetry.uniqueFps) return "locked";
+  const expectedGap = 1000 / telemetry.uniqueFps;
   if (
     telemetry.missedDeadlines > 0 ||
-    telemetry.actualFps < telemetry.targetFps - 0.75 ||
-    (expectedGap && telemetry.p95GapMs > expectedGap * 2)
+    telemetry.p95UniqueGapMs > expectedGap * 2
   ) {
     return "warning";
   }
