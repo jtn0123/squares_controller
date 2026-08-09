@@ -9,6 +9,12 @@
     />
     <title>Squares Controller</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles-stage.css" />
+    <link rel="stylesheet" href="/styles-media.css" />
+    <link rel="stylesheet" href="/styles-palette.css" />
+    <link rel="stylesheet" href="/styles-composer.css" />
+    <link rel="stylesheet" href="/styles-scenes.css" />
+    <link rel="stylesheet" href="/styles-automation.css" />
   </head>
   <body>
     <div class="ambient-grid" aria-hidden="true"></div>
@@ -91,17 +97,17 @@
             </div>
           </div>
 
-          <div class="tool-cluster" role="group" aria-label="Brush size">
-            <button class="tool-button active" data-brush="1" type="button">
+          <div class="tool-cluster" role="radiogroup" aria-label="Brush size">
+            <button class="tool-button active" data-brush="1" type="button" role="radio" aria-checked="true">
               <span class="brush-dot brush-dot--1"></span>1
             </button>
-            <button class="tool-button" data-brush="2" type="button">
+            <button class="tool-button" data-brush="2" type="button" role="radio" aria-checked="false">
               <span class="brush-dot brush-dot--2"></span>2
             </button>
-            <button class="tool-button" data-brush="3" type="button">
+            <button class="tool-button" data-brush="3" type="button" role="radio" aria-checked="false">
               <span class="brush-dot brush-dot--3"></span>3
             </button>
-            <button class="tool-button" id="eraserButton" type="button">
+            <button class="tool-button" id="eraserButton" type="button" aria-pressed="false">
               ERASE
             </button>
           </div>
@@ -236,7 +242,7 @@
             <button id="updateClipFrame" type="button">UPDATE SELECTED</button>
             <button id="duplicateClipFrame" type="button">DUPLICATE</button>
             <button id="deleteClipFrame" type="button">DELETE</button>
-            <button class="clip-play" id="playClip" type="button">▶ PLAY LOOP</button>
+            <button class="clip-play" id="playClip" type="button" aria-pressed="false">▶ PLAY LOOP</button>
           </div>
           <div class="clip-duration">
             <label for="clipFrameDuration">SELECTED FRAME TIME</label>
@@ -257,9 +263,9 @@
       </section>
 
       <aside class="control-rack" aria-label="Panel controls">
-        <section class="rack-section power-section">
+        <section class="rack-section power-section" aria-labelledby="rackTitle01">
           <div class="rack-title">
-            <span>01 / OUTPUT</span>
+            <h2 id="rackTitle01">01 / OUTPUT</h2>
             <strong id="modeReadout">—</strong>
           </div>
           <div class="brightness-line">
@@ -305,9 +311,9 @@
           </div>
         </section>
 
-        <section class="rack-section">
+        <section class="rack-section" aria-labelledby="rackTitle02">
           <div class="rack-title">
-            <span>02 / MOTION STUDIES</span>
+            <h2 id="rackTitle02">02 / MOTION STUDIES</h2>
             <button class="stop-link" id="stopMotionButton" type="button">STOP</button>
           </div>
           <div class="effect-grid"></div>
@@ -377,6 +383,7 @@
                 <button id="addPaletteStopButton" type="button">+ COLOR STOP</button>
                 <input
                   id="paletteName"
+                  aria-label="Palette name"
                   type="text"
                   maxlength="48"
                   placeholder="PALETTE NAME"
@@ -439,6 +446,7 @@
               <div class="segment-action-line">
                 <input
                   id="segmentName"
+                  aria-label="Segment name"
                   type="text"
                   maxlength="32"
                   placeholder="SEGMENT NAME"
@@ -494,9 +502,9 @@
           </div>
         </section>
 
-        <section class="rack-section">
+        <section class="rack-section" aria-labelledby="rackTitle03">
           <div class="rack-title">
-            <span>03 / MESSAGE LINE</span>
+            <h2 id="rackTitle03">03 / MESSAGE LINE</h2>
             <strong>LOCAL</strong>
           </div>
           <label class="input-label" for="messageInput">SCROLL A MESSAGE</label>
@@ -543,9 +551,9 @@
           </div>
         </section>
 
-        <section class="rack-section">
+        <section class="rack-section" aria-labelledby="rackTitle04">
           <div class="rack-title">
-            <span>04 / SCENE DECK</span>
+            <h2 id="rackTitle04">04 / SCENE DECK</h2>
             <strong>PROGRAM + LIBRARY</strong>
           </div>
           <div class="scene-monitor" id="sceneMonitor" data-state="canvas">
@@ -587,6 +595,7 @@
             <div class="panel-bake-controls">
               <input
                 id="bakeMovieName"
+                aria-label="Panel movie name"
                 type="text"
                 maxlength="32"
                 placeholder="MOVIE NAME"
@@ -711,9 +720,9 @@
           <small class="local-note">Palettes, folders, tags, favorites, scenes, and playlists are included in each backup.</small>
         </section>
 
-        <section class="rack-section">
+        <section class="rack-section" aria-labelledby="rackTitle05">
           <div class="rack-title">
-            <span>05 / PLAYLIST RUNNER</span>
+            <h2 id="rackTitle05">05 / PLAYLIST RUNNER</h2>
             <button class="stop-link" id="stopPlaylistButton" type="button">STOP</button>
           </div>
           <div class="playlist-step-composer">
@@ -746,6 +755,7 @@
           <div class="playlist-save-line">
             <input
               id="playlistName"
+              aria-label="Playlist name"
               type="text"
               maxlength="48"
               placeholder="PLAYLIST NAME"
@@ -762,9 +772,9 @@
           <small class="local-note">Playback runs while this page is open.</small>
         </section>
 
-        <section class="rack-section">
+        <section class="rack-section" aria-labelledby="rackTitle06">
           <div class="rack-title">
-            <span>06 / AUTOMATION</span>
+            <h2 id="rackTitle06">06 / AUTOMATION</h2>
             <strong>SERVER CLOCK</strong>
           </div>
           <div class="timer-pair">
@@ -786,7 +796,7 @@
           </div>
           <div class="daily-automation">
             <div class="daily-automation-heading">RECURRING ACTION</div>
-            <input id="automationName" type="text" maxlength="48" placeholder="AUTOMATION NAME" />
+            <input id="automationName" type="text" maxlength="48" placeholder="AUTOMATION NAME" aria-label="Automation name" />
             <div class="daily-automation-grid">
               <label>
                 <span>TIME</span>
@@ -820,22 +830,22 @@
           <small class="local-note">Runs from this Mac while the controller server is open.</small>
         </section>
 
-        <section class="rack-section system-section">
+        <section class="rack-section system-section" aria-labelledby="rackTitle07">
           <div class="rack-title">
-            <span>07 / SYSTEM</span>
+            <h2 id="rackTitle07">07 / SYSTEM</h2>
             <strong id="firmwareReadout">FW —</strong>
           </div>
           <div class="rotation-line">
             <span>DISPLAY ORIENTATION</span>
             <div
               class="rotation-control"
-              role="group"
+              role="radiogroup"
               aria-label="Display orientation"
             >
-              <button class="active" data-rotation="0" type="button">0°</button>
-              <button data-rotation="90" type="button">90°</button>
-              <button data-rotation="180" type="button">180°</button>
-              <button data-rotation="270" type="button">270°</button>
+              <button class="active" data-rotation="0" type="button" role="radio" aria-checked="true">0°</button>
+              <button data-rotation="90" type="button" role="radio" aria-checked="false">90°</button>
+              <button data-rotation="180" type="button" role="radio" aria-checked="false">180°</button>
+              <button data-rotation="270" type="button" role="radio" aria-checked="false">270°</button>
             </div>
           </div>
           <details class="advanced-studio runtime-studio" id="runtimeStudio">

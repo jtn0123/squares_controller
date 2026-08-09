@@ -1,0 +1,439 @@
+
+.gradient-editor button {
+  align-self: end;
+  height: 29px;
+  color: var(--acid);
+  border: 1px solid #4a5831;
+  background: rgba(217, 255, 91, 0.04);
+  font: 750 8px/1 var(--font-condensed);
+  letter-spacing: 0.1em;
+}
+
+.zone-studio {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.zone-studio [hidden] {
+  display: none !important;
+}
+
+.zone-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.zone-heading label,
+.zone-axis-editor span,
+.zone-rect-editor span {
+  color: var(--muted);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.12em;
+}
+
+.zone-heading select,
+.zone-axis-editor input,
+.zone-rect-editor input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface-1);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.07em;
+}
+
+.panel-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--panel-columns), 1fr);
+  gap: 4px;
+}
+
+.panel-zone-grid button {
+  aspect-ratio: 1;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(rgba(238, 232, 217, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(238, 232, 217, 0.045) 1px, transparent 1px),
+    var(--surface-1);
+  background-size: 25% 25%;
+  font: 750 8px/1 var(--font-condensed);
+}
+
+.panel-zone-grid button.active {
+  color: var(--black);
+  border-color: var(--acid);
+  background: var(--acid);
+}
+
+.zone-axis-editor label {
+  display: grid;
+  grid-template-columns: 1fr 70px;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-rect-editor {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.zone-rect-editor label {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+}
+
+.zone-readout {
+  padding: 7px 8px;
+  color: var(--acid);
+  border-left: 2px solid var(--acid);
+  background: rgba(217, 255, 91, 0.035);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.13em;
+}
+
+.advanced-studio {
+  border: 1px solid #30372d;
+  background: var(--surface-2);
+}
+
+.advanced-studio summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 31px;
+  padding: 0 8px;
+  color: #788173;
+  cursor: pointer;
+  font: 750 8px/1 var(--font-condensed);
+  letter-spacing: 0.12em;
+  list-style: none;
+}
+
+.advanced-studio summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-studio summary::before {
+  margin-right: 7px;
+  color: var(--acid);
+  content: "+";
+}
+
+.advanced-studio[open] summary::before {
+  content: "−";
+}
+
+.advanced-studio summary span {
+  flex: 1;
+}
+
+.advanced-studio summary strong {
+  color: var(--acid);
+  font-size: 8px;
+}
+
+.advanced-studio > small {
+  display: block;
+  padding: 0 8px 8px;
+  color: #555e51;
+  font: 650 8px/1.25 var(--font-condensed);
+  letter-spacing: 0.1em;
+}
+
+.effect-tuning {
+  margin-top: 7px;
+}
+
+.effect-control-grid {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.effect-control-grid > small {
+  color: var(--muted);
+  font: 650 8px/1.2 var(--font-condensed);
+  letter-spacing: 0.09em;
+}
+
+.effect-control-grid label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+  color: #757e71;
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.1em;
+}
+
+.effect-control-grid output {
+  color: var(--acid);
+}
+
+.effect-control-grid input {
+  grid-column: 1 / -1;
+}
+
+.palette-stop-list {
+  display: flex;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.palette-stop {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-stop input {
+  width: 100%;
+  height: 31px;
+  padding: 3px;
+  border: 1px solid #394136;
+  border-radius: 0;
+  background: #030403;
+}
+
+.palette-stop button {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  color: #9ca696;
+  border: 1px solid #4a5346;
+  background: #080a08;
+  font: 800 8px/1 sans-serif;
+}
+
+.palette-workshop-actions,
+.segment-action-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 5px;
+  padding: 0 8px 8px;
+}
+
+.palette-workshop-actions input,
+.palette-workshop-actions button,
+.segment-action-line input,
+.segment-action-line button,
+.segment-transform-grid input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface-1);
+  font: 750 8px/1 var(--font-condensed);
+  letter-spacing: 0.07em;
+}
+
+.palette-workshop-actions button,
+.segment-action-line button {
+  color: var(--acid);
+  border-color: #455132;
+}
+
+#deletePaletteButton,
+#clearSegmentsButton {
+  color: var(--signal);
+  border-color: #593026;
+}
+
+.segment-transform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid #252b23;
+}
+
+.segment-transform-grid label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.08em;
+}
+
+.segment-transform-grid label:has(input[type="number"]) {
+  grid-template-columns: 1fr;
+}
+
+.segment-transform-grid input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  accent-color: var(--acid);
+}
+
+.segment-action-line {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.segment-list {
+  display: grid;
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+
+.segment-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+  padding: 4px 5px;
+  border: 1px solid #2e352b;
+  background: #0a0c0a;
+}
+
+.segment-row > input {
+  accent-color: var(--acid);
+}
+
+.segment-row span {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.segment-row strong,
+.segment-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment-row strong {
+  color: #a8b0a2;
+  font: 750 8px/1.1 var(--font-condensed);
+  letter-spacing: 0.07em;
+}
+
+.segment-row small {
+  margin-top: 3px;
+  color: var(--muted);
+  font: 650 8px/1 var(--font-condensed);
+  letter-spacing: 0.08em;
+}
+
+.segment-row button {
+  height: 22px;
+  padding: 0 5px;
+  color: #8b9585;
+  border: 1px solid #3b4437;
+  background: var(--surface-2);
+  font: 750 8px/1 var(--font-condensed);
+  letter-spacing: 0.08em;
+}
+
+.segment-row button:last-child {
+  color: var(--signal);
+}
+
+.layer-studio {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.layer-heading,
+.layer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.layer-heading > span,
+.layer-toggle,
+.layer-controls label > span,
+.layer-controls output {
+  color: var(--muted);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.12em;
+}
+
+.layer-toggle {
+  justify-content: end;
+  cursor: pointer;
+}
+
+.layer-toggle input {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--acid);
+}
+
+.layer-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+
+.layer-studio.enabled .layer-controls {
+  opacity: 1;
+}
+
+.layer-controls label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.layer-controls select {
+  grid-column: 1 / -1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface-1);
+  font: 700 8px/1 var(--font-condensed);
+  letter-spacing: 0.06em;
+}
+
+.layer-controls .range {
+  grid-column: 1 / -1;
+  margin: 3px 0 0;
+}
+
+.input-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.message-composer,
+.preset-composer {
+  display: grid;
+  grid-template-columns: 1fr 44px;
+  margin-bottom: 8px;
+}
