@@ -43,7 +43,7 @@ STREAM_KEEPALIVE_SECONDS = 0.5
 
 
 class TwinklyClient:
-    def __init__(self, ip: str):
+    def __init__(self, ip: str) -> None:
         self.ip = ip
         self.base_url = f"http://{ip}{API_PREFIX}"
         self.token: str | None = None
@@ -108,7 +108,7 @@ class TwinklyClient:
             with urllib.request.urlopen(
                 request, timeout=REQUEST_TIMEOUT_SECONDS
             ) as response:
-                result = json.load(response)
+                result: dict[str, Any] = json.load(response)
         except urllib.error.HTTPError as error:
             if error.code == 401:
                 raise PermissionError("Twinkly token expired.") from error
@@ -125,12 +125,13 @@ class TwinklyClient:
 
     def authenticate(self, force: bool = False) -> str:
         with self._lock:
-            is_fresh = (
-                self.token is not None
+            cached = self.token
+            if (
+                cached is not None
+                and not force
                 and time.monotonic() - self.token_created_at < TOKEN_MAX_AGE_SECONDS
-            )
-            if is_fresh and not force:
-                return self.token
+            ):
+                return cached
 
             challenge = base64.b64encode(os.urandom(32)).decode("ascii")
             login = self._fetch_json(

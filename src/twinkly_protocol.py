@@ -53,6 +53,8 @@ def choose_stream_fps(device: dict[str, Any] | None) -> float:
     if not device:
         return MAX_STABLE_STREAM_FPS
     raw_rate = device.get("measured_frame_rate", device.get("frame_rate"))
+    if raw_rate is None:
+        return MAX_STABLE_STREAM_FPS
     try:
         device_rate = float(raw_rate)
     except (TypeError, ValueError):

@@ -160,9 +160,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         if length == 0:
             return {}
         try:
-            return json.loads(self.rfile.read(length))
+            body: dict[str, Any] = json.loads(self.rfile.read(length))
         except json.JSONDecodeError as error:
             raise ValueError("Request body must be valid JSON.") from error
+        return body
 
     def _body_limit(self, path: str) -> int:
         if path != "/api/movies/bake":
@@ -176,7 +177,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             return MAX_BODY_BYTES
         if layout is None:
             return MAX_BODY_BYTES
-        encoded_movie_bytes = MAX_MOVIE_FRAMES * layout.led_count * 4
+        encoded_movie_bytes = MAX_MOVIE_FRAMES * int(layout.led_count) * 4
         return max(MAX_BODY_BYTES, encoded_movie_bytes + BAKE_BODY_OVERHEAD_BYTES)
 
     def send_state_event(self, event: StateEvent) -> None:
@@ -229,15 +230,15 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_state_event(event)
                 last_seen = event.version
             while not self.ctx.shutting_down.is_set():
-                event = self.ctx.state_broker.wait_after(
+                update = self.ctx.state_broker.wait_after(
                     last_seen, timeout=STATE_HEARTBEAT_SECONDS
                 )
-                if event is None:
+                if update is None:
                     self.wfile.write(b": keep-alive\n\n")
                     self.wfile.flush()
                     continue
-                self.send_state_event(event)
-                last_seen = event.version
+                self.send_state_event(update)
+                last_seen = update.version
         except OSError:
             return
 

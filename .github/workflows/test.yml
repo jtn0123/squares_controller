@@ -18,16 +18,23 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      # coverage is a CI-only dev dependency; the runtime stays stdlib-only.
-      - run: python -m pip install coverage==7.15.4
+      # coverage and mypy are CI-only dev dependencies; the runtime stays
+      # stdlib-only.
+      - run: python -m pip install coverage==7.15.4 mypy==2.3.0
+      - run: python -m mypy
       - run: python -m coverage run --source=src -m unittest discover -s test -p 'test_*.py' -v
       - run: python -m coverage report --fail-under=75
 
-  browser-models:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
+          cache: npm
+      - run: npm ci
+      # The strict TypeScript compile IS the type gate; it also emits the
+      # JS and assembles index.html that the tests and server run against.
+      - run: npm run build
       - run: node --test --experimental-test-coverage test/*.test.mjs

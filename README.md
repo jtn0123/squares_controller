@@ -4,8 +4,9 @@ A local-first browser controller for Twinkly Squares. It keeps the stock
 Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
-![Version](https://img.shields.io/badge/version-0.11.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-142%20passing-d9ff5b)
+![Version](https://img.shields.io/badge/version-0.12.0-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-151%20passing-d9ff5b)
+![Types](https://img.shields.io/badge/types-tsc%20strict%20%2B%20mypy%20strict-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -53,8 +54,9 @@ been physically tested with a 4×3, 768-pixel Twinkly Squares wall: 32×24 at
 
 ## Quick start
 
-Requires Python 3.11 or newer. Node 18 or newer is optional; `npm` is only used
-as a convenient command runner and test runner.
+Requires Python 3.11 or newer and Node 20 or newer. The frontend is strict
+TypeScript compiled once by `npm run build`; the Python server then serves the
+emitted JavaScript from disk with no Node process at runtime.
 
 ```bash
 cp config.example.json config.json
@@ -68,17 +70,20 @@ Edit `config.json` and set the private IPv4 address of your Twinkly controller:
 }
 ```
 
-Then start the app:
+Then build the frontend and start the app:
 
 ```bash
-npm start
+npm ci && npm start
 ```
 
-Or without Node:
+`npm start` rebuilds the frontend and launches the server. After a build, the
+server can also run on its own:
 
 ```bash
 python3 server.py
 ```
+
+While editing frontend code, `npm run watch` recompiles on save.
 
 On macOS, you can also double-click `scripts/start.command`.
 
@@ -154,7 +159,9 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 68 Python and 74 browser tests. It covers HTTP
+The current suite contains 73 Python and 78 browser tests, plus a strict
+`mypy` pass over the backend and a strict `tsc` compile as the frontend type
+gate; browser tests run against the compiled output. It covers HTTP
 routes, device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media
@@ -164,10 +171,12 @@ relay telemetry, and safe movie payloads.
 ## Frame-rate notes
 
 The connected controller advertises 40 FPS but reports a measured 38.46 FPS
-clock. Realtime output therefore runs on an independent, deadline-aligned
-37.5 FPS relay clock to leave narrow sampling headroom. The UI reports actual
-delivery gaps, repeated inputs, and missed deadlines; those host measurements
-do not claim that every frame lit physically. Controller-local movies use the
+clock. The browser produces frames just under the panel's sustainable rate
+(1.5 FPS of headroom), and the relay forwards each fresh frame to the panel
+the moment it arrives — one clock end to end, with idle keepalive repeats
+only to hold realtime mode open. The UI reports fresh-frame cadence, delivery
+gaps, repeats, and missed deadlines; those host measurements do not claim
+that every frame lit physically. Controller-local movies use the
 controller's integer 38 FPS playback path and remove browser, HTTP, Python
 scheduling, and Wi-Fi cadence from ongoing playback.
 See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for the measurements.
@@ -177,7 +186,9 @@ See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for the measurements.
 The browser talks only to the local Python server. The server authenticates
 directly with the Twinkly controller over HTTP and streams RGB frames over the
 controller's local realtime protocol on UDP port 7777. The runtime uses the
-Python standard library and native browser APIs.
+Python standard library and native browser APIs; TypeScript is a build-time
+dev dependency only, and every source file (backend, frontend, and markup
+partials) stays under 500 lines.
 
 ## WLED inspiration and attribution
 
