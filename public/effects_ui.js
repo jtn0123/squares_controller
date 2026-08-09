@@ -20,7 +20,7 @@ import { CURATED_PALETTES } from "./palette_model.js";
 import { normalizeSegment, segmentSourceIndex } from "./segment_model.js";
 import { blendRgb } from "./blend_model.js";
 import { renderEffectPreview } from "./effect_preview_model.js";
-import { alignFrameTime, FRAME_INTERVAL_MS } from "./frame_timing.js";
+import { alignFrameTime, uploadInterval } from "./frame_timing.js";
 
 let effectPreviewQueued = false;
 
@@ -217,7 +217,7 @@ export function startGeneratedEffect(name, { preserveOutput = false } = {}) {
 
   const tick = (now) => {
     if (state.animationName !== name) return;
-    if (now - previousFrame >= FRAME_INTERVAL_MS) {
+    if (now - previousFrame >= uploadInterval()) {
       const time = (now - startedAt) / 1000;
       renderGeneratedFrame(
         name,
