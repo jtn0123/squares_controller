@@ -54,7 +54,11 @@ class TwinklyClient:
         self.last_frame: bytes | None = None
         self.last_error: str | None = None
         self._lock = threading.RLock()
-        self._stream_start_lock = threading.Lock()
+        # Serializes every start/stop transition of the realtime stream:
+        # set_raster_frame's check-and-start, stop_stream, and the mode
+        # changes that must not interleave with either. RLock because the
+        # guarded operations call stop_stream themselves.
+        self._stream_start_lock = threading.RLock()
         self._stream_stop = threading.Event()
         self._stream_thread: threading.Thread | None = None
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -287,30 +291,36 @@ class TwinklyClient:
 
     def set_rotation(self, value: int | float | str) -> dict[str, Any]:
         rotation = validate_rotation(value)
-        self.stop_stream()
-        with self._lock:
-            self.rotation = rotation
+        with self._stream_start_lock:
+            self.stop_stream()
+            with self._lock:
+                self.rotation = rotation
         return self.status()
 
     def set_mode(self, mode: str) -> dict[str, Any]:
         if mode not in {"movie", "off", "demo"}:
             raise ValueError("Unsupported panel mode.")
-        self.stop_stream()
-        if self.brightness is not None:
-            self.request(
-                "/led/out/brightness",
-                method="POST",
-                body={
-                    "mode": "enabled",
-                    "type": "A",
-                    "value": self.brightness,
-                },
-            )
-        self.request("/led/mode", method="POST", body={"mode": mode})
-        current_movie = self._read_current_movie() if mode == "movie" else None
-        with self._lock:
-            self.mode = mode
-            self.current_movie = current_movie
+        # Hold the stream transition lock for the whole switch: a frame
+        # arriving mid-transition would otherwise restart the realtime
+        # stream after stop_stream and leave mode/stream state contradicting
+        # each other (stream running while mode reads "movie").
+        with self._stream_start_lock:
+            self.stop_stream()
+            if self.brightness is not None:
+                self.request(
+                    "/led/out/brightness",
+                    method="POST",
+                    body={
+                        "mode": "enabled",
+                        "type": "A",
+                        "value": self.brightness,
+                    },
+                )
+            self.request("/led/mode", method="POST", body={"mode": mode})
+            current_movie = self._read_current_movie() if mode == "movie" else None
+            with self._lock:
+                self.mode = mode
+                self.current_movie = current_movie
         return self.status()
 
     def _read_current_movie(self) -> dict[str, Any] | None:

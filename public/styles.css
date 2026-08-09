@@ -458,3 +458,8 @@ h1 {
   color: var(--acid);
   border-color: rgba(217, 255, 91, 0.35);
 }
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}

@@ -405,6 +405,44 @@ class TwinklyClientTests(unittest.TestCase):
         self.assertEqual(status["brightnessControl"], "realtime-rgb")
         client.close(restore_movie=False)
 
+    def test_mode_change_serializes_against_concurrent_frames(self) -> None:
+        import threading
+
+        client = self.connected_client()
+        client.layout = Layout(2, 1, 2, (0, 1))
+        client.token = base64.b64encode(b"12345678").decode("ascii")
+        client.token_created_at = time.monotonic()
+        client._socket.close()
+        client._socket = type(
+            "NullSocket",
+            (),
+            {"sendto": lambda _self, _packet, _address: None,
+             "close": lambda _self: None},
+        )()
+
+        def slow_request(path, **_kwargs):
+            if path == "/led/mode":
+                time.sleep(0.08)
+            return {}
+
+        with patch.object(client, "request", side_effect=slow_request):
+            mode_thread = threading.Thread(
+                target=lambda: client.set_mode("movie")
+            )
+            mode_thread.start()
+            time.sleep(0.02)
+            # A frame arriving mid-transition must wait for the mode change
+            # instead of restarting the stream underneath it.
+            client.set_raster_frame(bytes(6), 2, 1)
+            mode_thread.join(timeout=2)
+
+            status = client.status()
+            self.assertFalse(
+                status["mode"] == "movie" and status["streaming"],
+                "mode reports stock playback while the relay is streaming",
+            )
+        client.close(restore_movie=False)
+
     def test_stock_mode_brightness_uses_device_endpoint(self) -> None:
         client = self.connected_client()
 

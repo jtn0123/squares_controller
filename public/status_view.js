@@ -1,6 +1,12 @@
 import { $, $$, brightnessSlider, canvas, stage } from "./dom.js";
 import { ROTATION_STORAGE_KEY, state } from "./app_state.js";
-import { api, scheduleFrame, setConnection, toast } from "./net.js";
+import {
+  api,
+  scheduleFrame,
+  setConnection,
+  toast,
+  waitForFrameSender,
+} from "./net.js";
 import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { setOutputContext, updateBrightnessVisual } from "./monitor.js";
@@ -63,6 +69,9 @@ export function applyStatus(status, { syncBrightness = true } = {}) {
 
   const rotation = Number(status.rotation ?? 0);
   state.rotation = rotation;
+  // Track the panel's rotation in this browser's storage so a second tab
+  // never "syncs" a stale value back and silently reverts a change.
+  saveRotation(rotation);
   $$("[data-rotation]").forEach((button) => {
     const active = Number(button.dataset.rotation) === rotation;
     button.classList.toggle("active", active);
@@ -195,7 +204,19 @@ function saveRotation(rotation) {
   }
 }
 
+// A response that started before the user's latest controller action must
+// not overwrite the newer state when it finally lands.
+function beginUserAction() {
+  state.statusEpoch += 1;
+  return state.statusEpoch;
+}
+
+function applyIfCurrent(epoch, status, options) {
+  if (epoch === state.statusEpoch) applyStatus(status, options);
+}
+
 export async function loadStatus() {
+  const epoch = state.statusEpoch;
   try {
     let status = await api("/api/status");
     const savedRotation = readSavedRotation();
@@ -208,7 +229,7 @@ export async function loadStatus() {
         body: JSON.stringify({ degrees: savedRotation }),
       });
     }
-    applyStatus(status);
+    applyIfCurrent(epoch, status);
   } catch (error) {
     setConnection(null, error.message);
     toast(error.message, true);
@@ -218,8 +239,10 @@ export async function loadStatus() {
 // A quiet variant for background reconnect probing: no toasts, no
 // rotation sync — just apply the status if the controller answers.
 export async function probeStatus() {
+  const epoch = state.statusEpoch;
   try {
-    applyStatus(await api("/api/status"));
+    const status = await api("/api/status");
+    applyIfCurrent(epoch, status);
   } catch {
     // Still unreachable; the reconnect loop keeps backing off.
   }
@@ -253,25 +276,41 @@ export async function sendBrightness(value) {
   brightnessSlider.value = value;
   updateBrightnessVisual(value);
   if (!state.connected) return;
-  applyStatus(
-    await api("/api/brightness", {
-      method: "POST",
-      body: JSON.stringify({ value: Number(value) }),
-    }),
-  );
+  const epoch = beginUserAction();
+  const status = await api("/api/brightness", {
+    method: "POST",
+    body: JSON.stringify({ value: Number(value) }),
+  });
+  applyIfCurrent(epoch, status);
 }
 
-async function setMode(mode) {
+async function setMode(mode, sourceButton = null) {
   stopMedia();
   stopAnimation();
+  const buttons = [$("#offButton"), $("#stockButton")];
+  const originalLabel = sourceButton?.textContent;
+  buttons.forEach((button) => {
+    button.disabled = true;
+  });
+  if (sourceButton) sourceButton.textContent = "SWITCHING…";
+  const epoch = beginUserAction();
   try {
-    applyStatus(await api("/api/mode", {
+    // A frame upload already in flight could land mid-transition and
+    // restart the realtime stream; drain the sender first.
+    await waitForFrameSender();
+    const status = await api("/api/mode", {
       method: "POST",
       body: JSON.stringify({ mode }),
-    }));
+    });
+    applyIfCurrent(epoch, status);
     toast(mode === "off" ? "Panel switched off." : "Stock Twinkly animation restored.");
   } catch (error) {
     toast(error.message, true);
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
+    if (sourceButton && originalLabel) sourceButton.textContent = originalLabel;
   }
 }
 
@@ -282,21 +321,25 @@ export function initializeStatusControls() {
     updateBrightnessVisual(requestedBrightness);
     clearTimeout(brightnessTimer);
     brightnessTimer = setTimeout(async () => {
+      const epoch = beginUserAction();
       try {
-        applyStatus(
-          await api("/api/brightness", {
-            method: "POST",
-            body: JSON.stringify({ value: Number(requestedBrightness) }),
-          }),
-        );
+        const status = await api("/api/brightness", {
+          method: "POST",
+          body: JSON.stringify({ value: Number(requestedBrightness) }),
+        });
+        applyIfCurrent(epoch, status);
       } catch (error) {
         toast(error.message, true);
       }
     }, 120);
   });
 
-  $("#offButton").addEventListener("click", () => void setMode("off"));
-  $("#stockButton").addEventListener("click", () => void setMode("movie"));
+  $("#offButton").addEventListener("click", (event) =>
+    void setMode("off", event.currentTarget),
+  );
+  $("#stockButton").addEventListener("click", (event) =>
+    void setMode("movie", event.currentTarget),
+  );
   $("#stopMotionButton").addEventListener("click", () => stopAnimation(true));
 
   $$("[data-rotation]").forEach((button) => {
@@ -306,13 +349,14 @@ export function initializeStatusControls() {
       stopMedia();
       stopAnimation();
       state.frameQueued = false;
+      const epoch = beginUserAction();
       try {
         const status = await api("/api/rotation", {
           method: "POST",
           body: JSON.stringify({ degrees }),
         });
         saveRotation(degrees);
-        applyStatus(status);
+        applyIfCurrent(epoch, status);
         state.pixels.fill(0);
         render();
         scheduleFrame();

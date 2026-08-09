@@ -99,9 +99,15 @@ export function updateSceneMonitor() {
     const percent = Math.round(progress.progress * 100);
     progressFill.style.width = `${percent}%`;
     progressElement.setAttribute("aria-valuenow", String(percent));
+    // Once the step's time is spent we are loading/crossfading into the
+    // next scene; "0s LEFT" would read as a stall.
+    const remaining =
+      progress.progress >= 1
+        ? "NEXT SCENE…"
+        : `${progress.remainingSeconds}s LEFT`;
     progressLabel.textContent =
       `STEP ${state.activePlaylistStep.index + 1}/${playlist.steps.length}` +
-      ` / ${progress.remainingSeconds}s LEFT` +
+      ` / ${remaining}` +
       ` / ${state.activePlaylistStep.transition.toUpperCase()}`;
   } else {
     progressFill.style.width = "0%";

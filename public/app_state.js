@@ -112,6 +112,9 @@ export const state = {
   measuredFrameRate: 30,
   movieLibrary: { movies: [], availableFrames: 0, maxCapacity: 0 },
   controllerStatus: null,
+  // Incremented for every user-initiated controller mutation; slow HTTP
+  // responses from an older action must not overwrite newer state.
+  statusEpoch: 0,
 };
 
 export function effectControl(effect, control) {

@@ -81,7 +81,9 @@ void loadStatus().then(() => {
 void initializeLibrary();
 startStateSync();
 setInterval(() => {
-  if (!state.animationName) void loadStatus();
+  // probeStatus (not loadStatus): the periodic refresh must never
+  // re-assert this tab's saved rotation over another client's change.
+  if (!state.animationName) void probeStatus();
   void loadAutomations().catch(() => {});
 }, 60_000);
 setInterval(() => void loadStreamTelemetry().catch(() => {}), 2_000);
