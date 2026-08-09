@@ -5,7 +5,7 @@ Twinkly firmware and coordinate map, so there is nothing to flash, open, or
 solder.
 
 ![Version](https://img.shields.io/badge/version-0.11.0-d9ff5b)
-![Tests](https://img.shields.io/badge/tests-116%20passing-d9ff5b)
+![Tests](https://img.shields.io/badge/tests-142%20passing-d9ff5b)
 ![License](https://img.shields.io/badge/license-MIT-d9ff5b)
 
 ## What it can do
@@ -154,8 +154,8 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 49 Python and 67 browser-model tests. It covers
-device protocol behavior, coordinate mapping, brightness, rotation, state
+The current suite contains 68 Python and 74 browser tests. It covers HTTP
+routes, device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media
 controls, scene organization, playlists, pixel clips, runtime failure policy,
