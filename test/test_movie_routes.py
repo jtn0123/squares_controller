@@ -82,6 +82,21 @@ class MovieRouteTest(unittest.TestCase):
         # rather than claim the request.
         self.assertIsNone(self.call("PATCH", "/api/movies/archive/abc"))
 
+    def test_only_canonical_paths_reach_delete_and_restore(self) -> None:
+        saved = self.save_one()
+
+        # A trailing segment must not resolve to the leading entry id.
+        self.assertIsNone(
+            self.call("DELETE", f"/api/movies/archive/{saved['id']}/restore")
+        )
+        self.assertIsNone(
+            self.call(
+                "POST", f"/api/movies/archive/{saved['id']}/x/restore"
+            )
+        )
+        self.assertEqual(len(self.archive.snapshot()), 1)
+        self.assertEqual(self.ctx.client.baked, [])
+
     def test_list_returns_metadata_without_frame_data(self) -> None:
         self.save_one("FIRST")
 

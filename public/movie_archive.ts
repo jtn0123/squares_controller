@@ -100,14 +100,24 @@ function buildCard(entry: ArchiveEntry): HTMLDivElement {
 
   const actions = document.createElement("div");
   actions.className = "archive-actions";
+  // TO PANEL runs a multi-second bake; a second click would queue a
+  // second bake and write a duplicate movie into scarce panel storage.
+  let inFlight = false;
   const run = (job: () => Promise<void>) => async () => {
+    if (inFlight) return;
+    inFlight = true;
     card.classList.add("busy");
+    const buttons = [...actions.querySelectorAll("button")];
+    buttons.forEach((button) => (button.disabled = true));
     try {
       await job();
+      // renderArchive replaces this card, so nothing to re-enable here.
       await renderArchive();
     } catch (error) {
       toast((error as Error).message, true);
       card.classList.remove("busy");
+      buttons.forEach((button) => (button.disabled = false));
+      inFlight = false;
     }
   };
   const save = actionButton("SAVE", `Save ${entry.name} to this computer`);
@@ -131,8 +141,12 @@ export async function renderArchive(): Promise<void> {
       .archive;
   } catch {
     // The archive is a local convenience; failing to read it must not
-    // take the rest of the panel section down with it.
-    list.replaceChildren();
+    // take the rest of the panel section down with it. But a silent
+    // blank would be indistinguishable from an empty archive.
+    const failed = document.createElement("small");
+    failed.className = "local-note";
+    failed.textContent = "COULD NOT READ THE LOCAL ARCHIVE";
+    list.replaceChildren(failed);
     return;
   }
   list.replaceChildren();
@@ -152,6 +166,15 @@ export function initializeMovieArchive(): void {
   input.addEventListener("change", () => {
     const [file] = input.files ?? [];
     if (!file) return;
+    // The server caps archives at 8 MB of frames; base64 plus JSON
+    // overhead puts a legitimate file near 11 MB. Reading anything much
+    // larger into a string would stall the tab before the server could
+    // reject it.
+    if (file.size > 16_000_000) {
+      toast("That file is too large to be a movie archive.", true);
+      input.value = "";
+      return;
+    }
     void (async () => {
       try {
         const archive: unknown = JSON.parse(await file.text());

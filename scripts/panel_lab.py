@@ -52,6 +52,9 @@ class PanelSession:
         # pinning one developer's panel into the tooling.
         self.client = TwinklyClient(ip or load_device_ip())
         self.brightness = brightness
+        # Until __enter__ reads the real value, assume full brightness —
+        # a wrong restore-to-100 beats stranding a study's dim setting.
+        self.previous_brightness = 100
         self.restore_mode = restore_mode
         self.socket: socket.socket | None = None
 
@@ -80,6 +83,11 @@ class PanelSession:
         self.client.connect()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
+            # Remember the user's brightness so exit can put it back;
+            # a diagnostic run must not permanently redim the wall.
+            current = self.api("/led/out/brightness").get("value")
+            if isinstance(current, int):
+                self.previous_brightness = current
             self.set_mode("rt")
             self.set_brightness(self.brightness)
         except BaseException:
@@ -96,7 +104,7 @@ class PanelSession:
         traceback: TracebackType | None,
     ) -> None:
         try:
-            self.set_brightness(self.brightness)
+            self.set_brightness(self.previous_brightness)
             self.set_mode(self.restore_mode)
         except OSError:
             # ConnectionError (and TwinklyHTTPError under it) are OSError

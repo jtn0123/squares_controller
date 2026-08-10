@@ -34,11 +34,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  /* Neutralize fieldset chrome; the class carries all visual style. */
-  min-inline-size: 0;
   margin: 8px 0 0;
-  padding: 0;
-  border: 0;
 }
 
 .panel-movie {

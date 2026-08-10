@@ -64,6 +64,21 @@ class MovieArchiveTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.save_one(pixels=short_buffer)
 
+    def test_save_rejects_non_positive_geometry_and_timing(self) -> None:
+        for field in ("width", "height", "frame_count", "fps"):
+            for bad in (0, -1):
+                with self.subTest(field=field, value=bad):
+                    with self.assertRaises(ValueError):
+                        self.save_one(**{field: bad})
+
+    def test_snapshot_skips_an_entry_with_a_null_field(self) -> None:
+        healthy = self.save_one("HEALTHY")
+        self.stamp_field(self.save_one("NULLED")["id"], "width", None)
+
+        listed = self.archive.snapshot()
+
+        self.assertEqual([item["id"] for item in listed], [healthy["id"]])
+
     def test_save_rejects_a_movie_larger_than_the_ceiling(self) -> None:
         with self.assertRaises(ValueError):
             self.save_one(
@@ -162,9 +177,12 @@ class MovieArchiveTest(unittest.TestCase):
                     self.archive.delete(archive_id)
 
     def stamp(self, archive_id: str, saved_at: int) -> None:
+        self.stamp_field(archive_id, "savedAt", saved_at)
+
+    def stamp_field(self, archive_id: str, field: str, value: object) -> None:
         path = self.archive.directory / f"{archive_id}.json"
         entry = json.loads(path.read_text(encoding="utf-8"))
-        entry["savedAt"] = saved_at
+        entry[field] = value
         path.write_text(json.dumps(entry), encoding="utf-8")
 
 

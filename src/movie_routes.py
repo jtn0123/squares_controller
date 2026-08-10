@@ -46,12 +46,12 @@ def handle(
         except KeyError:
             return NOT_FOUND
 
-    if method == "DELETE":
+    if method == "DELETE" and path == f"{PREFIX}/{archive_id}":
         if archive.delete(archive_id):
             return HTTPStatus.OK, {"deleted": archive_id}
         return NOT_FOUND
 
-    if method == "POST" and path.endswith("/restore"):
+    if method == "POST" and path == f"{PREFIX}/{archive_id}/restore":
         return _restore(ctx, archive_id, body)
 
     return None

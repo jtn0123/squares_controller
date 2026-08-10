@@ -56,6 +56,11 @@ class MovieArchive:
         """Store the pre-correction source frames and how to rebuild."""
         if len(pixels) > MAX_PIXEL_BYTES:
             raise ValueError("Movie is too large to archive.")
+        if min(width, height, frame_count, fps) < 1:
+            # import_entry forwards untrusted file fields straight here,
+            # and zero or negative geometry would otherwise satisfy the
+            # byte-count check and fail much later, at restore time.
+            raise ValueError("Movie geometry and timing must be positive.")
         expected = width * height * 3 * frame_count
         if len(pixels) != expected:
             raise ValueError(
@@ -129,8 +134,9 @@ class MovieArchive:
                 entries.append(
                     self.describe(json.loads(path.read_text(encoding="utf-8")))
                 )
-            except (KeyError, ValueError, OSError):
-                # A corrupt archive should not hide the healthy ones.
+            except (KeyError, TypeError, ValueError, OSError):
+                # A corrupt archive should not hide the healthy ones —
+                # TypeError included, for entries like '"width": null'.
                 continue
         entries.sort(key=lambda item: item["savedAt"], reverse=True)
         return entries

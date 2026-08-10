@@ -103,15 +103,16 @@
             <small>
               ADDS A NEW LOOP / NEVER OVERWRITES / RUNS WITHOUT THIS BROWSER
             </small>
-            <fieldset
+            <div
               class="panel-movie-list"
               id="panelMovieList"
+              role="group"
               aria-label="Movies stored on the panel"
-            ></fieldset>
+            ></div>
             <div class="panel-archive">
               <div class="panel-bake-heading">
                 <span>LOCAL ARCHIVE</span>
-                <label class="archive-import">
+                <label class="archive-import" for="archiveImport">
                   <span>IMPORT FILE</span>
                   <input
                     id="archiveImport"
@@ -123,6 +124,7 @@
               <div
                 class="panel-archive-list"
                 id="panelArchiveList"
+                role="group"
                 aria-label="Movies archived on this computer"
               ></div>
               <small>

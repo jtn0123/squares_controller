@@ -23,7 +23,7 @@ from src.automation_store import AutomationStore
 from src.color_pipeline import DEFAULT_GAMMA, DEFAULT_SATURATION
 from src.command_api import API_VERSION, capability_payload, execute_command
 from src.library_store import LibraryStore
-from src.movie_archive import MovieArchive
+from src.movie_archive import MAX_PIXEL_BYTES, MovieArchive
 from src.movie_payload import MAX_MOVIE_FRAMES, decode_movie_payload
 from src.movie_routes import handle as handle_movie_route
 from src.runtime_policy import FrameActivity, RuntimePolicyStore
@@ -174,6 +174,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         return body
 
     def _body_limit(self, path: str) -> int:
+        if path == "/api/movies/import":
+            # An import carries a whole archive entry; size the cap to
+            # the largest entry the archive itself will accept.
+            return MAX_PIXEL_BYTES * 4 // 3 + BAKE_BODY_OVERHEAD_BYTES
         if path != "/api/movies/bake":
             return MAX_BODY_BYTES
         # A full-length bake is MAX_MOVIE_FRAMES frames of base64 RGB
@@ -460,17 +464,22 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             # The controller will not hand frame data back, so this is
             # the only chance to keep a copy that can be previewed,
             # exported, or restored later.
-            baked["archived"] = self.ctx.movie_archive.save(
-                name=movie["name"],
-                pixels=bytes(movie["pixels"]),
-                width=movie["width"],
-                height=movie["height"],
-                frame_count=movie["frame_count"],
-                fps=int(movie["fps"]),
-                gamma=DEFAULT_GAMMA,
-                saturation=DEFAULT_SATURATION,
-                device_movie_id=baked["bakedMovie"].get("id"),
-            )
+            try:
+                baked["archived"] = self.ctx.movie_archive.save(
+                    name=movie["name"],
+                    pixels=bytes(movie["pixels"]),
+                    width=movie["width"],
+                    height=movie["height"],
+                    frame_count=movie["frame_count"],
+                    fps=int(movie["fps"]),
+                    gamma=DEFAULT_GAMMA,
+                    saturation=DEFAULT_SATURATION,
+                    device_movie_id=baked["bakedMovie"].get("id"),
+                )
+            except (OSError, ValueError) as error:
+                # The bake already succeeded on the panel; reporting it
+                # as failed would hide a movie that now exists there.
+                baked["archiveError"] = str(error)
             self.ctx.publish(baked["status"], "movie:bake")
             self.send_json(HTTPStatus.OK, baked)
             return True

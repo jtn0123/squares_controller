@@ -61,7 +61,10 @@ def ensure_baked(client: TwinklyClient, frames: list[bytes]) -> dict | None:
     movies = client.list_movies()
     existing = next(
         (movie for movie in movies["movies"]
-         if str(movie.get("name", "")).strip().upper() == MOVIE_NAME),
+         if str(movie.get("name", "")).strip().upper() == MOVIE_NAME
+         # Name alone is not identity: a stale movie from an older run
+         # with different geometry would poison the comparison.
+         and movie.get("frames_number") == LOOP_FRAMES),
         None,
     )
     if existing is not None:
@@ -95,8 +98,11 @@ def main(argv: list[str]) -> int:
     # bake_movie corrects before upload, so the streamed blocks have to
     # carry the same correction or this compares colour, not delivery.
     render = frames_from([correct_frame(frame) for frame in frames])
+    # The panel may store a lower fps than requested (it caps at its
+    # measured rate); pace the streamed blocks at what actually plays.
+    live_fps = int(baked.get("fps", MOVIE_FPS)) if baked else MOVIE_FPS
     # Spread fragments across the WHOLE interval, not a fraction of it.
-    spacing = (1.0 / MOVIE_FPS) / FRAGMENTS_PER_FRAME
+    spacing = (1.0 / live_fps) / FRAGMENTS_PER_FRAME
 
     for cycle in range(1, cycles + 1):
         if baked is not None:
