@@ -503,6 +503,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             "/api/brightness": ("brightness", {"value": body.get("value")}),
             "/api/rotation": ("rotation", {"degrees": body.get("degrees")}),
             "/api/mode": ("mode", {"mode": body.get("mode")}),
+            "/api/movies/select": ("movie", {"id": body.get("id")}),
         }
         if path not in commands:
             return False

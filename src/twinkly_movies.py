@@ -63,6 +63,33 @@ def select_current_movie(client: Any, movie_id: int) -> None:
         )
 
 
+def play_stored_movie(client: Any, movie_id: int) -> dict[str, Any]:
+    """Play a movie already stored on the controller.
+
+    Same transition discipline as set_mode: hold the stream lock for the
+    whole switch so an in-flight frame cannot restart the relay part way
+    through and leave mode and stream state disagreeing.
+    """
+    identifier = int(movie_id)
+    with client._stream_start_lock:
+        client.stop_stream()
+        if client.brightness is not None:
+            client.request(
+                "/led/out/brightness",
+                method="POST",
+                body={
+                    "mode": "enabled",
+                    "type": "A",
+                    "value": client.brightness,
+                },
+            )
+        select_current_movie(client, identifier)
+        client.request("/led/mode", method="POST", body={"mode": "movie"})
+        client.adopt_movie_state(read_current_movie(client))
+    status: dict[str, Any] = client.status()
+    return status
+
+
 def bake_movie(
     client: Any,
     name: str,

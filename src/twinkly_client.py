@@ -337,14 +337,21 @@ class TwinklyClient:
                 self.current_movie = current_movie
         return self.status()
 
+    def select_movie(self, movie_id: int) -> dict[str, Any]:
+        return twinkly_movies.play_stored_movie(self, movie_id)
+
     def _read_current_movie(self) -> dict[str, Any] | None:
         return twinkly_movies.read_current_movie(self)
 
     def list_movies(self) -> dict[str, Any]:
         return twinkly_movies.list_movies(self)
 
-    def adopt_movie_state(self, movie: dict[str, Any]) -> None:
-        """Record that the controller is now playing a stored movie."""
+    def adopt_movie_state(self, movie: dict[str, Any] | None) -> None:
+        """Record that the controller is now playing a stored movie.
+
+        Accepts None: firmware without a current-movie endpoint still
+        switches to movie mode, it just cannot name what is playing.
+        """
         with self._lock:
             self.mode = "movie"
             self.current_movie = movie

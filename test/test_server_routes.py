@@ -184,6 +184,21 @@ class ServerRouteTests(unittest.TestCase):
             self.ctx.client = self.client
             self.ctx.configuration_error = None
 
+    def test_selects_a_stored_movie_and_validates_the_id(self) -> None:
+        self.client.select_movie.return_value = connected_status(
+            currentMovie={"id": 7, "name": "Color Plasma"}
+        )
+        status, payload = self.request(
+            "POST", "/api/movies/select", body={"id": 7}
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["currentMovie"]["name"], "Color Plasma")
+        self.client.select_movie.assert_called_once_with(7)
+
+        for bad in ({"id": -1}, {"id": "7"}, {"id": True}, {}):
+            status, _ = self.request("POST", "/api/movies/select", body=bad)
+            self.assertEqual(status, 400, f"accepted a bad movie id: {bad}")
+
     def test_frame_accepts_base64_pixels(self) -> None:
         import base64
 

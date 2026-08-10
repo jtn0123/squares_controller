@@ -192,6 +192,46 @@
   gap: 5px;
 }
 
+.panel-movie-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.panel-movie {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.panel-movie strong {
+  font: 600 8px/1.2 var(--font-condensed);
+  letter-spacing: 0.1em;
+}
+
+.panel-movie small {
+  color: var(--muted);
+  font: 600 7px/1.2 var(--font-condensed);
+  letter-spacing: 0.08em;
+}
+
+.panel-movie:hover,
+.panel-movie.active {
+  border-color: var(--acid);
+}
+
+.panel-movie.active,
+.panel-movie.active small {
+  color: var(--acid);
+}
+
 .panel-bake-controls input,
 .panel-bake-controls button {
   min-width: 0;
