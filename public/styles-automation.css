@@ -174,15 +174,12 @@
 
 .system-list {
   display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.system-list div {
-  display: flex;
+  /* Term column absorbs the slack so values sit flush right — the same
+     look the old per-row flex wrappers gave, without wrapping the pairs. */
+  grid-template-columns: 1fr auto;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
+  margin: 0;
 }
 
 .system-list dt,
