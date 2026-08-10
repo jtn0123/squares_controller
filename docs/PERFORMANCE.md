@@ -147,6 +147,47 @@ receive path, whereas realtime streaming costs three UDP packets per
 frame — 108 packets/second at 36 FPS. Displayed-frame integrity has to
 be judged from the panel's output, not from ping.
 
+## Delivery path is the limit, not the frame rate
+
+Every rate experiment varied settings *inside* the streaming path, which
+could never answer whether the path itself was the problem. Running the
+identical animation three ways on the live wall settled it
+(`scripts/path_study.py`, `scripts/bake_vs_stream.py`):
+
+| Path | Result |
+| --- | --- |
+| Baked to panel storage | Flawless |
+| Realtime UDP, fragments back to back | Judders |
+| Realtime UDP, fragments spread over the frame interval | Judders |
+
+Spacing the three per-frame fragments did not help, so the loss is not a
+receive burst that pacing can smooth out. The panel is a 2.4 GHz radio
+carrying 55–180 ms of latency jitter against a 28 ms frame budget, while
+this Mac's own link to the same access point is a steady 7 ms ± 0.7 ms.
+Baked playback runs from panel storage on the panel's clock with no
+network in the loop, which is why the stock movies look perfect.
+
+Smooth motion therefore comes from baking, not from tuning the stream.
+Realtime remains the right path for painting, live audio, and screen
+mirroring, where responsiveness matters more than even cadence — and it
+is worth saying plainly in the UI that those paths differ.
+
+### Baking was broken on real firmware
+
+Worth recording because it hid the good path for a long time: the
+controller echoes a movie's `unique_id` upper-cased while `uuid4()`
+emits lower case, and the post-upload identity lookup compared them
+case-sensitively. Every successful bake therefore raised "Movie uploaded
+but the controller did not return its identity", and the app never
+selected or played the result.
+
+### Known gap
+
+There is still no route for selecting an already-stored movie — the app
+can only play what it just baked. A bake-centred workflow needs both
+that and a way to remove movies, since the XLED v1 API exposes only a
+delete-everything call.
+
 ## Further optimization threshold
 
 Realtime output now exposes permanent relay telemetry, while finite output can
