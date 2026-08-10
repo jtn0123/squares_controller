@@ -21,6 +21,7 @@ whole baked movie without touching device state.
 from __future__ import annotations
 
 import functools
+import math
 
 # Rec. 601 luma weights, scaled to integers to keep the hot loop in ints.
 _LUMA_R, _LUMA_G, _LUMA_B = 299, 587, 114
@@ -49,7 +50,9 @@ def gamma_table(gamma: float, black_floor: int = 0) -> bytes:
 
 def saturate_frame(frame: bytes, amount: float) -> bytes:
     """Push each pixel away from its own luma. 1.0 leaves it untouched."""
-    if amount == 1.0:
+    # Float equality is unreliable; treat anything within a rounding
+    # error of 1.0 as "leave it alone".
+    if math.isclose(amount, 1.0, rel_tol=1e-9, abs_tol=1e-9):
         return frame
     if amount < 0:
         raise ValueError("Saturation cannot be negative.")

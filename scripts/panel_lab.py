@@ -1,45 +1,41 @@
 #!/usr/bin/env python3
 """Shared session for the on-wall diagnostic tools.
 
-Every tool needs the same things: authenticate, learn the layout, put the
-panel into realtime mode, push frames, and — whatever happens — put the
-panel back into stored playback afterwards. Doing that per script meant
-six copies of the same code and six chances to leave the wall stuck in
-realtime after a traceback.
+Every tool needs the same things: reach the configured panel, learn its
+layout, put it into realtime mode, push frames, and — whatever happens —
+put it back into stored playback afterwards. Doing that per script meant
+several copies of the same code and several chances to leave the wall
+stuck in realtime after a traceback.
 
-`PanelSession` is a context manager, so restoration and socket cleanup
-run on every exit path including KeyboardInterrupt.
+HTTP, authentication, and retry live in `src.twinkly_client`, which is
+the tested implementation; this only adds the UDP streaming and timing
+the studies need. `PanelSession` is a context manager, so restoration
+and socket cleanup run on every exit path including KeyboardInterrupt.
 
     with PanelSession(brightness=10) as panel:
         panel.lead_in(15)
-        panel.stream(frames, fps=36)
+        panel.stream(render, fps=36, seconds=20)
 """
 from __future__ import annotations
 
-import base64
-import json
 import math
 import socket
+import sys
 import time
-import urllib.request
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
-from typing import Any
-
-import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from server import load_device_ip  # noqa: E402
+from src.twinkly_client import TwinklyClient  # noqa: E402
 from src.twinkly_protocol import (  # noqa: E402
+    UDP_PORT,
     Layout,
     build_realtime_packets,
-    calculate_layout,
     oriented_raster_to_device_frame,
 )
-
-DEFAULT_PANEL_IP = "10.27.27.212"
-UDP_PORT = 7777
 
 
 class PanelSession:
@@ -47,58 +43,41 @@ class PanelSession:
 
     def __init__(
         self,
-        ip: str = DEFAULT_PANEL_IP,
+        ip: str | None = None,
         *,
         brightness: int = 10,
         restore_mode: str = "movie",
     ) -> None:
-        self.ip = ip
-        self.base = f"http://{ip}/xled/v1"
+        # Default to whatever the app is configured against rather than
+        # pinning one developer's panel into the tooling.
+        self.client = TwinklyClient(ip or load_device_ip())
         self.brightness = brightness
         self.restore_mode = restore_mode
-        # Named `auth` rather than the obvious alternative: a bare
-        # credential-style assignment is the shape the repository's
-        # secret scanner exists to catch, and it should keep catching it.
-        self.auth: str = ""
-        self.layout: Layout | None = None
         self.socket: socket.socket | None = None
 
-    # -- HTTP -------------------------------------------------------
+    @property
+    def layout(self) -> Layout:
+        assert self.client.layout is not None
+        return self.client.layout
 
-    def api(self, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-        request = urllib.request.Request(
-            self.base + path,
-            data=None if body is None else json.dumps(body).encode(),
-            headers={
-                "Content-Type": "application/json",
-                **({"X-Auth-Token": self.auth} if self.auth else {}),
-            },
-            method="GET" if body is None else "POST",
-        )
-        with urllib.request.urlopen(request, timeout=6) as response:
-            payload: dict[str, Any] = json.load(response)
+    def api(self, path: str) -> dict:
+        payload: dict = self.client.request(path)
         return payload
 
-    def _authenticate(self) -> None:
-        challenge = base64.b64encode(bytes(32)).decode()
-        login = self.api("/login", {"challenge": challenge})
-        self.auth = str(login["authentication_token"])
-        self.api("/verify", {"challenge-response": login["challenge-response"]})
+    def set_mode(self, mode: str) -> None:
+        self.client.request("/led/mode", method="POST", body={"mode": mode})
 
     def set_brightness(self, value: int) -> None:
-        self.api(
+        self.client.request(
             "/led/out/brightness",
-            {"mode": "enabled", "type": "A", "value": int(value)},
+            method="POST",
+            body={"mode": "enabled", "type": "A", "value": int(value)},
         )
-
-    def set_mode(self, mode: str) -> None:
-        self.api("/led/mode", {"mode": mode})
 
     # -- lifecycle --------------------------------------------------
 
     def __enter__(self) -> PanelSession:
-        self._authenticate()
-        self.layout = calculate_layout(self.api("/led/layout/full")["coordinates"])
+        self.client.connect()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.set_mode("rt")
         self.set_brightness(self.brightness)
@@ -113,9 +92,9 @@ class PanelSession:
         try:
             self.set_brightness(self.brightness)
             self.set_mode(self.restore_mode)
-        except OSError:
-            # Already failing; a restore attempt that also fails must not
-            # mask the original error.
+        except (ConnectionError, OSError):
+            # Already unwinding; a failed restore must not mask the
+            # original error.
             pass
         finally:
             if self.socket is not None:
@@ -126,13 +105,15 @@ class PanelSession:
 
     def send(self, raster: bytes, spacing: float = 0.0) -> None:
         """Send one raster frame. spacing spreads its UDP fragments."""
-        assert self.layout is not None and self.socket is not None
-        width, height = self.layout.width, self.layout.height
-        device = oriented_raster_to_device_frame(raster, width, height, self.layout, 0)
-        packets = build_realtime_packets(self.auth, device)
+        assert self.socket is not None
+        layout = self.layout
+        device = oriented_raster_to_device_frame(
+            raster, layout.width, layout.height, layout, 0
+        )
+        packets = build_realtime_packets(self.client.authenticate(), device)
         last = len(packets) - 1
         for position, packet in enumerate(packets):
-            self.socket.sendto(packet, (self.ip, UDP_PORT))
+            self.socket.sendto(packet, (self.client.ip, UDP_PORT))
             if spacing > 0 and position < last:
                 time.sleep(spacing)
 
@@ -145,6 +126,8 @@ class PanelSession:
         spacing: float = 0.0,
     ) -> None:
         """Render and send at a fixed rate, correcting timer drift."""
+        if fps <= 0 or seconds <= 0:
+            raise ValueError("Seconds and FPS must be positive.")
         interval = 1.0 / fps
         deadline = time.monotonic()
         for index in range(int(fps * seconds)):
@@ -155,13 +138,12 @@ class PanelSession:
                 time.sleep(rest)
 
     def hold(self, raster: bytes, seconds: float, fps: float = 30.0) -> None:
-        self.stream(lambda _index, _time: raster, fps=fps, seconds=seconds)
+        self.stream(lambda _index, _elapsed: raster, fps=fps, seconds=seconds)
 
     def lead_in(self, seconds: float, fps: float = 30.0) -> None:
         """Slow white pulse: time to walk to the wall before a study."""
         if seconds <= 0:
             return
-        assert self.layout is not None
         pixels = self.layout.led_count
         print(f"lead-in {seconds:.0f}s — go look at the wall", flush=True)
 

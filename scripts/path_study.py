@@ -30,9 +30,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import src.twinkly_movies as twinkly_movies  # noqa: E402
 from panel_lab import PanelSession, frames_from  # noqa: E402
+from server import load_device_ip  # noqa: E402
 from src.twinkly_client import TwinklyClient  # noqa: E402
 
-PANEL_IP = "10.27.27.212"
 W, H = 32, 24
 MOVIE_FPS = 38
 LOOP_FRAMES = 76
@@ -83,7 +83,7 @@ def main(argv: list[str]) -> int:
         raise SystemExit("Seconds must be positive and cycles at least 1.")
 
     frames = [loop_frame(index) for index in range(LOOP_FRAMES)]
-    client = TwinklyClient(PANEL_IP)
+    client = TwinklyClient(load_device_ip())
     client.connect()
     client.set_brightness(brightness)
     baked = ensure_baked(client, frames)
@@ -103,7 +103,7 @@ def main(argv: list[str]) -> int:
             import time
             time.sleep(seconds)
 
-        with PanelSession(PANEL_IP, brightness=brightness) as panel:
+        with PanelSession(client.ip, brightness=brightness) as panel:
             if cycle == 1:
                 panel.lead_in(lead_in)
             print(f"cycle {cycle}: LIVE — fragments back to back",
