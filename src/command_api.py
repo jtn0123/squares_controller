@@ -4,7 +4,7 @@ import base64
 from typing import Any, Protocol
 
 API_VERSION = "1.0"
-ACTIONS = ["status", "mode", "brightness", "rotation", "frame"]
+ACTIONS = ["status", "mode", "brightness", "rotation", "frame", "movie"]
 
 
 class ControllerClient(Protocol):
@@ -19,6 +19,8 @@ class ControllerClient(Protocol):
     def set_raster_frame(
         self, pixels: bytes, width: int, height: int
     ) -> dict[str, Any]: ...
+
+    def select_movie(self, movie_id: int) -> dict[str, Any]: ...
 
 
 def validate_bind_security(
@@ -79,6 +81,15 @@ def execute_command(
         ):
             raise ValueError("Rotation must be 0, 90, 180, or 270.")
         return client.set_rotation(int(degrees))
+    if action == "movie":
+        movie_id = payload.get("id")
+        if (
+            isinstance(movie_id, bool)
+            or not isinstance(movie_id, int)
+            or movie_id < 0
+        ):
+            raise ValueError("Movie id must be a whole number of zero or more.")
+        return client.select_movie(movie_id)
     if action == "frame":
         width = payload.get("width")
         height = payload.get("height")

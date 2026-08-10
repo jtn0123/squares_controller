@@ -172,6 +172,23 @@
                         ]
                       }
                     ]
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "action",
+                      "id"
+                    ],
+                    "properties": {
+                      "action": {
+                        "const": "movie"
+                      },
+                      "id": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Identifier of a movie already stored on the controller (see the id values returned by the bundled UI's /api/movies)."
+                      }
+                    }
                   }
                 ]
               }

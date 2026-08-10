@@ -49,6 +49,12 @@ export const EFFECT_PREVIEW_TIMES: Record<string, number> = {
   snow: 1.1,
   blobs: 1.8,
   ballpit: 1.3,
+  meteor: 1.5,
+  chase: 0.9,
+  scanner: 1.2,
+  breathe: 1.6,
+  colorwaves: 1.4,
+  juggle: 1.3,
 };
 
 export interface BuiltInPreset {

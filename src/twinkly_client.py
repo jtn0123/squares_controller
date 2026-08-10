@@ -18,6 +18,7 @@ import urllib.request
 from typing import Any
 
 import src.twinkly_movies as twinkly_movies
+from src.color_pipeline import DEFAULT_GAMMA, DEFAULT_SATURATION
 from src.stream_telemetry import StreamTelemetry
 from src.twinkly_protocol import (
     API_PREFIX,
@@ -337,14 +338,21 @@ class TwinklyClient:
                 self.current_movie = current_movie
         return self.status()
 
+    def select_movie(self, movie_id: int) -> dict[str, Any]:
+        return twinkly_movies.play_stored_movie(self, movie_id)
+
     def _read_current_movie(self) -> dict[str, Any] | None:
         return twinkly_movies.read_current_movie(self)
 
     def list_movies(self) -> dict[str, Any]:
         return twinkly_movies.list_movies(self)
 
-    def adopt_movie_state(self, movie: dict[str, Any]) -> None:
-        """Record that the controller is now playing a stored movie."""
+    def adopt_movie_state(self, movie: dict[str, Any] | None) -> None:
+        """Record that the controller is now playing a stored movie.
+
+        Accepts None: firmware without a current-movie endpoint still
+        switches to movie mode, it just cannot name what is playing.
+        """
         with self._lock:
             self.mode = "movie"
             self.current_movie = movie
@@ -358,6 +366,9 @@ class TwinklyClient:
         height: int,
         frame_count: int,
         fps: int | float,
+        gamma: float = DEFAULT_GAMMA,
+        saturation: float = DEFAULT_SATURATION,
+        black_floor: int = 0,
     ) -> dict[str, Any]:
         return twinkly_movies.bake_movie(
             self,
@@ -367,6 +378,9 @@ class TwinklyClient:
             height=height,
             frame_count=frame_count,
             fps=fps,
+            gamma=gamma,
+            saturation=saturation,
+            black_floor=black_floor,
         )
 
     def _oriented_device_frame(

@@ -66,7 +66,7 @@ class CommandApiTests(unittest.TestCase):
         self.assertEqual(payload["apiVersion"], API_VERSION)
         self.assertEqual(
             payload["actions"],
-            ["status", "mode", "brightness", "rotation", "frame"],
+            ["status", "mode", "brightness", "rotation", "frame", "movie"],
         )
         self.assertIn("text/event-stream", payload["eventStream"])
 

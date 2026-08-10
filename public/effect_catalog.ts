@@ -108,6 +108,58 @@ export const EFFECT_CATALOG: readonly EffectDefinition[] = Object.freeze([
       { id: "gravity", label: "GRAVITY", min: 10, max: 100, step: 1, default: 62 },
     ],
   },
+  {
+    id: "meteor",
+    name: "METEOR",
+    subtitle: "DIAGONAL TRAILS",
+    controls: [
+      { id: "trail", label: "TRAIL LENGTH", min: 30, max: 240, step: 1, default: 110 },
+      { id: "count", label: "METEORS", min: 1, max: 5, step: 1, default: 3 },
+    ],
+  },
+  {
+    id: "chase",
+    name: "MARQUEE CHASE",
+    subtitle: "THEATRE COLUMNS",
+    controls: [
+      { id: "spacing", label: "GAP", min: 2, max: 8, step: 1, default: 4 },
+      { id: "width", label: "BAR WIDTH", min: 1, max: 4, step: 1, default: 1 },
+    ],
+  },
+  {
+    id: "scanner",
+    name: "SCANNER",
+    subtitle: "SWEEPING EYE",
+    controls: [
+      { id: "trail", label: "TRAIL LENGTH", min: 20, max: 160, step: 1, default: 70 },
+    ],
+  },
+  {
+    id: "breathe",
+    name: "BREATHE",
+    subtitle: "SLOW PALETTE SWELL",
+    controls: [
+      { id: "depth", label: "DEPTH", min: 20, max: 100, step: 1, default: 75 },
+    ],
+  },
+  {
+    id: "colorwaves",
+    name: "COLOR WAVES",
+    subtitle: "FOLDING PALETTE FLOW",
+    controls: [
+      { id: "scale", label: "WAVE SCALE", min: 15, max: 100, step: 1, default: 40 },
+      { id: "speed", label: "FLOW SPEED", min: 10, max: 100, step: 1, default: 50 },
+    ],
+  },
+  {
+    id: "juggle",
+    name: "JUGGLE",
+    subtitle: "CROSSING DOTS",
+    controls: [
+      { id: "dots", label: "DOTS", min: 2, max: 8, step: 1, default: 5 },
+      { id: "trail", label: "GLOW SIZE", min: 10, max: 60, step: 1, default: 25 },
+    ],
+  },
 ]);
 
 const EFFECT_MAP = new Map<string, EffectDefinition>(

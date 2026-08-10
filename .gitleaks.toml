@@ -48,14 +48,22 @@ regex = '''(?i)\b[A-Z0-9_]*(?:PASS(?:WD|WORD)?|SECRET|TOKEN)\s*=\s*["']?([^\s"'#
 secretGroup = 1
 keywords = ["pass", "secret", "token"]
 
-# Assignments whose right-hand side is a dotted code expression
-# (state.transitionToken, base64.b64encode(...), client.authenticate())
-# are source code, not leaked credentials; the named literals are test
-# fixtures whose values are deliberately fake.
+# Assignments whose right-hand side is a code expression rather than a
+# literal are source code, not leaked credentials. Each pattern below is
+# deliberately narrow: a real leak (MQPASS=hunter2, TOKEN=abc123) has a
+# bare literal on the right and still matches the rule.
+#
+#   token = client.authenticate()   dotted expression
+#   token = login["auth_token"]     subscript into a parsed response
+#   ..., token=token)               passing the variable along
+#
+# The named literals are test fixtures whose values are deliberately fake.
 [rules.allowlist]
 regexTarget = "line"
 regexes = [
     '''(?i)token\s*=\s*["']?[\w$]+\.\w+''',
+    '''(?i)token\s*=\s*[\w$]+\[''',
+    '''(?i)token\s*=\s*token\b''',
     '''["'](?:tok-123|stale-token)["']''',
 ]
 

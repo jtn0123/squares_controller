@@ -178,12 +178,58 @@ export async function loadStreamTelemetry(): Promise<void> {
   updateStreamTelemetry(response.streamTelemetry);
 }
 
+export async function playStoredMovie(movieId: number): Promise<void> {
+  const epoch = beginUserAction();
+  try {
+    const status = await api<ControllerStatus>("/api/movies/select", {
+      method: "POST",
+      body: JSON.stringify({ id: movieId }),
+    });
+    applyIfCurrent(epoch, status);
+    await loadMovies();
+    toast(`Playing ${status.currentMovie?.name ?? "panel movie"}.`);
+  } catch (error) {
+    toast((error as Error).message, true);
+  }
+}
+
+// Panel-stored movies play from the controller's own clock with no
+// network in the loop, so they are the smooth path; listing them lets
+// any stored look be recalled, not only the one just baked.
+function renderPanelMovies(library: MovieLibrary): void {
+  const list = $("#panelMovieList");
+  list.replaceChildren();
+  const currentId = state.controllerStatus?.currentMovie?.id;
+  library.movies.forEach((movie) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "panel-movie";
+    const playing =
+      movie.id === currentId && state.controllerStatus?.mode === "movie";
+    button.classList.toggle("active", playing);
+    button.setAttribute("aria-pressed", String(playing));
+    button.setAttribute("aria-label", `Play ${movie.name} on the panel`);
+    const name = document.createElement("strong");
+    name.textContent = movie.name;
+    const detail = document.createElement("small");
+    detail.textContent = `${movie.frames_number ?? "?"}F / ${movie.fps ?? "?"}FPS`;
+    button.append(name, detail);
+    button.addEventListener("click", () => void playStoredMovie(movie.id));
+    list.append(button);
+  });
+}
+
 export async function loadMovies(): Promise<MovieLibrary> {
   const library = await api<MovieLibrary>("/api/movies");
   state.movieLibrary = library;
   const used = Math.max(0, library.maxCapacity - library.availableFrames);
+  const free = Math.max(0, library.availableFrames);
+  // Free space is what decides whether the next bake fits, so lead with
+  // it; the used/total pair stays for context.
+  const seconds = Math.floor(free / 38);
   $("#movieCapacityReadout").textContent =
-    `${used} / ${library.maxCapacity} FRAMES USED`;
+    `${free} FRAMES FREE / ~${seconds}s · ${used} OF ${library.maxCapacity} USED`;
+  renderPanelMovies(library);
   const currentId = state.controllerStatus?.currentMovie?.id;
   const currentMovie = library.movies.find((movie) => movie.id === currentId);
   if (currentMovie && state.controllerStatus?.mode === "movie") {

@@ -334,7 +334,9 @@ class TwinklyClientTests(unittest.TestCase):
                 return after
             if path == "/movies/new":
                 body = kwargs["body"]
-                after["movies"][1]["unique_id"] = body["unique_id"]
+                # Real firmware echoes the UUID upper-cased, so the
+                # identity lookup must be case-insensitive.
+                after["movies"][1]["unique_id"] = body["unique_id"].upper()
                 return {"code": 1000}
             return {"code": 1000}
 
@@ -366,6 +368,56 @@ class TwinklyClientTests(unittest.TestCase):
         )
         self.assertEqual(result["bakedMovie"]["id"], 1)
         self.assertEqual(result["status"]["mode"], "movie")
+        client.close(restore_movie=False)
+
+    def test_bake_colour_corrects_before_upload(self) -> None:
+        from src.color_pipeline import correct_movie
+
+        client = self.connected_client()
+        client.layout = Layout(1, 1, 1, (0,))
+        client.device["number_of_led"] = 1
+        # A mid-tone: gamma and saturation both move it, unlike the pure
+        # primaries the other bake test uses.
+        frame = bytes([100, 150, 200])
+
+        def request(path, **kwargs):
+            if path == "/movies":
+                return {
+                    "movies": [{"id": 0, "name": "X", "unique_id": "u0"}],
+                    "available_frames": 100,
+                    "max_capacity": 100,
+                }
+            if path == "/movies/new":
+                unique = kwargs["body"]["unique_id"]
+                request.created = {"id": 1, "unique_id": unique.upper()}
+            return {"code": 1000}
+
+        request.created = None
+
+        def listing(_client):
+            movies = [{"id": 0, "name": "X", "unique_id": "u0"}]
+            if request.created:
+                movies.append(request.created)
+            return {
+                "movies": movies,
+                "available_frames": 100,
+                "max_capacity": 100,
+            }
+
+        with (
+            patch.object(client, "request", side_effect=request),
+            patch("src.twinkly_movies.list_movies", side_effect=listing),
+            patch.object(
+                client, "_request_bytes", return_value={"code": 1000}
+            ) as upload,
+        ):
+            client.bake_movie(
+                "Tone", frame, width=1, height=1, frame_count=1, fps=30
+            )
+
+        uploaded = upload.call_args.args[1]
+        self.assertEqual(uploaded, correct_movie(frame))
+        self.assertNotEqual(uploaded, frame, "correction was not applied")
         client.close(restore_movie=False)
 
     def test_rejects_movie_larger_than_free_controller_capacity(self) -> None:

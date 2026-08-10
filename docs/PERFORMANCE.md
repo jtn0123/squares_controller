@@ -87,6 +87,114 @@ one millisecond per frame. Moving from 12 to 16 panels increases raw RGB data
 from 2,304 to 3,072 bytes per frame, which is not enough to force a lower
 cadence on a modern Mac or ordinary local Wi-Fi.
 
+## Motion study: delivered cadence by target rate
+
+Run with `python3 scripts/motion_study.py [brightness] [rates...]`. Ten
+seconds of continuous diagonal-sweep motion per rate, measured on the live
+32×24 wall at 10% brightness after the one-clock relay change:
+
+| Target | Delivered | p95 fresh gap | Max fresh gap | Repeats | Late | Missed |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 24 FPS | 24.14 FPS | 45.8 ms | 46.9 ms | 0 | 0 | 0 |
+| 30 FPS | 30.07 FPS | 36.4 ms | 38.4 ms | 0 | 0 | 0 |
+| 33 FPS | 33.07 FPS | 33.6 ms | 36.1 ms | 0 | 0 | 0 |
+| 36 FPS | 35.97 FPS | 29.0 ms | 31.0 ms | 0 | 0 | 0 |
+
+Every rate delivered every fresh frame: no repeats, no late sends, no
+missed deadlines. Measured gaps track the producer's own send spacing
+(within ~1 ms), which means the relay adds no cadence of its own — it
+forwards what it is given, when it is given. Host transport is therefore
+not a source of visible judder at any of these rates, and a lower target
+rate does not buy smoothness.
+
+As always these are transport measurements, not optical ones.
+
+## Live-wall capability probe
+
+`scripts/capability_probe.py` puts one question per colour on the wall.
+Observed on the 32×24 wall at 10% hardware brightness, 36 FPS:
+
+| Zone | Test | Result |
+| --- | --- | --- |
+| Red | 24-step gamma ramp | Darkest 4 steps invisible |
+| Green | raw PWM 0…23, one per row | Rows 0–9 invisible |
+| Blue | one row per sent frame | Marches, but visibly cuts out |
+| Amber | full on/off every frame | Visibly flickers — see the caveat below |
+
+Two independent conclusions.
+
+**There is a black floor.** At 10% brightness the panel emits no light
+below roughly PWM 10, so the bottom ~4% of the range is dead. Gamma
+correction pushes shadow detail straight into that dead zone, which is
+why the darkest four bands of the gamma ramp vanished. Gamma therefore
+needs a black-floor lift — map non-zero output into `[floor, 255]` and
+keep true zero as true black — and the floor rises as brightness falls,
+so it has to be calibrated at the operating brightness.
+
+**Frames are being lost, and host telemetry cannot see it.** The
+one-row-per-frame marker visibly cuts out: rows the host sent never
+appear. The realtime protocol has no acknowledgement, so "missed
+deadlines: 0" only ever proved the host *sent* on time.
+
+The amber zone does *not* support that conclusion, and an earlier
+version of this document wrongly claimed it did. Alternating on/off
+every frame at 36 FPS is an 18 Hz square wave — well below flicker
+fusion — so it flickers visibly even when every frame is displayed
+perfectly. Only the marching marker, and the baked-versus-streamed
+comparison below, are evidence of loss. Proving it precisely would need
+optical capture of frame-identifiable content.
+
+### Correction: latency is not loss
+
+An earlier airtime trial measured round-trip latency while streaming at
+12/20/28/36 FPS and found no relationship (55–70 ms average at every
+rate), which was read as "send rate does not matter". That measured the
+wrong quantity. ICMP at 5 packets/second does not stress the panel's
+receive path, whereas realtime streaming costs three UDP packets per
+frame — 108 packets/second at 36 FPS. Displayed-frame integrity has to
+be judged from the panel's output, not from ping.
+
+## Delivery path is the limit, not the frame rate
+
+Every rate experiment varied settings *inside* the streaming path, which
+could never answer whether the path itself was the problem. Running the
+identical animation three ways on the live wall settled it
+(`scripts/path_study.py`, `scripts/bake_vs_stream.py`):
+
+| Path | Result |
+| --- | --- |
+| Baked to panel storage | Flawless |
+| Realtime UDP, fragments back to back | Judders |
+| Realtime UDP, fragments spread over the frame interval | Judders |
+
+Spacing the three per-frame fragments did not help, so the loss is not a
+receive burst that pacing can smooth out. The panel is a 2.4 GHz radio
+carrying 55–180 ms of latency jitter against a 28 ms frame budget, while
+this Mac's own link to the same access point is a steady 7 ms ± 0.7 ms.
+Baked playback runs from panel storage on the panel's clock with no
+network in the loop, which is why the stock movies look perfect.
+
+Smooth motion therefore comes from baking, not from tuning the stream.
+Realtime remains the right path for painting, live audio, and screen
+mirroring, where responsiveness matters more than even cadence — and it
+is worth saying plainly in the UI that those paths differ.
+
+### Baking was broken on real firmware
+
+Worth recording because it hid the good path for a long time: the
+controller echoes a movie's `unique_id` upper-cased while `uuid4()`
+emits lower case, and the post-upload identity lookup compared them
+case-sensitively. Every successful bake therefore raised "Movie uploaded
+but the controller did not return its identity", and the app never
+selected or played the result.
+
+### Known gap
+
+There is still no route for selecting an already-stored movie — the app
+can only play what it just baked. A bake-centred workflow needs both
+that and a way to remove movies, since the XLED v1 API exposes only a
+delete-everything call.
+
 ## Further optimization threshold
 
 Realtime output now exposes permanent relay telemetry, while finite output can

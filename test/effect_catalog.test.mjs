@@ -10,9 +10,9 @@ import {
   radarLightLevel,
 } from "../public/effect_catalog.js";
 
-test("publishes a unique sixteen-effect 2D catalog", () => {
-  assert.equal(EFFECT_CATALOG.length, 16);
-  assert.equal(new Set(EFFECT_CATALOG.map((effect) => effect.id)).size, 16);
+test("publishes a unique twenty-two-effect 2D catalog", () => {
+  assert.equal(EFFECT_CATALOG.length, 22);
+  assert.equal(new Set(EFFECT_CATALOG.map((effect) => effect.id)).size, 22);
   EFFECT_CATALOG.forEach((effect) => {
     assert.match(effect.id, /^[a-z][a-z0-9-]+$/);
     assert.ok(effect.name.length > 0);

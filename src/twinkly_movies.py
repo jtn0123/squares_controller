@@ -11,6 +11,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from src.color_pipeline import (
+    DEFAULT_GAMMA,
+    DEFAULT_SATURATION,
+    correct_movie,
+)
 from src.twinkly_protocol import (
     TwinklyHTTPError,
     oriented_raster_movie_to_device,
@@ -63,6 +68,33 @@ def select_current_movie(client: Any, movie_id: int) -> None:
         )
 
 
+def play_stored_movie(client: Any, movie_id: int) -> dict[str, Any]:
+    """Play a movie already stored on the controller.
+
+    Same transition discipline as set_mode: hold the stream lock for the
+    whole switch so an in-flight frame cannot restart the relay part way
+    through and leave mode and stream state disagreeing.
+    """
+    identifier = int(movie_id)
+    with client._stream_start_lock:
+        client.stop_stream()
+        if client.brightness is not None:
+            client.request(
+                "/led/out/brightness",
+                method="POST",
+                body={
+                    "mode": "enabled",
+                    "type": "A",
+                    "value": client.brightness,
+                },
+            )
+        select_current_movie(client, identifier)
+        client.request("/led/mode", method="POST", body={"mode": "movie"})
+        client.adopt_movie_state(read_current_movie(client))
+    status: dict[str, Any] = client.status()
+    return status
+
+
 def bake_movie(
     client: Any,
     name: str,
@@ -72,6 +104,9 @@ def bake_movie(
     height: int,
     frame_count: int,
     fps: int | float,
+    gamma: float = DEFAULT_GAMMA,
+    saturation: float = DEFAULT_SATURATION,
+    black_floor: int = 0,
 ) -> dict[str, Any]:
     if client.layout is None or client.device is None:
         client.connect()
@@ -89,8 +124,17 @@ def bake_movie(
     )
     movie_fps = min(requested_fps, max(1, int(measured_fps)))
 
+    # Correct once, here, rather than per displayed frame: a stored
+    # movie plays straight off the panel, so this is the last chance to
+    # map browser sRGB onto what the LED drivers actually do.
+    corrected = correct_movie(
+        bytes(pixels),
+        gamma=gamma,
+        saturation=saturation,
+        black_floor=black_floor,
+    )
     movie_data = oriented_raster_movie_to_device(
-        pixels,
+        corrected,
         frame_count=frame_count,
         width=width,
         height=height,
@@ -127,11 +171,15 @@ def bake_movie(
     )
     client._request_bytes("/movies/full", movie_data)
     after = list_movies(client)
+    # Firmware normalizes the UUID's case (uuid4() is lower case, the
+    # controller echoes it upper case), so this match must be
+    # case-insensitive or every successful bake looks like a failure.
+    wanted = unique_id.casefold()
     created = next(
         (
             movie
             for movie in after["movies"]
-            if movie.get("unique_id") == unique_id
+            if str(movie.get("unique_id", "")).casefold() == wanted
         ),
         None,
     )
