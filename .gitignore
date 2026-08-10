@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 config.json
+.coverage
 .env
 .squares/
 node_modules/

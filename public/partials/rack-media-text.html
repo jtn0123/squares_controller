@@ -108,6 +108,28 @@
               id="panelMovieList"
               aria-label="Movies stored on the panel"
             ></fieldset>
+            <div class="panel-archive">
+              <div class="panel-bake-heading">
+                <span>LOCAL ARCHIVE</span>
+                <label class="archive-import">
+                  <span>IMPORT FILE</span>
+                  <input
+                    id="archiveImport"
+                    type="file"
+                    accept="application/json,.json"
+                  />
+                </label>
+              </div>
+              <div
+                class="panel-archive-list"
+                id="panelArchiveList"
+                aria-label="Movies archived on this computer"
+              ></div>
+              <small>
+                THE PANEL CANNOT SEND MOVIES BACK / ONLY BAKES MADE HERE
+                CAN BE SAVED OR RESTORED
+              </small>
+            </div>
           </div>
           <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
           <div class="preset-composer">

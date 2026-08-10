@@ -9,6 +9,7 @@ from unittest.mock import Mock
 from src.automation_store import AutomationStore
 from src.http_api import AppContext, SquaresHandler, SquaresServer
 from src.library_store import LibraryStore
+from src.movie_archive import MovieArchive
 from src.runtime_policy import FrameActivity, RuntimePolicyStore
 from src.state_broker import StateBroker
 from src.store_recovery import load_store_with_recovery
@@ -56,6 +57,7 @@ class ServerRouteTests(unittest.TestCase):
             library_store=LibraryStore(root / "library.json"),
             automation_store=AutomationStore(root / "automations.json"),
             runtime_policy_store=RuntimePolicyStore(root / "runtime.json"),
+            movie_archive=MovieArchive(root / "movies"),
             frame_activity=FrameActivity(),
             shutting_down=threading.Event(),
             client=self.client,
