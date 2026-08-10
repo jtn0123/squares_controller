@@ -37,7 +37,6 @@ PANEL_IP = "10.27.27.212"
 PANEL = f"http://{PANEL_IP}/xled/v1"
 UDP = (PANEL_IP, 7777)
 W, H = 32, 24
-STREAM_FPS = 36.0            # what the panel is fed, always
 STRIP_W, GAP = 7, 1
 SWEEPS_PER_SECOND = 0.9      # fast enough that low rates visibly step
 ZONE_HUES = [0.0, 0.09, 0.33, 0.5]  # red, amber, green, cyan
@@ -57,10 +56,18 @@ def api(path: str, body: dict | None = None, token: str | None = None) -> dict:
         return json.load(response)
 
 
-def finish(rgb: tuple[float, float, float], hue: float, value: float):
-    """Winning colour treatment: full saturation, then gamma 2.2."""
-    saturated = colorsys.hsv_to_rgb(hue, 1.0, value)
-    return tuple(255.0 * ((channel) ** 2.2) for channel in saturated)
+def hue_pwm(hue: float) -> tuple[float, float, float]:
+    """Full-intensity hue, gamma-corrected into linear PWM space.
+
+    Gamma belongs on the colour only. Anti-aliased coverage must scale
+    the PWM value linearly afterwards — gamma-ing the coverage crushes
+    partial pixels (0.5 -> 0.22) and turns soft moving edges hard, which
+    reads as judder no matter how high the frame rate is.
+    """
+    return tuple(
+        255.0 * (channel ** 2.2)
+        for channel in colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+    )
 
 
 def build_frame(seconds: float, rates: list[float]) -> bytes:
@@ -71,14 +78,14 @@ def build_frame(seconds: float, rates: list[float]) -> bytes:
         # producer running at that rate.
         zone_time = math.floor(seconds * rate) / rate
         head = (zone_time * SWEEPS_PER_SECOND * H) % H
-        hue = ZONE_HUES[index % len(ZONE_HUES)]
+        base = hue_pwm(ZONE_HUES[index % len(ZONE_HUES)])
         for y in range(H):
             gap = abs(y - head)
             distance = min(gap, H - gap)
-            value = max(0.0, 1.0 - distance / 3.5)
-            if value <= 0:
+            coverage = max(0.0, 1.0 - distance / 3.5)
+            if coverage <= 0:
                 continue
-            r, g, b = finish((0, 0, 0), hue, value)
+            r, g, b = (channel * coverage for channel in base)
             for local_x in range(STRIP_W):
                 offset = (y * W + x0 + local_x) * 3
                 pixels[offset] = max(0, min(255, int(r)))
@@ -93,7 +100,9 @@ def build_frame(seconds: float, rates: list[float]) -> bytes:
 def main(argv: list[str]) -> int:
     brightness = int(argv[1]) if len(argv) > 1 else 10
     seconds = float(argv[2]) if len(argv) > 2 else 75.0
-    rates = [float(r) for r in argv[3:]] or [12.0, 20.0, 30.0, 36.0]
+    rates = [float(r) for r in argv[3:]] or [34.0, 36.0, 37.5, 38.46]
+    # Feed the panel at the fastest zone so no zone is capped by the carrier.
+    stream_fps = max(rates)
 
     login = api("/login", {"challenge": base64.b64encode(bytes(32)).decode()})
     token = login["authentication_token"]
@@ -104,18 +113,18 @@ def main(argv: list[str]) -> int:
     for index, rate in enumerate(rates, start=1):
         dots = "dot" if index == 1 else "dots"
         print(f"  zone {index} ({index} {dots}, {hue_names[index - 1]}): "
-              f"{rate:.0f} FPS motion")
+              f"{rate:g} FPS motion")
     print(f"\nrunning {seconds:.0f}s at {brightness}% brightness, "
-          f"panel fed at {STREAM_FPS:.0f} FPS …", flush=True)
+          f"panel fed at {stream_fps:g} FPS …", flush=True)
 
     api("/led/mode", {"mode": "rt"}, token)
     api("/led/out/brightness",
         {"mode": "enabled", "type": "A", "value": brightness}, token)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    interval = 1.0 / STREAM_FPS
+    interval = 1.0 / stream_fps
     deadline = time.monotonic()
-    for n in range(int(STREAM_FPS * seconds)):
+    for n in range(int(stream_fps * seconds)):
         raster = build_frame(n * interval, rates)
         frame = oriented_raster_to_device_frame(raster, W, H, layout, 0)
         for packet in build_realtime_packets(token, frame):
