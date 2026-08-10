@@ -14,6 +14,7 @@ from http import HTTPStatus
 from typing import Any
 
 PREFIX = "/api/movies/archive"
+NOT_FOUND = (HTTPStatus.NOT_FOUND, {"error": "Archived movie not found."})
 
 
 def _entry_id(path: str) -> str:
@@ -43,33 +44,39 @@ def handle(
             # browser saves to disk and hands back later.
             return HTTPStatus.OK, {"archive": archive.read(archive_id)}
         except KeyError:
-            return HTTPStatus.NOT_FOUND, {"error": "Archived movie not found."}
+            return NOT_FOUND
 
     if method == "DELETE":
         if archive.delete(archive_id):
             return HTTPStatus.OK, {"deleted": archive_id}
-        return HTTPStatus.NOT_FOUND, {"error": "Archived movie not found."}
+        return NOT_FOUND
 
     if method == "POST" and path.endswith("/restore"):
-        try:
-            entry = archive.read(archive_id)
-        except KeyError:
-            return HTTPStatus.NOT_FOUND, {"error": "Archived movie not found."}
-        pixels = base64.b64decode(entry["pixelsBase64"])
-        # Baking switches panel modes over several seconds; hold the
-        # frame lock so a concurrent upload cannot restart the relay.
-        with ctx.frame_mode_lock:
-            baked = ctx.get_client().bake_movie(
-                str(body.get("name") or entry["name"]),
-                pixels,
-                width=int(entry["width"]),
-                height=int(entry["height"]),
-                frame_count=int(entry["frameCount"]),
-                fps=int(entry["fps"]),
-                gamma=float(entry.get("gamma", 2.2)),
-                saturation=float(entry.get("saturation", 1.0)),
-            )
-        ctx.publish(baked["status"], "movie:restore")
-        return HTTPStatus.OK, baked
+        return _restore(ctx, archive_id, body)
 
     return None
+
+
+def _restore(
+    ctx: Any, archive_id: str, body: dict[str, Any]
+) -> tuple[HTTPStatus, dict[str, Any]]:
+    try:
+        entry = ctx.movie_archive.read(archive_id)
+    except KeyError:
+        return NOT_FOUND
+    pixels = base64.b64decode(entry["pixelsBase64"])
+    # Baking switches panel modes over several seconds; hold the
+    # frame lock so a concurrent upload cannot restart the relay.
+    with ctx.frame_mode_lock:
+        baked = ctx.get_client().bake_movie(
+            str(body.get("name") or entry["name"]),
+            pixels,
+            width=int(entry["width"]),
+            height=int(entry["height"]),
+            frame_count=int(entry["frameCount"]),
+            fps=int(entry["fps"]),
+            gamma=float(entry.get("gamma", 2.2)),
+            saturation=float(entry.get("saturation", 1.0)),
+        )
+    ctx.publish(baked["status"], "movie:restore")
+    return HTTPStatus.OK, baked

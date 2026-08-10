@@ -131,10 +131,10 @@ class TwinklyProtocolTests(unittest.TestCase):
         self.assertEqual(packets[0][0], 0x03)
 
     def test_rejects_frame_with_wrong_number_of_channels(self) -> None:
+        layout = Layout(2, 1, 2, (0, 1))
+
         with self.assertRaisesRegex(ValueError, "Expected 6 RGB values"):
-            raster_to_device_frame(
-                bytes([0, 0, 0]), Layout(2, 1, 2, (0, 1))
-            )
+            raster_to_device_frame(bytes([0, 0, 0]), layout)
 
     def test_reorders_every_raster_movie_frame_into_device_order(self) -> None:
         layout = Layout(2, 1, 2, (1, 0))

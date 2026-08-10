@@ -59,8 +59,10 @@ class MovieArchiveTest(unittest.TestCase):
     def test_save_rejects_a_pixel_buffer_that_does_not_match_the_geometry(
         self,
     ) -> None:
+        short_buffer = build_pixels(frames=2)
+
         with self.assertRaises(ValueError):
-            self.save_one(pixels=build_pixels(frames=2))
+            self.save_one(pixels=short_buffer)
 
     def test_save_rejects_a_movie_larger_than_the_ceiling(self) -> None:
         with self.assertRaises(ValueError):
