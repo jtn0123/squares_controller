@@ -4,12 +4,15 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
+# Permissions are declared per job (least privilege): a workflow-level
+# grant would also hand the token to jobs that never touch the repo.
+permissions: {}
 
 jobs:
   python:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         python-version: ["3.11", "3.13"]
@@ -29,6 +32,8 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         # 20 is the documented floor; 22 is current.
@@ -58,5 +63,11 @@ jobs:
     # otherwise be reported to branch protection as success.
     if: always()
     runs-on: ubuntu-latest
+    # Checks out nothing and calls no API: needs no token at all.
+    permissions: {}
     steps:
-      - run: '[ "${{ needs.frontend.result }}" = "success" ]'
+      # The result reaches the shell through the environment rather than
+      # ${{ }} interpolation, which would splice it into the script text.
+      - env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+        run: '[ "$FRONTEND_RESULT" = "success" ]'
