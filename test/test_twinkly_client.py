@@ -334,7 +334,9 @@ class TwinklyClientTests(unittest.TestCase):
                 return after
             if path == "/movies/new":
                 body = kwargs["body"]
-                after["movies"][1]["unique_id"] = body["unique_id"]
+                # Real firmware echoes the UUID upper-cased, so the
+                # identity lookup must be case-insensitive.
+                after["movies"][1]["unique_id"] = body["unique_id"].upper()
                 return {"code": 1000}
             return {"code": 1000}
 

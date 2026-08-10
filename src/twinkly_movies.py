@@ -127,11 +127,15 @@ def bake_movie(
     )
     client._request_bytes("/movies/full", movie_data)
     after = list_movies(client)
+    # Firmware normalizes the UUID's case (uuid4() is lower case, the
+    # controller echoes it upper case), so this match must be
+    # case-insensitive or every successful bake looks like a failure.
+    wanted = unique_id.casefold()
     created = next(
         (
             movie
             for movie in after["movies"]
-            if movie.get("unique_id") == unique_id
+            if str(movie.get("unique_id", "")).casefold() == wanted
         ),
         None,
     )
