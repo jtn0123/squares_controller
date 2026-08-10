@@ -1,4 +1,5 @@
 import { FIELD_PAINTERS } from "./effect_painters_field.js";
+import { MOTION_PAINTERS } from "./effect_painters_motion.js";
 import { PARTICLE_PAINTERS } from "./effect_painters_particles.js";
 import type { EffectPainter } from "./types.js";
 
@@ -7,5 +8,6 @@ import type { EffectPainter } from "./types.js";
 // ctx = { width, height, zone, control }.
 export const effectPainters: Record<string, EffectPainter> = {
   ...FIELD_PAINTERS,
+  ...MOTION_PAINTERS,
   ...PARTICLE_PAINTERS,
 };
