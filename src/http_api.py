@@ -160,9 +160,13 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         if length == 0:
             return {}
         try:
-            body: dict[str, Any] = json.loads(self.rfile.read(length))
+            body = json.loads(self.rfile.read(length))
         except json.JSONDecodeError as error:
             raise ValueError("Request body must be valid JSON.") from error
+        # json.loads also yields lists/strings/numbers/null; routes call
+        # .get() on the result, so anything but an object must 400 here.
+        if not isinstance(body, dict):
+            raise ValueError("Request body must be a JSON object.")
         return body
 
     def _body_limit(self, path: str) -> int:

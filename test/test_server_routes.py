@@ -115,6 +115,11 @@ class ServerRouteTests(unittest.TestCase):
                     status, 404, f"{method.upper()} {path} is documented but 404s"
                 )
 
+    def test_rejects_json_bodies_that_are_not_objects(self) -> None:
+        status, payload = self.request("POST", "/api/scenes", body=["not", "an", "object"])
+        self.assertEqual(status, 400)
+        self.assertIn("JSON object", payload["error"])
+
     def test_rejects_non_json_content_type(self) -> None:
         status, payload = self.request(
             "POST", "/api/scenes", body={"name": "X"}, content_type="text/plain"

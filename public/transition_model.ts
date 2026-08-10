@@ -54,7 +54,10 @@ function paintPush(result: Uint8Array, { from, to, width, height, progress }: Tr
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const destinationOffset = (y * width + x) * 3;
-      const sourceX = x < revealed ? x : x - revealed;
+      // The incoming frame slides in from the left, so its rightmost
+      // `revealed` columns are visible; pinning it to final coordinates
+      // instead would make the right side pop in at completion.
+      const sourceX = x < revealed ? width - revealed + x : x - revealed;
       const source = x < revealed ? to : from;
       const sourceOffset = (y * width + sourceX) * 3;
       result.set(source.subarray(sourceOffset, sourceOffset + 3), destinationOffset);
