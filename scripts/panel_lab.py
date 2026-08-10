@@ -92,9 +92,10 @@ class PanelSession:
         try:
             self.set_brightness(self.brightness)
             self.set_mode(self.restore_mode)
-        except (ConnectionError, OSError):
-            # Already unwinding; a failed restore must not mask the
-            # original error.
+        except OSError:
+            # ConnectionError (and TwinklyHTTPError under it) are OSError
+            # subclasses. Already unwinding; a failed restore must not
+            # mask the original error.
             pass
         finally:
             if self.socket is not None:
