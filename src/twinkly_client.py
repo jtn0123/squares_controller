@@ -18,6 +18,7 @@ import urllib.request
 from typing import Any
 
 import src.twinkly_movies as twinkly_movies
+from src.color_pipeline import DEFAULT_GAMMA, DEFAULT_SATURATION
 from src.stream_telemetry import StreamTelemetry
 from src.twinkly_protocol import (
     API_PREFIX,
@@ -365,6 +366,9 @@ class TwinklyClient:
         height: int,
         frame_count: int,
         fps: int | float,
+        gamma: float = DEFAULT_GAMMA,
+        saturation: float = DEFAULT_SATURATION,
+        black_floor: int = 0,
     ) -> dict[str, Any]:
         return twinkly_movies.bake_movie(
             self,
@@ -374,6 +378,9 @@ class TwinklyClient:
             height=height,
             frame_count=frame_count,
             fps=fps,
+            gamma=gamma,
+            saturation=saturation,
+            black_floor=black_floor,
         )
 
     def _oriented_device_frame(

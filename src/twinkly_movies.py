@@ -11,6 +11,11 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from src.color_pipeline import (
+    DEFAULT_GAMMA,
+    DEFAULT_SATURATION,
+    correct_movie,
+)
 from src.twinkly_protocol import (
     TwinklyHTTPError,
     oriented_raster_movie_to_device,
@@ -99,6 +104,9 @@ def bake_movie(
     height: int,
     frame_count: int,
     fps: int | float,
+    gamma: float = DEFAULT_GAMMA,
+    saturation: float = DEFAULT_SATURATION,
+    black_floor: int = 0,
 ) -> dict[str, Any]:
     if client.layout is None or client.device is None:
         client.connect()
@@ -116,8 +124,17 @@ def bake_movie(
     )
     movie_fps = min(requested_fps, max(1, int(measured_fps)))
 
+    # Correct once, here, rather than per displayed frame: a stored
+    # movie plays straight off the panel, so this is the last chance to
+    # map browser sRGB onto what the LED drivers actually do.
+    corrected = correct_movie(
+        bytes(pixels),
+        gamma=gamma,
+        saturation=saturation,
+        black_floor=black_floor,
+    )
     movie_data = oriented_raster_movie_to_device(
-        pixels,
+        corrected,
         frame_count=frame_count,
         width=width,
         height=height,
