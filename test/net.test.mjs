@@ -175,13 +175,24 @@ test("a 409 stops producing and hands control to the takeover handler", async ()
   onControlLost(() => {
     lost += 1;
   });
-  globalThis.fetch = async () =>
-    jsonResponse(409, JSON.stringify({ error: "Another controller tab is driving the wall." }));
+  let uploads = 0;
+  globalThis.fetch = async () => {
+    uploads += 1;
+    // The effect loop queues the next frame while this one is in flight;
+    // the 409 path must drop it instead of re-uploading from `finally`.
+    state.frameQueued = true;
+    return jsonResponse(
+      409,
+      JSON.stringify({ error: "Another controller tab is driving the wall." }),
+    );
+  };
 
   state.frameQueued = true;
   await flushFrame();
+  await new Promise((resolve) => setTimeout(resolve, 60));
 
   assert.equal(lost, 1);
+  assert.equal(uploads, 1, "the queued frame was dropped, not re-uploaded");
   assert.equal(state.frameQueued, false);
   assert.equal(state.connected, true);
   onControlLost(null);
