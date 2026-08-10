@@ -1,11 +1,12 @@
 # Gitleaks configuration for squares_controller
 # Reduces false positives for this specific project.
 #
-# The rules below are deliberately wider than the obvious `mqtt_password = "..."`
-# shape. A previous version matched only quoted assignments containing the
-# literal word "mqtt", so a bare `MQPASS=<digits>` in a launchd helper script sat
-# in a public repo undetected until a manual read found it. Shell scripts assign
-# secrets bare and abbreviate the variable name; the rules have to cover that.
+# The rules below are deliberately wider than the obvious quoted
+# mqtt-password shape. A previous version matched only quoted assignments
+# containing the literal word "mqtt", so an abbreviated bare assignment in a
+# launchd helper script sat in a public repo undetected until a manual read
+# found it. Shell scripts assign secrets bare and abbreviate the variable
+# name; the rules have to cover that.
 
 title = "squares_controller gitleaks config"
 # The upstream default ruleset (AWS keys, GitHub PATs, Slack/Stripe tokens,
@@ -38,9 +39,8 @@ regexes = [
     '''["']?:\?[A-Z_ ]+not set''',  # ${VAR:?VAR not set} shell guards
 ]
 
-# Bare shell-style assignment of a credential: PASS=hunter2, MQPASS=<digits>,
-# MQTT_PASSWORD=..., BROKER_PASS=... Unquoted or quoted, any variable name
-# ending in PASS/PASSWD/PASSWORD/SECRET/TOKEN.
+# Bare shell-style assignment of a credential, quoted or not, for any
+# variable name ending in PASS / PASSWD / PASSWORD / SECRET / TOKEN.
 [[rules]]
 id = "bare-credential-assignment"
 description = "Bare credential assignment (shell/env style)"
@@ -48,23 +48,28 @@ regex = '''(?i)\b[A-Z0-9_]*(?:PASS(?:WD|WORD)?|SECRET|TOKEN)\s*=\s*["']?([^\s"'#
 secretGroup = 1
 keywords = ["pass", "secret", "token"]
 
-# Assignments whose right-hand side is a code expression rather than a
-# literal are source code, not leaked credentials. Each pattern below is
-# deliberately narrow: a real leak (MQPASS=hunter2, TOKEN=abc123) has a
-# bare literal on the right and still matches the rule.
+# Source code assigns tokens too. These exemptions match the captured
+# value only — NOT the whole line, which would let a real secret escape
+# just by sharing a line with a benign one.
 #
-#   token = client.authenticate()   dotted expression
-#   token = login["auth_token"]     subscript into a parsed response
-#   ..., token=token)               passing the variable along
-#
-# The named literals are test fixtures whose values are deliberately fake.
+# Each is narrow on purpose. A dotted value must be a call, because a
+# plain dotted literal is a perfectly good shape for a real secret and
+# has to stay caught. Verified by fixture in the commit that added this.
 [rules.allowlist]
-regexTarget = "line"
 regexes = [
-    '''(?i)token\s*=\s*["']?[\w$]+\.\w+''',
-    '''(?i)token\s*=\s*[\w$]+\[''',
-    '''(?i)token\s*=\s*token\b''',
-    '''["'](?:tok-123|stale-token)["']''',
+    # a method call, at any depth: self.client.authenticate(),
+    # base64.b64encode(...). The trailing "(" is what distinguishes code
+    # from a dotted literal secret such as abc.def.
+    '''^[A-Za-z_][\w$]*(?:\.[\w$]+)+\(''',
+    # the one bare attribute read in the codebase
+    '''^state\.transitionToken\b''',
+    # a subscript into a parsed response: login["authentication_token"]
+    '''^[A-Za-z_][\w$]*\[''',
+    # handing the variable straight on: self.token = token,
+    # f(..., token=token), api(path, token=token)["field"]
+    '''^token(?:[,)]|$)''',
+    # test fixtures whose values are deliberately fake
+    '''^(?:tok-123|stale-token)$''',
 ]
 
 # Credentials passed as command-line flags: mosquitto_pub -P <pw>,

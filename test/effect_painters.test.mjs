@@ -117,6 +117,27 @@ test("painters honour the active zone", () => {
   }
 });
 
+test("marquee chase leaves a dark gap even with a wide bar", () => {
+  // GAP is the dark run, not the whole period: with width >= gap the
+  // old maths lit every column and the effect vanished.
+  const controls = { spacing: 2, width: 4 };
+  const target = new Uint8Array(WIDTH * HEIGHT * 3);
+  effectPainters.chase(1.0, target, PALETTE, {
+    width: WIDTH,
+    height: HEIGHT,
+    zone: { type: "all" },
+    control: (_id, control) => controls[control],
+  });
+  const darkColumns = [...Array(WIDTH).keys()].filter((x) => {
+    const offset = x * 3;
+    return target[offset] + target[offset + 1] + target[offset + 2] === 0;
+  });
+  assert.ok(
+    darkColumns.length > 0,
+    "every column was lit, so GAP does nothing",
+  );
+});
+
 test("painters are deterministic for a given time", () => {
   for (const effect of EFFECT_CATALOG) {
     assert.deepEqual(

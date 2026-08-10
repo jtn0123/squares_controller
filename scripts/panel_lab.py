@@ -79,8 +79,14 @@ class PanelSession:
     def __enter__(self) -> PanelSession:
         self.client.connect()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.set_mode("rt")
-        self.set_brightness(self.brightness)
+        try:
+            self.set_mode("rt")
+            self.set_brightness(self.brightness)
+        except BaseException:
+            # __exit__ never runs if __enter__ raises, so a failure here
+            # would strand the panel in realtime with the socket open.
+            self.__exit__(None, None, None)
+            raise
         return self
 
     def __exit__(

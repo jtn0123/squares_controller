@@ -226,6 +226,11 @@
   letter-spacing: 0.08em;
 }
 
+.panel-movie-list.busy {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
 .panel-movie:hover,
 .panel-movie.active {
   border-color: var(--acid);

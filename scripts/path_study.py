@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import src.twinkly_movies as twinkly_movies  # noqa: E402
 from panel_lab import PanelSession, frames_from  # noqa: E402
+from src.color_pipeline import correct_frame  # noqa: E402
 from server import load_device_ip  # noqa: E402
 from src.twinkly_client import TwinklyClient  # noqa: E402
 
@@ -91,7 +92,9 @@ def main(argv: list[str]) -> int:
         print(f"not enough movie storage for {MOVIE_NAME}; "
               "skipping the baked block")
 
-    render = frames_from(frames)
+    # bake_movie corrects before upload, so the streamed blocks have to
+    # carry the same correction or this compares colour, not delivery.
+    render = frames_from([correct_frame(frame) for frame in frames])
     # Spread fragments across the WHOLE interval, not a fraction of it.
     spacing = (1.0 / MOVIE_FPS) / FRAGMENTS_PER_FRAME
 

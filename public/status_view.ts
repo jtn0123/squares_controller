@@ -178,7 +178,17 @@ export async function loadStreamTelemetry(): Promise<void> {
   updateStreamTelemetry(response.streamTelemetry);
 }
 
+// Selection changes what the panel plays, so overlapping requests race:
+// an older one can land last and leave the wall playing something the
+// UI is not showing. Ignoring the statusEpoch is not enough — that only
+// discards the stale *response*. One at a time is the honest fix.
+let movieSelectionInFlight = false;
+
 export async function playStoredMovie(movieId: number): Promise<void> {
+  if (movieSelectionInFlight) return;
+  movieSelectionInFlight = true;
+  const list = $("#panelMovieList");
+  list.classList.add("busy");
   const epoch = beginUserAction();
   try {
     const status = await api<ControllerStatus>("/api/movies/select", {
@@ -190,6 +200,9 @@ export async function playStoredMovie(movieId: number): Promise<void> {
     toast(`Playing ${status.currentMovie?.name ?? "panel movie"}.`);
   } catch (error) {
     toast((error as Error).message, true);
+  } finally {
+    movieSelectionInFlight = false;
+    list.classList.remove("busy");
   }
 }
 
@@ -225,8 +238,13 @@ export async function loadMovies(): Promise<MovieLibrary> {
   const used = Math.max(0, library.maxCapacity - library.availableFrames);
   const free = Math.max(0, library.availableFrames);
   // Free space is what decides whether the next bake fits, so lead with
-  // it; the used/total pair stays for context.
-  const seconds = Math.floor(free / 38);
+  // it; the used/total pair stays for context. The duration estimate
+  // uses the rate baking actually stores at — the controller's rounded
+  // measured frame rate — not a hardcoded guess.
+  const measured = Number(state.controllerStatus?.measuredFrameRate);
+  const bakeFps =
+    Number.isFinite(measured) && measured >= 1 ? Math.round(measured) : 30;
+  const seconds = Math.floor(free / bakeFps);
   $("#movieCapacityReadout").textContent =
     `${free} FRAMES FREE / ~${seconds}s · ${used} OF ${library.maxCapacity} USED`;
   renderPanelMovies(library);

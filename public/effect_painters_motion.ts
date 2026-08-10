@@ -73,13 +73,15 @@ export const MOTION_PAINTERS: Record<string, EffectPainter> = {
   },
 
   chase(time, target, paletteColors, ctx) {
-    const spacing = Math.max(2, Math.round(ctx.control("chase", "spacing")));
+    const gap = Math.max(2, Math.round(ctx.control("chase", "spacing")));
     const width = Math.max(1, Math.round(ctx.control("chase", "width")));
+    // The control is labelled GAP, so it has to be the dark run, not the
+    // whole period: otherwise a bar wider than the gap lights every
+    // column and the effect disappears.
+    const period = width + gap;
     const step = Math.floor(time * 9);
     for (let x = 0; x < ctx.width; x += 1) {
-      // Classic marquee: every `spacing`-th column lit, the pattern
-      // advancing one column per step.
-      const phase = (((x - step) % spacing) + spacing) % spacing;
+      const phase = (((x - step) % period) + period) % period;
       if (phase >= width) continue;
       const color = sampleGradient(
         paletteColors,

@@ -53,6 +53,15 @@ class ColorPipelineTests(unittest.TestCase):
         self.assertEqual(boosted[0], 255)
         self.assertEqual(boosted[1], 0)
 
+    def test_rejects_a_buffer_that_is_not_whole_pixels(self) -> None:
+        # A 1-2 byte remainder used to be dropped silently and replaced
+        # with black by the zero-filled output buffer.
+        for length in (31, 32):
+            with self.assertRaisesRegex(ValueError, "whole number of RGB"):
+                saturate_frame(bytes(length), 1.5)
+        # A whole number of pixels still works.
+        self.assertEqual(len(saturate_frame(bytes(30), 1.5)), 30)
+
     def test_saturation_rejects_negative_amounts(self) -> None:
         with self.assertRaisesRegex(ValueError, "cannot be negative"):
             saturate_frame(bytes([1, 2, 3]), -0.5)

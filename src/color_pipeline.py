@@ -55,6 +55,11 @@ def gamma_table(gamma: float, black_floor: int = 0) -> bytes:
 
 def saturate_frame(frame: bytes, amount: float) -> bytes:
     """Push each pixel away from its own luma. 1.0 leaves it untouched."""
+    if len(frame) % 3:
+        # A trailing 1-2 byte fragment would be silently replaced with
+        # black by the zero-initialized output buffer, and correct_movie
+        # would hand that corruption straight to the baker.
+        raise ValueError("Frame byte count must be a whole number of RGB pixels.")
     # Float equality is unreliable; treat anything within a rounding
     # error of 1.0 as "leave it alone".
     if math.isclose(amount, 1.0, rel_tol=1e-9, abs_tol=1e-9):

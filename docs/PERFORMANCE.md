@@ -190,10 +190,11 @@ selected or played the result.
 
 ### Known gap
 
-There is still no route for selecting an already-stored movie — the app
-can only play what it just baked. A bake-centred workflow needs both
-that and a way to remove movies, since the XLED v1 API exposes only a
-delete-everything call.
+Selecting an already-stored movie is supported now (`POST
+/api/movies/select`), so the app can recall any bake rather than only
+the one it just made. Removing a movie is still missing, and cannot be
+added the same way: the XLED v1 API exposes only a delete-everything
+call, which would take the user's own Twinkly-app movies with it.
 
 ## Further optimization threshold
 
