@@ -26,7 +26,10 @@ import math
 # Rec. 601 luma weights, scaled to integers to keep the hot loop in ints.
 _LUMA_R, _LUMA_G, _LUMA_B = 299, 587, 114
 DEFAULT_GAMMA = 2.2
-DEFAULT_SATURATION = 1.25
+# Chosen on the wall: 1.25 read as barely-corrected, 3.0 as
+# near-pure hues; 2.2 is where colour pops without collapsing
+# distinct palette stops into the same primary.
+DEFAULT_SATURATION = 2.2
 
 
 @functools.lru_cache(maxsize=16)
