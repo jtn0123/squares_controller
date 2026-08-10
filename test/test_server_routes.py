@@ -254,6 +254,19 @@ class ServerRouteTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
+        # A claimed frame that fails validation must not steal ownership.
+        bad_frame = {"width": 2, "height": 2, "pixels": [0] * 3}
+        status, _ = self.request(
+            "POST",
+            "/api/frame",
+            body={**bad_frame, "source": "tab-b", "claim": True},
+        )
+        self.assertEqual(status, 400)
+        status, _ = self.request(
+            "POST", "/api/frame", body={**frame, "source": "tab-a"}
+        )
+        self.assertEqual(status, 200, "owner survived the failed takeover")
+
     def test_state_events_resume_ignores_stale_boot_epochs(self) -> None:
         connection = HTTPConnection("127.0.0.1", self.port, timeout=5)
         # An id from a previous server process must not starve the stream.

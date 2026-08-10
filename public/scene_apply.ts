@@ -6,6 +6,7 @@ import { state } from "./app_state.js";
 import { scheduleFrame, toast } from "./net.js";
 import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
+import { startPacedLoop } from "./frame_timing.js";
 import { setOutputContext } from "./monitor.js";
 import { effectPainters } from "./effect_painters.js";
 import {
@@ -50,8 +51,11 @@ function transitionToFrame(
 
   return new Promise<boolean>((resolve) => {
     let startedAt: number | undefined;
-    const tick = (now: number): void => {
+    // Paced like every other producer: transition frames must not outrun
+    // the upload cadence or motion evens out only after the transition.
+    const stop = startPacedLoop((now) => {
       if (token !== state.transitionToken) {
+        stop();
         resolve(false);
         return;
       }
@@ -69,10 +73,11 @@ function transitionToFrame(
       );
       render();
       scheduleFrame();
-      if (progress < 1) requestAnimationFrame(tick);
-      else resolve(true);
-    };
-    requestAnimationFrame(tick);
+      if (progress >= 1) {
+        stop();
+        resolve(true);
+      }
+    });
   });
 }
 

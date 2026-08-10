@@ -6,6 +6,7 @@ import { stopAnimation, stopMedia } from "./playback.js";
 import { drawRgbCanvas, render, setPixel } from "./render_core.js";
 import { setOutputContext } from "./monitor.js";
 import { clipFrameIndex, MAX_CLIP_FRAMES } from "./clip_model.js";
+import { startPacedLoop } from "./frame_timing.js";
 
 function setEraserActive(active: boolean): void {
   state.erasing = active;
@@ -185,7 +186,7 @@ function startClipPlayback(): void {
   button.textContent = "■ STOP LOOP";
   const startedAt = performance.now();
   let previousIndex = -1;
-  const tick = (now: number): void => {
+  state.animationFrame = startPacedLoop((now) => {
     if (state.animationName !== "clip") return;
     const index = clipFrameIndex(state.clip.frames, now - startedAt);
     if (index !== previousIndex) {
@@ -196,9 +197,7 @@ function startClipPlayback(): void {
       scheduleFrame();
       updateClipSelectionVisual(index);
     }
-    state.animationFrame = requestAnimationFrame(tick);
-  };
-  state.animationFrame = requestAnimationFrame(tick);
+  });
 }
 
 export function initializeClipStudio(): void {

@@ -13,9 +13,11 @@ const outputPath = new URL("../public/index.html", import.meta.url);
 let shell;
 try {
   shell = await readFile(shellPath, "utf8");
-} catch {
-  // Partials do not exist yet (mid-migration); nothing to assemble.
-  process.exit(0);
+} catch (error) {
+  // Only a missing shell means "nothing to assemble" (pre-partials
+  // checkout); any other read failure must fail the build loudly.
+  if (error?.code === "ENOENT") process.exit(0);
+  throw error;
 }
 
 const marker = /^[ \t]*<!-- partial: ([\w.-]+\.html) -->$/gm;

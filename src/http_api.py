@@ -362,7 +362,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             },
         )
 
-    def _claim_frame_source(self, body: dict[str, Any]) -> None:
+    def _check_frame_source(self, body: dict[str, Any]) -> str | None:
         """Enforce one streaming tab at a time (caller holds frame_mode_lock).
 
         Two clients streaming concurrently fight last-writer-wins for the
@@ -370,30 +370,36 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         owns the stream; another source is rejected with 409 until the
         owner goes idle or the newcomer claims it from a user gesture.
         Untagged bodies (scripts, external API callers) stay ungoverned.
+
+        Returns the source to commit once the frame actually succeeds —
+        an invalid claimed frame must not steal ownership from a healthy
+        streamer.
         """
         source = body.get("source")
         if not isinstance(source, str) or not source:
-            return
-        now = time.monotonic()
+            return None
         owner = self.ctx.frame_source_id
         if (
             owner is not None
             and owner != source
             and not body.get("claim")
-            and now - self.ctx.frame_source_seen <= FRAME_SOURCE_IDLE_SECONDS
+            and time.monotonic() - self.ctx.frame_source_seen
+            <= FRAME_SOURCE_IDLE_SECONDS
         ):
             raise FrameSourceBusyError(
                 "Another controller tab is driving the wall."
             )
-        self.ctx.frame_source_id = source
-        self.ctx.frame_source_seen = now
+        return source
 
     def _execute_frame(self, body: dict[str, Any]) -> dict[str, Any]:
         with self.ctx.frame_mode_lock:
-            self._claim_frame_source(body)
+            source = self._check_frame_source(body)
             result = execute_command(
                 self.ctx.get_client(), {**body, "action": "frame"}
             )
+            if source is not None:
+                self.ctx.frame_source_id = source
+                self.ctx.frame_source_seen = time.monotonic()
             self.ctx.frame_activity.note(time.monotonic())
         # Publishing every frame would fan a full status payload out to all
         # SSE clients ~40x/sec; browsers only react to streaming-state

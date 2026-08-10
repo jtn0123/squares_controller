@@ -6,7 +6,6 @@
 // and the relay pads with imperceptible repeats instead.
 export const FRAME_INTERVAL_MS = 25;
 const UPLOAD_HEADROOM_FPS = 1.5;
-const MIN_UPLOAD_FPS = 10;
 const MAX_UPLOAD_FPS = 1000 / FRAME_INTERVAL_MS;
 
 let uploadIntervalMs = FRAME_INTERVAL_MS;
@@ -14,9 +13,14 @@ let uploadIntervalMs = FRAME_INTERVAL_MS;
 export function setUploadTargetFps(relayFps: number): void {
   const rate = Number(relayFps);
   if (!Number.isFinite(rate) || rate <= 0) return;
+  // The producer must stay BELOW the relay rate at every rate. Fast
+  // relays keep the fixed 1.5 fps headroom; slow relays switch to a
+  // proportional 20% margin, since the fixed headroom would otherwise
+  // swallow the whole rate. Both margins stay under the relay rate, and
+  // they cross over continuously at 7.5 fps.
   const paced = Math.min(
     MAX_UPLOAD_FPS,
-    Math.max(MIN_UPLOAD_FPS, rate - UPLOAD_HEADROOM_FPS),
+    Math.max(rate - UPLOAD_HEADROOM_FPS, rate * 0.8),
   );
   uploadIntervalMs = 1000 / paced;
 }

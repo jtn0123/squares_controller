@@ -43,9 +43,13 @@ export function normalizePalette(value: unknown): Palette {
 export function normalizeSavedPalette(value: unknown): SavedPalette | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<SavedPalette>;
-  // String() mirrors RegExp.test's own coercion; a missing id stringifies
-  // to "undefined", which SAFE_ID accepts — quirk preserved from the JS.
-  if (!SAFE_ID.test(String(raw.id)) || !Array.isArray(raw.colors)) return null;
+  if (
+    typeof raw.id !== "string" ||
+    !SAFE_ID.test(raw.id) ||
+    !Array.isArray(raw.colors)
+  ) {
+    return null;
+  }
   const name =
     typeof raw.name === "string"
       ? raw.name.trim().replace(/\s+/g, " ").slice(0, 48).toUpperCase()
@@ -56,7 +60,7 @@ export function normalizeSavedPalette(value: unknown): SavedPalette | null {
     .map((color) => color.toLowerCase());
   if (!name || colors.length < 2) return null;
   return {
-    id: raw.id as string,
+    id: raw.id,
     name,
     colors,
   };

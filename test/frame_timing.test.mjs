@@ -42,17 +42,23 @@ test("upload cadence paces just under the relay rate", () => {
     assert.equal(uploadInterval(), 1000 / 36);
     assert.equal(nextFrameDeadline(0, 10), 10 + 1000 / 36);
 
-    // Never faster than the 40 fps ceiling, never slower than 10 fps.
+    // Never faster than the 40 fps ceiling.
     setUploadTargetFps(500);
     assert.equal(uploadInterval(), FRAME_INTERVAL_MS);
-    setUploadTargetFps(4);
-    assert.equal(uploadInterval(), 100);
+
+    // Slow relays keep a proportional margin: the producer must stay
+    // below the relay rate even when 1.5 fps of fixed headroom would
+    // swallow most of it.
+    setUploadTargetFps(5);
+    assert.equal(uploadInterval(), 1000 / 4);
+    setUploadTargetFps(1);
+    assert.equal(uploadInterval(), 1000 / 0.8);
 
     // Garbage rates leave the cadence unchanged.
     setUploadTargetFps(Number.NaN);
-    assert.equal(uploadInterval(), 100);
+    assert.equal(uploadInterval(), 1000 / 0.8);
     setUploadTargetFps(0);
-    assert.equal(uploadInterval(), 100);
+    assert.equal(uploadInterval(), 1000 / 0.8);
 
     // Callers can still pin an explicit interval.
     assert.equal(nextFrameDeadline(0, 10, 25), 35);

@@ -45,12 +45,18 @@ export function normalizeSegment(
   const value = raw as Partial<Segment> | null | undefined;
   const rawName = typeof value?.name === "string" ? value.name.trim() : "";
   return {
-    // String() mirrors RegExp.test's own coercion; a missing id stringifies
-    // to "undefined", which SAFE_ID accepts — quirk preserved from the JS.
-    id: SAFE_ID.test(String(value?.id)) ? (value!.id as string) : fallbackId,
+    id:
+      typeof value?.id === "string" && SAFE_ID.test(value.id)
+        ? value.id
+        : fallbackId,
     name: (rawName || "SEGMENT").slice(0, 32).toUpperCase(),
     enabled: value?.enabled !== false,
-    effect: SAFE_EFFECT.test(String(value?.effect)) ? (value!.effect as string) : "tide",
+    // The paint path additionally checks painter-registry membership; the
+    // model only guarantees a well-formed identifier.
+    effect:
+      typeof value?.effect === "string" && SAFE_EFFECT.test(value.effect)
+        ? value.effect
+        : "tide",
     speed: Math.max(0.1, Math.min(2, normalizeUnit(value?.speed, 1))),
     intensity: Math.max(0.1, Math.min(1, normalizeUnit(value?.intensity, 0.75))),
     palette: normalizePalette(value?.palette),

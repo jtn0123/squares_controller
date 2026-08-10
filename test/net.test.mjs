@@ -163,6 +163,7 @@ test("frames carry a stable source id and claim after a user gesture", async () 
 
   assert.equal(typeof bodies[0].source, "string");
   assert.ok(bodies[0].source.length > 0);
+  assert.equal(bodies[0].claim, false, "no gesture yet — must not claim");
   assert.equal(bodies[1].source, bodies[0].source);
   assert.equal(bodies[1].claim, true);
 });

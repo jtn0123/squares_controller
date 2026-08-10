@@ -1,5 +1,10 @@
 # Codebase Grade Report
 
+> **Historical snapshot.** This audit describes the tree as of 2026-08-09,
+> before the TypeScript migration (PR #6): the stack line, test counts, and
+> "no type checker" claims below are intentionally left as graded. Run
+> `/grade-codebase rerun` for fresh grades.
+
 **Project:** squares-controller
 **Audited:** 2026-08-09
 **Stack:** Python 3.11+ stdlib backend (http.server + urllib + UDP), vanilla-JS frontend (no framework, no deps), unittest + node --test

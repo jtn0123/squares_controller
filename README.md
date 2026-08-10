@@ -83,7 +83,9 @@ server can also run on its own:
 python3 server.py
 ```
 
-While editing frontend code, `npm run watch` recompiles on save.
+While editing frontend code, `npm run watch` recompiles TypeScript on save;
+`npm run watch:html` does the same for the markup partials (or run
+`npm run build` once after markup edits).
 
 On macOS, you can also double-click `scripts/start.command`.
 
@@ -159,9 +161,10 @@ panel targets. See [SECURITY.md](SECURITY.md).
 npm test
 ```
 
-The current suite contains 73 Python and 78 browser tests, plus a strict
-`mypy` pass over the backend and a strict `tsc` compile as the frontend type
-gate; browser tests run against the compiled output. It covers HTTP
+`npm test` builds the frontend (the strict `tsc` compile is the frontend
+type gate) and runs the Python and browser suites against the compiled
+output; CI additionally runs strict `mypy` over the backend and a coverage
+gate. The suite covers HTTP
 routes, device protocol behavior, coordinate mapping, brightness, rotation, state
 synchronization, persistence, scheduling, API validation, palettes, zones,
 blending, transitions, effects, audio analysis, live-input rendering, media

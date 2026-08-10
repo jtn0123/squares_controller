@@ -13,6 +13,7 @@
     "start": "npm run build && python3 server.py",
     "build": "tsc -p tsconfig.json && node scripts/build_html.mjs",
     "watch": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "watch:html": "node --watch --watch-path=public/partials scripts/build_html.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && python3 -m unittest discover -s test -p 'test_*.py' && node --test test/*.test.mjs"
   },

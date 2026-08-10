@@ -2,7 +2,11 @@ export const MAX_BAKE_FRAMES = 600;
 
 export function controllerMovieFps(measuredFrameRate: number): number {
   const measured = Number(measuredFrameRate);
-  return Number.isFinite(measured) && measured > 0 ? Math.floor(measured) : 30;
+  // Floor to the controller's integer fps, but never to 0: a sub-1 fps
+  // measurement would otherwise divide by zero in the bake flow.
+  return Number.isFinite(measured) && measured > 0
+    ? Math.max(1, Math.floor(measured))
+    : 30;
 }
 
 export function movieFrameCount(
