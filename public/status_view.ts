@@ -218,7 +218,10 @@ function renderPanelMovies(library: MovieLibrary): void {
     document.activeElement instanceof HTMLElement
       ? document.activeElement.dataset["movieId"]
       : undefined;
-  list.replaceChildren();
+  // The legend is the fieldset's accessible name; keep it through the
+  // rebuild or the group goes nameless after the first render.
+  const legend = list.querySelector("legend");
+  list.replaceChildren(...(legend ? [legend] : []));
   const currentId = state.controllerStatus?.currentMovie?.id;
   library.movies.forEach((movie) => {
     const button = document.createElement("button");

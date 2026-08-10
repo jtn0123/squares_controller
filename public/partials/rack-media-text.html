@@ -103,12 +103,9 @@
             <small>
               ADDS A NEW LOOP / NEVER OVERWRITES / RUNS WITHOUT THIS BROWSER
             </small>
-            <div
-              class="panel-movie-list"
-              id="panelMovieList"
-              role="group"
-              aria-label="Movies stored on the panel"
-            ></div>
+            <fieldset class="panel-movie-list" id="panelMovieList">
+              <legend class="hidden-legend">Movies stored on the panel</legend>
+            </fieldset>
             <div class="panel-archive">
               <div class="panel-bake-heading">
                 <span>LOCAL ARCHIVE</span>
@@ -121,12 +118,11 @@
                   />
                 </label>
               </div>
-              <div
-                class="panel-archive-list"
-                id="panelArchiveList"
-                role="group"
-                aria-label="Movies archived on this computer"
-              ></div>
+              <fieldset class="panel-archive-list" id="panelArchiveList">
+                <legend class="hidden-legend">
+                  Movies archived on this computer
+                </legend>
+              </fieldset>
               <small>
                 THE PANEL CANNOT SEND MOVIES BACK / ONLY BAKES MADE HERE
                 CAN BE SAVED OR RESTORED

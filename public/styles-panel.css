@@ -34,7 +34,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  /* Neutralize fieldset chrome; the class carries all visual style. */
+  min-inline-size: 0;
   margin: 8px 0 0;
+  padding: 0;
+  border: 0;
 }
 
 .panel-movie {
@@ -144,6 +148,11 @@
 }
 
 .panel-archive-list {
+  /* Neutralize fieldset chrome; the class carries all visual style. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 5px;
@@ -223,4 +232,14 @@
   color: var(--muted);
   font: 650 8px/1.2 var(--font-condensed);
   letter-spacing: 0.09em;
+}
+
+/* The legend names the group for assistive tech; visually the heading
+   above each list already does that job. */
+.hidden-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }

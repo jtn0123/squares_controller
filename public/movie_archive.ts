@@ -135,6 +135,9 @@ function buildCard(entry: ArchiveEntry): HTMLDivElement {
 
 export async function renderArchive(): Promise<void> {
   const list = $("#panelArchiveList");
+  // The legend is the fieldset's accessible name; keep it through every
+  // rebuild or the group goes nameless after the first render.
+  const keep = [...list.querySelectorAll("legend")];
   let entries: ArchiveEntry[] = [];
   try {
     entries = (await api<{ archive: ArchiveEntry[] }>("/api/movies/archive"))
@@ -146,10 +149,10 @@ export async function renderArchive(): Promise<void> {
     const failed = document.createElement("small");
     failed.className = "local-note";
     failed.textContent = "COULD NOT READ THE LOCAL ARCHIVE";
-    list.replaceChildren(failed);
+    list.replaceChildren(...keep, failed);
     return;
   }
-  list.replaceChildren();
+  list.replaceChildren(...keep);
   if (!entries.length) {
     const empty = document.createElement("small");
     empty.className = "local-note";
