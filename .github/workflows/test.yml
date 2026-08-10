@@ -48,3 +48,15 @@ jobs:
       # JS and assembles index.html that the tests and server run against.
       - run: npm run build
       - run: node --test --experimental-test-coverage test/*.test.mjs
+
+  # Stable check name for branch protection. Matrix jobs report per-entry
+  # names ("frontend (20)"), so pinning protection to them would break
+  # every time the matrix changes; this gate keeps one fixed contract.
+  browser-models:
+    needs: frontend
+    # always() + an explicit result check: a skipped required job would
+    # otherwise be reported to branch protection as success.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: '[ "${{ needs.frontend.result }}" = "success" ]'
