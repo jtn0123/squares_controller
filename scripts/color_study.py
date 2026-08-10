@@ -2,80 +2,57 @@
 """Compare colour-processing variants side by side on the live wall.
 
 Splits the wall into vertical strips that all show the SAME moving,
-saturated content, each processed differently, so variants can be judged
-in one glance instead of from memory. The panel is hardware-dimmed (full
-8-bit pixels reach it) so the comparison is about colour, not depth loss.
+saturated content, each processed differently, so variants are judged in
+one glance instead of from memory. The panel is hardware-dimmed (full
+8-bit pixels reach it) so this measures colour, not depth loss.
 
     python3 scripts/color_study.py [brightness] [seconds]
 
-Each strip is numbered by lit dots in its top row: strip 1 shows one dot,
-strip 2 two dots, and so on. Markers are drawn after processing so they
-look identical in every strip.
+Each strip is numbered by lit dots in its top row: strip 1 shows one
+dot, strip 2 two dots, and so on. Markers are drawn after processing so
+they look identical in every strip.
 """
 from __future__ import annotations
 
-import base64
 import colorsys
-import json
 import math
-import socket
 import sys
-import time
-import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.twinkly_protocol import (  # noqa: E402
-    build_realtime_packets,
-    calculate_layout,
-    oriented_raster_to_device_frame,
-)
+from panel_lab import PanelSession  # noqa: E402
+from src.color_pipeline import gamma_table  # noqa: E402
 
-PANEL_IP = "10.27.27.212"
-PANEL = f"http://{PANEL_IP}/xled/v1"
-UDP = (PANEL_IP, 7777)
-W, H, FPS = 32, 24, 36.0
-STRIP_W, GAP = 7, 1  # 4 strips of 7px + 1px divider fills 32 columns
+W, H = 32, 24
+STRIP_W, GAP = 7, 1
+Rgb = tuple[float, float, float]
 
 
-def api(path: str, body: dict | None = None, token: str | None = None) -> dict:
-    request = urllib.request.Request(
-        PANEL + path,
-        data=None if body is None else json.dumps(body).encode(),
-        headers={
-            "Content-Type": "application/json",
-            **({"X-Auth-Token": token} if token else {}),
-        },
-        method="GET" if body is None else "POST",
-    )
-    with urllib.request.urlopen(request, timeout=6) as response:
-        return json.load(response)
+def _gamma(rgb: Rgb, power: float) -> Rgb:
+    return tuple(255.0 * ((channel / 255.0) ** power) for channel in rgb)
 
 
-def gamma(channel: float, power: float) -> float:
-    """sRGB-ish encoded value -> linear PWM duty the LED driver wants."""
-    return 255.0 * ((channel / 255.0) ** power)
-
-
-def variant_raw(rgb, _hue, _sat):
+def variant_raw(rgb: Rgb, _hue: float, _value: float) -> Rgb:
     return rgb
 
 
-def variant_gamma22(rgb, _hue, _sat):
-    return tuple(gamma(c, 2.2) for c in rgb)
+def variant_gamma22(rgb: Rgb, _hue: float, _value: float) -> Rgb:
+    return _gamma(rgb, 2.2)
 
 
-def variant_gamma18(rgb, _hue, _sat):
-    return tuple(gamma(c, 1.8) for c in rgb)
+def variant_gamma18(rgb: Rgb, _hue: float, _value: float) -> Rgb:
+    return _gamma(rgb, 1.8)
 
 
-def variant_gamma22_sat(rgb, hue, value):
+def variant_gamma22_sat(_rgb: Rgb, hue: float, value: float) -> Rgb:
     boosted = colorsys.hsv_to_rgb(hue, 1.0, value)
-    return tuple(gamma(c * 255.0, 2.2) for c in boosted)
+    return _gamma(tuple(channel * 255.0 for channel in boosted), 2.2)
 
 
-VARIANTS = [
+VARIANTS: list[tuple[str, Callable[[Rgb, float, float], Rgb]]] = [
     ("1  raw (today)", variant_raw),
     ("2  gamma 2.2", variant_gamma22),
     ("3  gamma 1.8", variant_gamma18),
@@ -83,7 +60,7 @@ VARIANTS = [
 ]
 
 
-def build_frame(seconds: float) -> bytes:
+def build_frame(_index: int, elapsed: float) -> bytes:
     pixels = bytearray(W * H * 3)
     for index, (_label, transform) in enumerate(VARIANTS):
         x0 = index * (STRIP_W + GAP)
@@ -91,21 +68,22 @@ def build_frame(seconds: float) -> bytes:
             for y in range(H):
                 u = local_x / max(1, STRIP_W - 1)
                 v = y / (H - 1)
-                hue = (u * 0.75 + seconds * 0.07) % 1.0
+                hue = (u * 0.75 + elapsed * 0.07) % 1.0
                 value = 0.12 + 0.88 * (
-                    0.5 + 0.5 * math.sin(v * math.pi * 2 - seconds * 1.4)
+                    0.5 + 0.5 * math.sin(v * math.pi * 2 - elapsed * 1.4)
                 )
                 base = tuple(
-                    c * 255.0 for c in colorsys.hsv_to_rgb(hue, 0.85, value)
+                    channel * 255.0
+                    for channel in colorsys.hsv_to_rgb(hue, 0.85, value)
                 )
-                r, g, b = transform(base, hue, value)
+                red, green, blue = transform(base, hue, value)
                 offset = (y * W + x0 + local_x) * 3
-                pixels[offset] = max(0, min(255, int(r)))
-                pixels[offset + 1] = max(0, min(255, int(g)))
-                pixels[offset + 2] = max(0, min(255, int(b)))
+                pixels[offset] = max(0, min(255, int(red)))
+                pixels[offset + 1] = max(0, min(255, int(green)))
+                pixels[offset + 2] = max(0, min(255, int(blue)))
         # Identification dots, drawn unprocessed so they read the same.
         for dot in range(index + 1):
-            offset = (0 * W + x0 + dot) * 3
+            offset = (x0 + dot) * 3
             pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 200
     return bytes(pixels)
 
@@ -113,37 +91,21 @@ def build_frame(seconds: float) -> bytes:
 def main(argv: list[str]) -> int:
     brightness = int(argv[1]) if len(argv) > 1 else 10
     seconds = float(argv[2]) if len(argv) > 2 else 60.0
-
-    login = api("/login", {"challenge": base64.b64encode(bytes(32)).decode()})
-    token = login["authentication_token"]
-    api("/verify", {"challenge-response": login["challenge-response"]}, token)
-    layout = calculate_layout(api("/led/layout/full", token=token)["coordinates"])
+    if seconds <= 0:
+        raise SystemExit("Seconds must be positive.")
+    # Touch the shared table so a broken pipeline fails before the wall
+    # is taken over rather than half way through a study.
+    gamma_table(2.2)
 
     for index, (label, _fn) in enumerate(VARIANTS, start=1):
         print(f"  strip {index} ({index} dot{'s' if index > 1 else ''}): {label}")
     print(f"\nrunning {seconds:.0f}s at {brightness}% hardware brightness …",
           flush=True)
 
-    api("/led/mode", {"mode": "rt"}, token)
-    api("/led/out/brightness",
-        {"mode": "enabled", "type": "A", "value": brightness}, token)
+    with PanelSession(brightness=brightness) as panel:
+        panel.stream(build_frame, fps=36.0, seconds=seconds)
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    interval = 1.0 / FPS
-    deadline = time.monotonic()
-    for n in range(int(FPS * seconds)):
-        raster = build_frame(n * interval)
-        frame = oriented_raster_to_device_frame(raster, W, H, layout, 0)
-        for packet in build_realtime_packets(token, frame):
-            sock.sendto(packet, UDP)
-        deadline += interval
-        rest = deadline - time.monotonic()
-        if rest > 0:
-            time.sleep(rest)
-
-    api("/led/mode", {"mode": "movie"}, token)
-    sock.close()
-    print("done — restored to movie mode")
+    print("done — restored to stored playback")
     return 0
 
 

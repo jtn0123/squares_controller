@@ -2,49 +2,42 @@
 """Compare the two delivery paths with identical content.
 
 The panel's own movie playback is visibly smooth while realtime
-streaming judders. Every rate/colour experiment so far varied settings
-*inside* the streaming path, which cannot answer whether the path itself
-is the problem. This runs the same animation three ways:
+streaming judders. Varying settings *inside* the streaming path cannot
+answer whether the path itself is the limit, so this runs the same
+animation three ways:
 
   BAKED   played from panel storage on the panel's own clock — no
           network involved. This is the smoothness ceiling.
   LIVE    realtime UDP exactly as the app streams today: each frame's
-          three fragments sent back to back.
-  SPACED  realtime UDP with the fragments spread across the frame
-          interval, in case bursts of three packets are overrunning the
-          panel's receive path.
+          fragments sent back to back.
+  SPACED  realtime UDP with the fragments spread evenly across the frame
+          interval, in case bursts are overrunning the receive path.
 
-If BAKED is smooth and both realtime blocks judder, the path is the
-limit and finished looks belong in panel storage. If SPACED is
-noticeably better than LIVE, fragment bursts are the culprit and that is
-a fix we control.
+    python3 scripts/path_study.py [brightness] [seconds] [cycles]
 
-    python3 scripts/path_study.py [brightness] [seconds]
+Verdict on this wall: BAKED is flawless and both realtime blocks judder,
+so finished looks belong in panel storage (see docs/PERFORMANCE.md).
 """
 from __future__ import annotations
 
 import math
 import os
-import socket
 import sys
-import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import src.twinkly_movies as twinkly_movies  # noqa: E402
+from panel_lab import PanelSession, frames_from  # noqa: E402
 from src.twinkly_client import TwinklyClient  # noqa: E402
-from src.twinkly_protocol import (  # noqa: E402
-    build_realtime_packets,
-    oriented_raster_to_device_frame,
-    scale_frame_brightness,
-)
 
 PANEL_IP = "10.27.27.212"
-UDP = (PANEL_IP, 7777)
 W, H = 32, 24
-MOVIE_FPS = 38          # the panel's integer playback rate
-LOOP_FRAMES = 76        # ~2 s loop, small enough to be kind to storage
+MOVIE_FPS = 38
+LOOP_FRAMES = 76
 MOVIE_NAME = "PATH STUDY"
+FRAGMENTS_PER_FRAME = 3  # 32x24 RGB splits into three UDP datagrams
 
 
 def loop_frame(index: int) -> bytes:
@@ -62,102 +55,68 @@ def loop_frame(index: int) -> bytes:
     return bytes(pixels)
 
 
-def stream(client, sock, frames, seconds, spacing) -> None:
-    """Send the loop over realtime UDP; spacing spreads the fragments."""
-    assert client.layout is not None
-    token = client.authenticate()
-    interval = 1.0 / MOVIE_FPS
-    deadline = time.monotonic()
-    total = int(MOVIE_FPS * seconds)
-    for n in range(total):
-        raster = frames[n % LOOP_FRAMES]
-        device = oriented_raster_to_device_frame(raster, W, H, client.layout, 0)
-        packets = build_realtime_packets(token, device)
-        if spacing <= 0:
-            for packet in packets:
-                sock.sendto(packet, UDP)
-        else:
-            for position, packet in enumerate(packets):
-                sock.sendto(packet, UDP)
-                if position < len(packets) - 1:
-                    time.sleep(spacing)
-        deadline += interval
-        rest = deadline - time.monotonic()
-        if rest > 0:
-            time.sleep(rest)
+def ensure_baked(client: TwinklyClient, frames: list[bytes]) -> dict | None:
+    """Reuse the stored study movie, or bake it when there is room."""
+    movies = client.list_movies()
+    existing = next(
+        (movie for movie in movies["movies"]
+         if str(movie.get("name", "")).strip().upper() == MOVIE_NAME),
+        None,
+    )
+    if existing is not None:
+        return existing
+    if int(movies.get("available_frames", 0)) < LOOP_FRAMES:
+        return None
+    baked: dict = client.bake_movie(
+        MOVIE_NAME, b"".join(frames), width=W, height=H,
+        frame_count=LOOP_FRAMES, fps=MOVIE_FPS,
+    )["bakedMovie"]
+    return baked
 
 
 def main(argv: list[str]) -> int:
     brightness = int(argv[1]) if len(argv) > 1 else 10
     seconds = float(argv[2]) if len(argv) > 2 else 20.0
+    cycles = int(argv[3]) if len(argv) > 3 else 1
     lead_in = float(os.environ.get("LEAD_IN", "15"))
-
-    client = TwinklyClient(PANEL_IP)
-    client.connect()
-    assert client.layout is not None
+    if seconds <= 0 or cycles < 1:
+        raise SystemExit("Seconds must be positive and cycles at least 1.")
 
     frames = [loop_frame(index) for index in range(LOOP_FRAMES)]
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    def rt_hold(raster: bytes, duration: float) -> None:
-        token = client.authenticate()
-        device = oriented_raster_to_device_frame(raster, W, H, client.layout, 0)
-        device = scale_frame_brightness(device, 100)
-        finish = time.monotonic() + duration
-        while time.monotonic() < finish:
-            for packet in build_realtime_packets(token, device):
-                sock.sendto(packet, UDP)
-            time.sleep(1 / 30)
-
+    client = TwinklyClient(PANEL_IP)
+    client.connect()
     client.set_brightness(brightness)
-    if lead_in > 0:
-        print(f"lead-in {lead_in:.0f}s — go look at the wall", flush=True)
-        client.request("/led/mode", method="POST", body={"mode": "rt"})
-        steps = int(30 * lead_in)
-        for step in range(steps):
-            level = int(120 * (0.5 + 0.5 * math.sin(step / 30 * 2.2)))
-            rt_hold(bytes([level, level, level] * (W * H)), 1 / 30)
-
-    print("\n1) BAKED — panel storage, panel clock, no network", flush=True)
-    movies = client.list_movies()
-    available = int(movies.get("available_frames", 0))
-    if available < LOOP_FRAMES:
-        print(f"   not enough movie storage ({available} frames free); "
+    baked = ensure_baked(client, frames)
+    if baked is None:
+        print(f"not enough movie storage for {MOVIE_NAME}; "
               "skipping the baked block")
-    else:
-        existing = next(
-            (m for m in movies["movies"]
-             if str(m.get("name", "")).strip().upper() == MOVIE_NAME),
-            None,
-        )
-        if existing is None:
-            client.bake_movie(
-                MOVIE_NAME,
-                b"".join(frames),
-                width=W, height=H,
-                frame_count=LOOP_FRAMES, fps=MOVIE_FPS,
-            )
-        else:
-            import src.twinkly_movies as movies_module
-            movies_module.select_current_movie(client, int(existing["id"]))
-            client.request("/led/mode", method="POST", body={"mode": "movie"})
-        time.sleep(seconds)
 
-    print("2) LIVE — realtime UDP, fragments back to back (today)",
-          flush=True)
-    client.request("/led/mode", method="POST", body={"mode": "rt"})
-    stream(client, sock, frames, seconds, spacing=0.0)
+    render = frames_from(frames)
+    # Spread fragments across the WHOLE interval, not a fraction of it.
+    spacing = (1.0 / MOVIE_FPS) / FRAGMENTS_PER_FRAME
 
-    spacing = (1.0 / MOVIE_FPS) / 4
-    print(f"3) SPACED — realtime UDP, fragments {spacing * 1000:.1f}ms apart",
-          flush=True)
-    stream(client, sock, frames, seconds, spacing=spacing)
+    for cycle in range(1, cycles + 1):
+        if baked is not None:
+            print(f"cycle {cycle}: BAKED — panel storage, no network",
+                  flush=True)
+            twinkly_movies.play_stored_movie(client, int(baked["id"]))
+            import time
+            time.sleep(seconds)
 
-    client.request("/led/mode", method="POST", body={"mode": "movie"})
-    sock.close()
+        with PanelSession(PANEL_IP, brightness=brightness) as panel:
+            if cycle == 1:
+                panel.lead_in(lead_in)
+            print(f"cycle {cycle}: LIVE — fragments back to back",
+                  flush=True)
+            panel.stream(render, fps=MOVIE_FPS, seconds=seconds)
+            print(f"cycle {cycle}: SPACED — fragments "
+                  f"{spacing * 1000:.1f}ms apart", flush=True)
+            panel.stream(render, fps=MOVIE_FPS, seconds=seconds,
+                         spacing=spacing)
+
+    if baked is not None:
+        twinkly_movies.play_stored_movie(client, int(baked["id"]))
     print("\ndone — panel back on stored playback")
-    print(f"note: a {LOOP_FRAMES}-frame movie named {MOVIE_NAME!r} now sits "
-          "in panel storage; reuse or remove it as you like")
     return 0
 
 

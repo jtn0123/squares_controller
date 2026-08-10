@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Probe what the panel actually supports, one colour per question.
 
-The controller advertises numbers (40 FPS, 8 bits per channel) that its
-radio and LED driver do not necessarily deliver. Each zone isolates one
-capability so it can be judged by eye:
+The controller advertises numbers its radio and LED driver do not
+necessarily deliver. Each zone isolates one capability so it can be
+judged by eye:
 
   RED    tonal ramp     24 rows spanning the full range, gamma-corrected.
                         Count the bands you can distinguish — that is the
@@ -14,50 +14,25 @@ capability so it can be judged by eye:
   BLUE   frame delivery one lit row marches down, one row per SENT frame.
                         A steady march means frames are landing; jumps,
                         freezes, or backwards skips are lost frames.
-  AMBER  refresh        full on/off alternating every frame. Displayed
-                        faithfully it reads as steady dim amber; visible
-                        flicker or throbbing means frames are being
-                        dropped or duplicated.
+  AMBER  modulation     full on/off alternating every frame. NOTE: at 36
+                        FPS this is an 18 Hz square wave, which flickers
+                        visibly even when displayed perfectly — read it
+                        as a temporal-response demo, not as evidence of
+                        dropped frames. Use the BLUE zone for that.
 
     python3 scripts/capability_probe.py [brightness] [seconds] [fps]
 """
 from __future__ import annotations
 
-import base64
-import json
-import socket
 import sys
-import time
-import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.twinkly_protocol import (  # noqa: E402
-    build_realtime_packets,
-    calculate_layout,
-    oriented_raster_to_device_frame,
-)
+from panel_lab import PanelSession  # noqa: E402
 
-PANEL_IP = "10.27.27.212"
-PANEL = f"http://{PANEL_IP}/xled/v1"
-UDP = (PANEL_IP, 7777)
 W, H = 32, 24
 STRIP_W, GAP = 7, 1
-
-
-def api(path: str, body: dict | None = None, token: str | None = None) -> dict:
-    request = urllib.request.Request(
-        PANEL + path,
-        data=None if body is None else json.dumps(body).encode(),
-        headers={
-            "Content-Type": "application/json",
-            **({"X-Auth-Token": token} if token else {}),
-        },
-        method="GET" if body is None else "POST",
-    )
-    with urllib.request.urlopen(request, timeout=6) as response:
-        return json.load(response)
 
 
 def gamma(level: float) -> int:
@@ -71,7 +46,7 @@ def paint(pixels: bytearray, zone: int, y: int, rgb: tuple[int, int, int]) -> No
         pixels[offset], pixels[offset + 1], pixels[offset + 2] = rgb
 
 
-def build_frame(index: int) -> bytes:
+def build_frame(index: int, _elapsed: float) -> bytes:
     pixels = bytearray(W * H * 3)
     for y in range(H):
         # RED — full-range tonal ramp, gamma corrected.
@@ -80,7 +55,7 @@ def build_frame(index: int) -> bytes:
         paint(pixels, 1, y, (0, y, 0))
     # BLUE — one row per sent frame; drops show as jumps.
     paint(pixels, 2, index % H, (0, 0, 255))
-    # AMBER — alternate every frame; faithful display looks steady.
+    # AMBER — alternates every frame (see the module docstring).
     level = 255 if index % 2 == 0 else 0
     for y in range(H):
         paint(pixels, 3, y, (level, int(level * 0.55), 0))
@@ -91,45 +66,23 @@ def main(argv: list[str]) -> int:
     brightness = int(argv[1]) if len(argv) > 1 else 10
     seconds = float(argv[2]) if len(argv) > 2 else 60.0
     fps = float(argv[3]) if len(argv) > 3 else 36.0
+    if fps <= 0 or seconds <= 0:
+        raise SystemExit("Seconds and FPS must be positive.")
 
-    login = api("/login", {"challenge": base64.b64encode(bytes(32)).decode()})
-    token = login["authentication_token"]
-    api("/verify", {"challenge-response": login["challenge-response"]}, token)
-    device = api("/gestalt", token=token)
-    layout = calculate_layout(api("/led/layout/full", token=token)["coordinates"])
+    with PanelSession(brightness=brightness) as panel:
+        device = panel.api("/gestalt")
+        print("panel reports:")
+        for key in ("frame_rate", "measured_frame_rate", "number_of_led",
+                    "bytes_per_led", "hw_id", "fw_family"):
+            if key in device:
+                print(f"  {key}: {device[key]}")
+        print("\nzones:  RED=tonal ramp  GREEN=dark end  "
+              "BLUE=frame delivery  AMBER=modulation demo")
+        print(f"running {seconds:.0f}s at {brightness}% brightness, "
+              f"{fps:g} FPS\n", flush=True)
+        panel.stream(build_frame, fps=fps, seconds=seconds)
 
-    print("panel reports:")
-    for key in ("frame_rate", "measured_frame_rate", "number_of_led",
-                "bytes_per_led", "hw_id", "fw_family"):
-        if key in device:
-            print(f"  {key}: {device[key]}")
-    print("\nzones:  RED=tonal ramp  GREEN=dark end  "
-          "BLUE=frame delivery  AMBER=refresh")
-    print(f"running {seconds:.0f}s at {brightness}% brightness, "
-          f"{fps:g} FPS\n", flush=True)
-
-    api("/led/mode", {"mode": "rt"}, token)
-    api("/led/out/brightness",
-        {"mode": "enabled", "type": "A", "value": brightness}, token)
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    interval = 1.0 / fps
-    deadline = time.monotonic()
-    for index in range(int(fps * seconds)):
-        raster = build_frame(index)
-        frame = oriented_raster_to_device_frame(raster, W, H, layout, 0)
-        for packet in build_realtime_packets(token, frame):
-            sock.sendto(packet, UDP)
-        deadline += interval
-        rest = deadline - time.monotonic()
-        if rest > 0:
-            time.sleep(rest)
-
-    api("/led/out/brightness",
-        {"mode": "enabled", "type": "A", "value": brightness}, token)
-    api("/led/mode", {"mode": "movie"}, token)
-    sock.close()
-    print("done — restored to movie mode")
+    print("done — restored to stored playback")
     return 0
 
 

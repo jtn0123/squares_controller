@@ -119,7 +119,7 @@ Observed on the 32×24 wall at 10% hardware brightness, 36 FPS:
 | Red | 24-step gamma ramp | Darkest 4 steps invisible |
 | Green | raw PWM 0…23, one per row | Rows 0–9 invisible |
 | Blue | one row per sent frame | Marches, but visibly cuts out |
-| Amber | full on/off every frame | Visibly flickers |
+| Amber | full on/off every frame | Visibly flickers — see the caveat below |
 
 Two independent conclusions.
 
@@ -131,11 +131,18 @@ needs a black-floor lift — map non-zero output into `[floor, 255]` and
 keep true zero as true black — and the floor rises as brightness falls,
 so it has to be calibrated at the operating brightness.
 
-**Frames are being lost, and host telemetry cannot see it.** Alternating
-full on/off every frame should fuse into a steady dim glow if every
-frame is displayed; it flickers instead, and the one-row-per-frame
-marker cuts out. The realtime protocol has no acknowledgement, so
-"missed deadlines: 0" only ever proved the host *sent* on time.
+**Frames are being lost, and host telemetry cannot see it.** The
+one-row-per-frame marker visibly cuts out: rows the host sent never
+appear. The realtime protocol has no acknowledgement, so "missed
+deadlines: 0" only ever proved the host *sent* on time.
+
+The amber zone does *not* support that conclusion, and an earlier
+version of this document wrongly claimed it did. Alternating on/off
+every frame at 36 FPS is an 18 Hz square wave — well below flicker
+fusion — so it flickers visibly even when every frame is displayed
+perfectly. Only the marching marker, and the baked-versus-streamed
+comparison below, are evidence of loss. Proving it precisely would need
+optical capture of frame-identifiable content.
 
 ### Correction: latency is not loss
 

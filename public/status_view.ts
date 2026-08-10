@@ -223,8 +223,12 @@ export async function loadMovies(): Promise<MovieLibrary> {
   const library = await api<MovieLibrary>("/api/movies");
   state.movieLibrary = library;
   const used = Math.max(0, library.maxCapacity - library.availableFrames);
+  const free = Math.max(0, library.availableFrames);
+  // Free space is what decides whether the next bake fits, so lead with
+  // it; the used/total pair stays for context.
+  const seconds = Math.floor(free / 38);
   $("#movieCapacityReadout").textContent =
-    `${used} / ${library.maxCapacity} FRAMES USED`;
+    `${free} FRAMES FREE / ~${seconds}s · ${used} OF ${library.maxCapacity} USED`;
   renderPanelMovies(library);
   const currentId = state.controllerStatus?.currentMovie?.id;
   const currentMovie = library.movies.find((movie) => movie.id === currentId);
