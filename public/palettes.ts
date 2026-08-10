@@ -3,11 +3,33 @@ import { state } from "./app_state.js";
 import { api, toast } from "./net.js";
 import { queueEffectPreviewRender } from "./effects_ui.js";
 import { loadLibrary } from "./library_sync.js";
-import { CURATED_PALETTES, normalizePalette } from "./palette_model.js";
+import {
+  CURATED_PALETTES,
+  normalizePalette,
+  sampleGradient,
+} from "./palette_model.js";
 import type { Palette, SavedPalette } from "./types.js";
 
 // Curated and saved palettes carry names; a custom gradient may not.
 type NamedPalette = Palette & { name?: string };
+
+// Handing the raw stops to CSS lets the browser interpolate them in
+// RGB, which washes the midpoints out — the exact thing sampleGradient
+// avoids. Sampling the real gradient keeps the swatch honest about what
+// the effects and the wall will show.
+const PREVIEW_STEPS = 24;
+
+function previewGradient(colors: readonly string[]): string {
+  const stops: string[] = [];
+  for (let step = 0; step < PREVIEW_STEPS; step += 1) {
+    const position = step / (PREVIEW_STEPS - 1);
+    // sampleGradient wraps at exactly 1, which would restate the first
+    // stop at the right-hand edge.
+    const [red, green, blue] = sampleGradient(colors, position * 0.99999);
+    stops.push(`rgb(${red} ${green} ${blue}) ${(position * 100).toFixed(1)}%`);
+  }
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
 
 export function availablePalettes(): NamedPalette[] {
   return [...CURATED_PALETTES, ...state.library.palettes];
@@ -105,8 +127,7 @@ export function updatePaletteControls(renderStops = true): void {
     colors[Math.floor((colors.length - 1) / 2)];
   // Normalized palettes always keep at least two stops.
   $<HTMLInputElement>("#gradientEnd").value = colors.at(-1)!;
-  $("#palettePreview").style.background =
-    `linear-gradient(90deg, ${colors.join(", ")})`;
+  $("#palettePreview").style.background = previewGradient(colors);
   if (renderStops) renderPaletteWorkshop();
 }
 

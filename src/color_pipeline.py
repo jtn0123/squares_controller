@@ -26,10 +26,12 @@ import math
 # Rec. 601 luma weights, scaled to integers to keep the hot loop in ints.
 _LUMA_R, _LUMA_G, _LUMA_B = 299, 587, 114
 DEFAULT_GAMMA = 2.2
-# Chosen on the wall: 1.25 read as barely-corrected, 3.0 as
-# near-pure hues; 2.2 is where colour pops without collapsing
-# distinct palette stops into the same primary.
-DEFAULT_SATURATION = 2.2
+# Saturation happens in the browser now, inside sampleGradient, so the
+# previews show the colour the wall will show and realtime output gets
+# it too (public/palette_model.ts, PALETTE_SATURATION = 2.2, chosen on
+# the wall). Boosting again here would apply it twice to anything baked.
+# Callers can still pass a value for content that arrives unsaturated.
+DEFAULT_SATURATION = 1.0
 
 
 @functools.lru_cache(maxsize=16)
