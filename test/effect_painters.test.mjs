@@ -37,23 +37,21 @@ test("every catalogued effect has a painter", () => {
   }
 });
 
-test("every painter writes finite bytes inside the display", () => {
+test("every painter fills exactly one display frame", () => {
   for (const effect of EFFECT_CATALOG) {
-    for (const time of SAMPLE_TIMES) {
-      const frame = render(effect.id, time);
-      assert.equal(frame.length, WIDTH * HEIGHT * 3);
-      for (const value of frame) {
-        // Uint8Array already clamps, so a NaN would land as 0 rather
-        // than throwing; check the painter's own arithmetic instead.
-        assert.ok(
-          Number.isInteger(value) && value >= 0 && value <= 255,
-          `${effect.id} produced ${value} at t=${time}`,
-        );
-      }
-    }
+    const frame = render(effect.id, 1.0);
+    assert.equal(
+      frame.length,
+      WIDTH * HEIGHT * 3,
+      `${effect.id} produced the wrong frame size`,
+    );
   }
 });
 
+// Range checking the bytes themselves would prove nothing: a Uint8Array
+// coerces every write into 0-255, so even a painter computing NaN lands
+// as a silent 0. What NaN or runaway arithmetic actually looks like is a
+// frame that is entirely black or entirely blown out, so test for that.
 test("every painter lights something within a few seconds", () => {
   for (const effect of EFFECT_CATALOG) {
     const lit = SAMPLE_TIMES.reduce(
@@ -64,6 +62,23 @@ test("every painter lights something within a few seconds", () => {
       0,
     );
     assert.ok(lit > 0, `${effect.id} rendered nothing at any sampled time`);
+  }
+});
+
+test("no painter blows the whole frame out to full white", () => {
+  for (const effect of EFFECT_CATALOG) {
+    for (const time of SAMPLE_TIMES) {
+      const frame = render(effect.id, time);
+      const maxed = frame.reduce(
+        (count, value) => count + (value === 255 ? 1 : 0),
+        0,
+      );
+      assert.notEqual(
+        maxed,
+        frame.length,
+        `${effect.id} saturated every channel at t=${time}`,
+      );
+    }
   }
 });
 
