@@ -30,16 +30,20 @@ from src.twinkly_protocol import (
     calculate_layout,
     choose_stream_fps,
     fused_channel_permutation,
-    next_stream_deadline,
     oriented_dimensions,
     scale_frame_brightness,
     stream_interval_seconds,
     validate_rotation,
 )
 
+# With no fresh frame to forward, the relay re-sends the last one at this
+# pace purely to keep the panel from timing out of realtime mode. Identical
+# repeats are visual no-ops, so the rate only needs to beat the timeout.
+STREAM_KEEPALIVE_SECONDS = 0.5
+
 
 class TwinklyClient:
-    def __init__(self, ip: str):
+    def __init__(self, ip: str) -> None:
         self.ip = ip
         self.base_url = f"http://{ip}{API_PREFIX}"
         self.token: str | None = None
@@ -60,6 +64,9 @@ class TwinklyClient:
         # guarded operations call stop_stream themselves.
         self._stream_start_lock = threading.RLock()
         self._stream_stop = threading.Event()
+        # Set whenever a fresh frame lands; the relay forwards it at once
+        # instead of waiting for a clock tick of its own.
+        self._frame_ready = threading.Event()
         self._stream_thread: threading.Thread | None = None
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._frame_version = 0
@@ -101,7 +108,7 @@ class TwinklyClient:
             with urllib.request.urlopen(
                 request, timeout=REQUEST_TIMEOUT_SECONDS
             ) as response:
-                result = json.load(response)
+                result: dict[str, Any] = json.load(response)
         except urllib.error.HTTPError as error:
             if error.code == 401:
                 raise PermissionError("Twinkly token expired.") from error
@@ -118,12 +125,13 @@ class TwinklyClient:
 
     def authenticate(self, force: bool = False) -> str:
         with self._lock:
-            is_fresh = (
-                self.token is not None
+            cached = self.token
+            if (
+                cached is not None
+                and not force
                 and time.monotonic() - self.token_created_at < TOKEN_MAX_AGE_SECONDS
-            )
-            if is_fresh and not force:
-                return self.token
+            ):
+                return cached
 
             challenge = base64.b64encode(os.urandom(32)).decode("ascii")
             login = self._fetch_json(
@@ -408,6 +416,7 @@ class TwinklyClient:
         with self._lock:
             self.last_frame = frame
             self._frame_version += 1
+        self._frame_ready.set()
 
         # The check-and-start below must be atomic: two concurrent frame
         # requests could otherwise both observe a dead thread and start two
@@ -438,14 +447,29 @@ class TwinklyClient:
         return self.status()
 
     def _stream_loop(self, stop_event: threading.Event) -> None:
-        deadline = time.monotonic()
+        """Forward each fresh frame the moment it arrives.
+
+        A clocked relay and a clocked producer can never share a phase, so
+        their beat repeats or delays a frame every few hundred ms — visible
+        judder. Event-driven forwarding makes the wall follow the producer's
+        cadence exactly; the panel's own rate cap is the only pacing left,
+        and idle keepalives (visual no-ops) hold realtime mode open.
+        """
         interval = stream_interval_seconds(self.device)
+        next_allowed = 0.0
         while not stop_event.is_set():
-            self._send_last_frame(deadline)
-            deadline = next_stream_deadline(
-                deadline, time.monotonic(), interval
-            )
-            stop_event.wait(max(0.0, deadline - time.monotonic()))
+            fresh = self._frame_ready.wait(timeout=STREAM_KEEPALIVE_SECONDS)
+            if stop_event.is_set():
+                return
+            if fresh:
+                # Never exceed the panel's rate: coalesce a too-early
+                # frame into the next allowed slot (newest content wins).
+                delay = next_allowed - time.monotonic()
+                if delay > 0 and stop_event.wait(delay):
+                    return
+            self._frame_ready.clear()
+            self._send_last_frame()
+            next_allowed = time.monotonic() + interval
 
     def _send_last_frame(self, deadline: float | None = None) -> None:
         try:
@@ -480,6 +504,8 @@ class TwinklyClient:
         with self._stream_start_lock:
             thread = self._stream_thread
             self._stream_stop.set()
+            # Wake the loop out of its keepalive wait so join returns fast.
+            self._frame_ready.set()
             if thread and thread is not threading.current_thread():
                 thread.join(timeout=0.5)
             with self._lock:

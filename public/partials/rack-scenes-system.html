@@ -1,0 +1,186 @@
+        <section class="rack-section" aria-labelledby="rackTitle05">
+          <div class="rack-title">
+            <h2 id="rackTitle05">05 / PLAYLIST RUNNER</h2>
+            <button class="stop-link" id="stopPlaylistButton" type="button">STOP</button>
+          </div>
+          <div class="playlist-step-composer">
+            <label>
+              <span>SCENE</span>
+              <select id="playlistSceneSelect" aria-label="Playlist scene"></select>
+            </label>
+            <label>
+              <span>SECONDS</span>
+              <input id="playlistDuration" type="number" min="1" max="86400" value="30" />
+            </label>
+            <label>
+              <span>TRANSITION</span>
+              <select id="playlistTransition">
+                <option value="cut">CUT</option>
+                <option value="crossfade" selected>CROSSFADE</option>
+                <option value="push">PUSH</option>
+                <option value="dissolve">DISSOLVE</option>
+                <option value="wipe">WIPE</option>
+                <option value="shift">SHIFT</option>
+                <option value="radial">RADIAL</option>
+                <option value="pixelate">PIXELATE</option>
+              </select>
+            </label>
+            <button id="addPlaylistStepButton" type="button">ADD STEP</button>
+          </div>
+          <div class="playlist-draft" id="playlistDraft">
+            <small>ADD SAVED SCENES TO BUILD A TIMED RUN.</small>
+          </div>
+          <div class="playlist-save-line">
+            <input
+              id="playlistName"
+              aria-label="Playlist name"
+              type="text"
+              maxlength="48"
+              placeholder="PLAYLIST NAME"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <label class="repeat-toggle">
+              <input id="playlistRepeat" type="checkbox" />
+              LOOP
+            </label>
+            <button id="savePlaylistButton" type="button">SAVE</button>
+          </div>
+          <div class="playlist-list" id="playlistList"></div>
+          <small class="local-note">Playback runs while this page is open.</small>
+        </section>
+
+        <section class="rack-section" aria-labelledby="rackTitle06">
+          <div class="rack-title">
+            <h2 id="rackTitle06">06 / AUTOMATION</h2>
+            <strong>SERVER CLOCK</strong>
+          </div>
+          <div class="timer-pair">
+            <div class="timer-card">
+              <label for="sleepMinutes">SLEEP IN MINUTES</label>
+              <div>
+                <input id="sleepMinutes" type="number" min="1" max="1440" value="30" />
+                <button id="scheduleSleepButton" type="button">ARM SLEEP</button>
+              </div>
+            </div>
+            <div class="timer-card">
+              <label for="wakeAt">WAKE AT / LOCAL</label>
+              <input id="wakeAt" type="datetime-local" />
+              <div>
+                <input id="wakeBrightness" type="number" min="1" max="100" value="25" aria-label="Wake brightness" />
+                <button id="scheduleWakeButton" type="button">ARM WAKE</button>
+              </div>
+            </div>
+          </div>
+          <div class="daily-automation">
+            <div class="daily-automation-heading">RECURRING ACTION</div>
+            <input id="automationName" type="text" maxlength="48" placeholder="AUTOMATION NAME" aria-label="Automation name" />
+            <div class="daily-automation-grid">
+              <label>
+                <span>TIME</span>
+                <input id="automationTime" type="time" value="07:30" />
+              </label>
+              <label>
+                <span>DAYS</span>
+                <select id="automationDays">
+                  <option value="daily">DAILY</option>
+                  <option value="weekdays">WEEKDAYS</option>
+                  <option value="weekends">WEEKENDS</option>
+                </select>
+              </label>
+              <label>
+                <span>ACTION</span>
+                <select id="automationAction">
+                  <option value="wake">WAKE</option>
+                  <option value="off">OFF</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="brightness">SET BRIGHTNESS</option>
+                </select>
+              </label>
+              <label>
+                <span>LEVEL</span>
+                <input id="automationValue" type="number" min="1" max="100" value="25" />
+              </label>
+            </div>
+            <button id="saveAutomationButton" type="button">SAVE DAILY ACTION</button>
+          </div>
+          <div class="automation-list" id="automationList"></div>
+          <small class="local-note">Runs from this Mac while the controller server is open.</small>
+        </section>
+
+        <section class="rack-section system-section" aria-labelledby="rackTitle07">
+          <div class="rack-title">
+            <h2 id="rackTitle07">07 / SYSTEM</h2>
+            <strong id="firmwareReadout">FW —</strong>
+          </div>
+          <div class="rotation-line">
+            <span>DISPLAY ORIENTATION</span>
+            <fieldset
+              class="rotation-control"
+              aria-label="Display orientation"
+            >
+              <button class="active" data-rotation="0" type="button" aria-pressed="true">0°</button>
+              <button data-rotation="90" type="button" aria-pressed="false">90°</button>
+              <button data-rotation="180" type="button" aria-pressed="false">180°</button>
+              <button data-rotation="270" type="button" aria-pressed="false">270°</button>
+            </fieldset>
+          </div>
+          <details class="advanced-studio runtime-studio" id="runtimeStudio">
+            <summary>
+              <span>STARTUP + FRAME-LOSS POLICY</span>
+              <strong id="runtimePolicyStatus">SAFE DEFAULTS</strong>
+            </summary>
+            <div class="runtime-policy-grid">
+              <label>
+                <span>WHEN SERVER STARTS</span>
+                <select id="startupAction">
+                  <option value="unchanged">LEAVE PANEL UNCHANGED</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="off">TURN PANEL OFF</option>
+                </select>
+              </label>
+              <label>
+                <span>WHEN BROWSER FRAMES STOP</span>
+                <select id="frameLossAction">
+                  <option value="hold">HOLD LAST FRAME</option>
+                  <option value="stock">RETURN TO STOCK</option>
+                  <option value="off">TURN PANEL OFF</option>
+                </select>
+              </label>
+              <label>
+                <span>WAIT / SECONDS</span>
+                <input id="frameLossSeconds" type="number" min="3" max="120" value="10" />
+              </label>
+              <button id="saveRuntimePolicy" type="button">SAVE RUNTIME POLICY</button>
+            </div>
+            <small>STARTUP APPLIES ON THE NEXT SERVER LAUNCH. FRAME-LOSS ALSO COUNTS A STATIC BROWSER FRAME; HOLD IS THE NON-DISRUPTIVE DEFAULT.</small>
+          </details>
+          <div
+            class="stream-diagnostics"
+            id="streamDiagnostics"
+            data-health="idle"
+          >
+            <div class="stream-diagnostics-title">
+              <span>OUTPUT CLOCK</span>
+              <strong id="streamHealthReadout">WAITING</strong>
+            </div>
+            <div class="stream-diagnostics-grid">
+              <div><small>RELAY</small><b id="streamActualReadout">—</b></div>
+              <div><small>TARGET</small><b id="streamTargetReadout">—</b></div>
+              <div><small>UNIQUE</small><b id="streamUniqueReadout">0</b></div>
+              <div><small>REPEATS</small><b id="streamRepeatReadout">0</b></div>
+              <div><small>P95 GAP</small><b id="streamGapReadout">—</b></div>
+              <div><small>MISSED</small><b id="streamMissedReadout">0</b></div>
+            </div>
+            <small class="stream-diagnostics-note">
+              HOST DELIVERY / PHYSICAL OUTPUT REQUIRES CAMERA VALIDATION
+            </small>
+          </div>
+          <dl class="system-list">
+            <div><dt>ROUTE</dt><dd id="routeReadout">—</dd></div>
+            <div><dt>TRANSPORT</dt><dd>LOCAL UDP / 7777</dd></div>
+            <div><dt>DIMMING</dt><dd id="dimmingReadout">—</dd></div>
+            <div><dt>CONTROLLER</dt><dd id="controllerReadout">—</dd></div>
+            <div><dt>CLOUD</dt><dd class="good">NOT REQUIRED</dd></div>
+          </dl>
+        </section>

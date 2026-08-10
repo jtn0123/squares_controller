@@ -1,0 +1,238 @@
+        <section class="rack-section power-section" aria-labelledby="rackTitle01">
+          <div class="rack-title">
+            <h2 id="rackTitle01">01 / OUTPUT</h2>
+            <strong id="modeReadout">—</strong>
+          </div>
+          <div class="brightness-line">
+            <label for="brightnessSlider">MASTER INTENSITY</label>
+            <output id="brightnessValue" for="brightnessSlider">—</output>
+          </div>
+          <input
+            class="range"
+            id="brightnessSlider"
+            type="range"
+            min="1"
+            max="100"
+            value="30"
+            aria-label="Panel brightness"
+          />
+          <div class="power-actions">
+            <button class="action-button danger" id="offButton" type="button">
+              <span>○</span> OFF
+            </button>
+            <button class="action-button" id="stockButton" type="button">
+              ↩ RETURN TO STOCK
+            </button>
+          </div>
+          <div class="output-signal" id="outputSignal" data-mode="idle">
+            <div class="output-signal-title">
+              <span>OUTPUT PATH</span>
+              <strong id="outputSignalHeadline">CHECKING CONTROLLER</strong>
+            </div>
+            <div class="signal-path" aria-label="Browser to panel signal path">
+              <div data-signal-node="0" data-state="idle">
+                <i></i><small>BROWSER</small><strong>WAITING</strong>
+              </div>
+              <span aria-hidden="true">→</span>
+              <div data-signal-node="1" data-state="idle">
+                <i></i><small>RELAY</small><strong>WAITING</strong>
+              </div>
+              <span aria-hidden="true">→</span>
+              <div data-signal-node="2" data-state="idle">
+                <i></i><small>PANEL</small><strong>WAITING</strong>
+              </div>
+            </div>
+            <small id="outputSignalNote">Reading the local output state.</small>
+          </div>
+        </section>
+
+        <section class="rack-section" aria-labelledby="rackTitle02">
+          <div class="rack-title">
+            <h2 id="rackTitle02">02 / MOTION STUDIES</h2>
+            <button class="stop-link" id="stopMotionButton" type="button">STOP</button>
+          </div>
+          <div class="effect-grid"></div>
+          <div class="modulation-grid">
+            <label for="effectSpeed">
+              <span>SPEED</span>
+              <output id="effectSpeedValue" for="effectSpeed">1.0×</output>
+            </label>
+            <input
+              class="range range--compact"
+              id="effectSpeed"
+              type="range"
+              min="10"
+              max="200"
+              value="100"
+            />
+            <label for="effectIntensity">
+              <span>EFFECT LEVEL</span>
+              <output id="effectIntensityValue" for="effectIntensity">75%</output>
+            </label>
+            <input
+              class="range range--compact"
+              id="effectIntensity"
+              type="range"
+              min="10"
+              max="100"
+              value="75"
+            />
+          </div>
+          <details class="advanced-studio effect-tuning" id="effectTuning">
+            <summary>
+              <span>ADVANCED EFFECT CONTROLS</span>
+              <strong id="effectControlCount">SELECT EFFECT</strong>
+            </summary>
+            <div class="effect-control-grid" id="effectControlGrid">
+              <small>RUN AN EFFECT TO SEE ITS OPTIONAL CONTROLS.</small>
+            </div>
+          </details>
+          <div class="palette-studio">
+            <div class="palette-heading">
+              <label for="paletteSelect">COLOR PALETTE</label>
+              <select id="paletteSelect"></select>
+            </div>
+            <div class="palette-preview" id="palettePreview" aria-hidden="true"></div>
+            <div class="gradient-editor">
+              <label>
+                <span>START</span>
+                <input id="gradientStart" type="color" value="#d9ff5b" />
+              </label>
+              <label>
+                <span>MID</span>
+                <input id="gradientMiddle" type="color" value="#4b83ff" />
+              </label>
+              <label>
+                <span>END</span>
+                <input id="gradientEnd" type="color" value="#ec5fff" />
+              </label>
+              <button id="applyGradientButton" type="button">USE CUSTOM</button>
+            </div>
+            <details class="advanced-studio palette-workshop">
+              <summary>
+                <span>PALETTE WORKSHOP</span>
+                <strong id="paletteStopCount">4 STOPS</strong>
+              </summary>
+              <div class="palette-stop-list" id="paletteStopList"></div>
+              <div class="palette-workshop-actions">
+                <button id="addPaletteStopButton" type="button">+ COLOR STOP</button>
+                <input
+                  id="paletteName"
+                  aria-label="Palette name"
+                  type="text"
+                  maxlength="48"
+                  placeholder="PALETTE NAME"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="savePaletteButton" type="button">SAVE</button>
+                <button id="deletePaletteButton" type="button">DELETE</button>
+              </div>
+              <small>2–8 STOPS / SAVED WITH SCENE-LIBRARY BACKUPS</small>
+            </details>
+          </div>
+          <div class="zone-studio">
+            <div class="zone-heading">
+              <label for="zoneType">TARGET ZONE</label>
+              <select id="zoneType">
+                <option value="all">WHOLE WALL</option>
+                <option value="panel">ONE PANEL</option>
+                <option value="row">ONE PIXEL ROW</option>
+                <option value="column">ONE PIXEL COLUMN</option>
+                <option value="custom">CUSTOM RECTANGLE</option>
+              </select>
+            </div>
+            <div class="panel-zone-grid" id="panelZoneGrid" hidden></div>
+            <div class="zone-axis-editor" id="zoneAxisEditor" hidden>
+              <label>
+                <span id="zoneIndexLabel">ROW NUMBER</span>
+                <input id="zoneIndex" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div class="zone-rect-editor" id="zoneRectEditor" hidden>
+              <label><span>X</span><input id="zoneX" type="number" min="1" value="1" /></label>
+              <label><span>Y</span><input id="zoneY" type="number" min="1" value="1" /></label>
+              <label><span>W</span><input id="zoneWidth" type="number" min="1" value="8" /></label>
+              <label><span>H</span><input id="zoneHeight" type="number" min="1" value="8" /></label>
+            </div>
+            <output class="zone-readout" id="zoneReadout">WHOLE WALL</output>
+            <details class="advanced-studio segment-studio">
+              <summary>
+                <span>2D SEGMENT LAB</span>
+                <strong id="segmentCount">LIVE + 0 PINNED</strong>
+              </summary>
+              <div class="segment-transform-grid">
+                <label><input id="segmentMirrorX" type="checkbox" /> MIRROR X</label>
+                <label><input id="segmentMirrorY" type="checkbox" /> MIRROR Y</label>
+                <label><input id="segmentTranspose" type="checkbox" /> TRANSPOSE</label>
+                <label>
+                  <span>GROUP</span>
+                  <input id="segmentGrouping" type="number" min="1" max="8" value="1" />
+                </label>
+                <label>
+                  <span>GAP</span>
+                  <input id="segmentSpacing" type="number" min="0" max="8" value="0" />
+                </label>
+                <label>
+                  <span>OFFSET</span>
+                  <input id="segmentOffset" type="number" value="0" />
+                </label>
+              </div>
+              <div class="segment-action-line">
+                <input
+                  id="segmentName"
+                  aria-label="Segment name"
+                  type="text"
+                  maxlength="32"
+                  placeholder="SEGMENT NAME"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="pinSegmentButton" type="button">PIN LIVE</button>
+                <button id="clearSegmentsButton" type="button">CLEAR</button>
+              </div>
+              <div class="segment-list" id="segmentList"></div>
+              <small>UP TO 3 PINNED REGIONS + THE LIVE SEGMENT / TOP REGION WINS</small>
+            </details>
+          </div>
+          <div class="layer-studio">
+            <div class="layer-heading">
+              <span>LAYER B / EFFECT OVERLAY</span>
+              <label class="layer-toggle">
+                <input id="overlayEnabled" type="checkbox" />
+                ENABLED
+              </label>
+            </div>
+            <div class="layer-controls" id="overlayControls">
+              <label>
+                <span>EFFECT</span>
+                <select id="overlayEffect">
+                  <option value="tide">CHROMA TIDE</option>
+                  <option value="radar">NIGHT RADAR</option>
+                  <option value="ember">EMBER FIELD</option>
+                  <option value="orbit" selected>ORBITAL</option>
+                </select>
+              </label>
+              <label>
+                <span>PALETTE</span>
+                <select id="overlayPalette"></select>
+              </label>
+              <label>
+                <span>BLEND</span>
+                <select id="overlayBlend"></select>
+              </label>
+              <label>
+                <span>OPACITY</span>
+                <output id="overlayOpacityValue" for="overlayOpacity">55%</output>
+                <input
+                  class="range range--compact"
+                  id="overlayOpacity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="55"
+                />
+              </label>
+            </div>
+          </div>
+        </section>

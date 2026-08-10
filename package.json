@@ -1,6 +1,6 @@
 {
   "name": "squares-controller",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": false,
   "description": "Local-first browser controller for Twinkly Squares",
   "license": "MIT",
@@ -10,10 +10,17 @@
   },
   "type": "module",
   "scripts": {
-    "start": "python3 server.py",
-    "test": "python3 -m unittest discover -s test -p 'test_*.py' && node --test test/*.test.mjs"
+    "start": "npm run build && python3 server.py",
+    "build": "tsc -p tsconfig.json && node scripts/build_html.mjs",
+    "watch": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "watch:html": "node scripts/build_html.mjs --watch",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && python3 -m unittest discover -s test -p 'test_*.py' && node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }

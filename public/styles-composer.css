@@ -363,20 +363,31 @@
 }
 
 .scene-progress {
+  display: block;
   align-self: end;
+  width: 100%;
   height: 3px;
   margin: 10px 0 5px;
   overflow: hidden;
+  border: 0;
+  background: #242a22;
+  /* Native <progress>: strip UA chrome, then repaint both engines. */
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.scene-progress::-webkit-progress-bar {
   background: #242a22;
 }
 
-.scene-progress i {
-  display: block;
-  width: 0;
-  height: 100%;
+.scene-progress::-webkit-progress-value {
   background: var(--acid);
   box-shadow: 0 0 8px rgba(217, 255, 91, 0.45);
-  transition: width 200ms linear;
+}
+
+.scene-progress::-moz-progress-bar {
+  background: var(--acid);
+  box-shadow: 0 0 8px rgba(217, 255, 91, 0.45);
 }
 
 .scene-transition-control {

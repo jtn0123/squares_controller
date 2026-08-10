@@ -29,6 +29,13 @@ from src.state_broker import StateBroker, StateEvent
 MAX_BODY_BYTES = 2_000_000
 BAKE_BODY_OVERHEAD_BYTES = 65_536
 STATE_HEARTBEAT_SECONDS = 15.0
+# A frame source that stays silent this long has stopped producing; any
+# other tab may then start streaming without an explicit takeover.
+FRAME_SOURCE_IDLE_SECONDS = 2.0
+
+
+class FrameSourceBusyError(Exception):
+    """Another client currently owns the frame stream."""
 
 # The keys of a status payload that describe the streaming state a browser
 # must react to; frame uploads publish an event only when these change.
@@ -61,6 +68,10 @@ class AppContext:
     storage_warnings: list[str] = field(default_factory=list)
     boot_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     frame_mode_lock: threading.Lock = field(default_factory=threading.Lock)
+    # Single-driver arbitration: only one browser tab may stream frames at
+    # a time. Guarded by frame_mode_lock.
+    frame_source_id: str | None = None
+    frame_source_seen: float = 0.0
 
     def get_client(self) -> Any:
         if self.client is None:
@@ -149,9 +160,14 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         if length == 0:
             return {}
         try:
-            return json.loads(self.rfile.read(length))
+            body = json.loads(self.rfile.read(length))
         except json.JSONDecodeError as error:
             raise ValueError("Request body must be valid JSON.") from error
+        # json.loads also yields lists/strings/numbers/null; routes call
+        # .get() on the result, so anything but an object must 400 here.
+        if not isinstance(body, dict):
+            raise ValueError("Request body must be a JSON object.")
+        return body
 
     def _body_limit(self, path: str) -> int:
         if path != "/api/movies/bake":
@@ -165,7 +181,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             return MAX_BODY_BYTES
         if layout is None:
             return MAX_BODY_BYTES
-        encoded_movie_bytes = MAX_MOVIE_FRAMES * layout.led_count * 4
+        encoded_movie_bytes = MAX_MOVIE_FRAMES * int(layout.led_count) * 4
         return max(MAX_BODY_BYTES, encoded_movie_bytes + BAKE_BODY_OVERHEAD_BYTES)
 
     def send_state_event(self, event: StateEvent) -> None:
@@ -218,15 +234,15 @@ class SquaresHandler(SimpleHTTPRequestHandler):
                 self.send_state_event(event)
                 last_seen = event.version
             while not self.ctx.shutting_down.is_set():
-                event = self.ctx.state_broker.wait_after(
+                update = self.ctx.state_broker.wait_after(
                     last_seen, timeout=STATE_HEARTBEAT_SECONDS
                 )
-                if event is None:
+                if update is None:
                     self.wfile.write(b": keep-alive\n\n")
                     self.wfile.flush()
                     continue
-                self.send_state_event(event)
-                last_seen = event.version
+                self.send_state_event(update)
+                last_seen = update.version
         except OSError:
             return
 
@@ -350,11 +366,44 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             },
         )
 
+    def _check_frame_source(self, body: dict[str, Any]) -> str | None:
+        """Enforce one streaming tab at a time (caller holds frame_mode_lock).
+
+        Two clients streaming concurrently fight last-writer-wins for the
+        wall, which shows up as heavy frame drops. The first tagged source
+        owns the stream; another source is rejected with 409 until the
+        owner goes idle or the newcomer claims it from a user gesture.
+        Untagged bodies (scripts, external API callers) stay ungoverned.
+
+        Returns the source to commit once the frame actually succeeds —
+        an invalid claimed frame must not steal ownership from a healthy
+        streamer.
+        """
+        source = body.get("source")
+        if not isinstance(source, str) or not source:
+            return None
+        owner = self.ctx.frame_source_id
+        if (
+            owner is not None
+            and owner != source
+            and not body.get("claim")
+            and time.monotonic() - self.ctx.frame_source_seen
+            <= FRAME_SOURCE_IDLE_SECONDS
+        ):
+            raise FrameSourceBusyError(
+                "Another controller tab is driving the wall."
+            )
+        return source
+
     def _execute_frame(self, body: dict[str, Any]) -> dict[str, Any]:
         with self.ctx.frame_mode_lock:
+            source = self._check_frame_source(body)
             result = execute_command(
                 self.ctx.get_client(), {**body, "action": "frame"}
             )
+            if source is not None:
+                self.ctx.frame_source_id = source
+                self.ctx.frame_source_seen = time.monotonic()
             self.ctx.frame_activity.note(time.monotonic())
         # Publishing every frame would fan a full status payload out to all
         # SSE clients ~40x/sec; browsers only react to streaming-state
@@ -377,6 +426,8 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.NOT_FOUND, {"error": "Unknown API route."}
             )
+        except FrameSourceBusyError as error:
+            self.send_json(HTTPStatus.CONFLICT, {"error": str(error)})
         except ConnectionError as error:
             self.send_json(
                 HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}

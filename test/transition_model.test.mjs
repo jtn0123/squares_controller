@@ -26,15 +26,22 @@ test("crossfades RGB channels", () => {
   );
 });
 
-test("push reveals the destination from left to right", () => {
+test("push slides the destination in from the left without an end jump", () => {
+  // At half progress the incoming frame's RIGHT column is on screen —
+  // it slides in rather than being uncovered in place.
   assert.deepEqual(
     Array.from(transitionFrame(from, to, 2, 2, "push", 0.5)),
     [
-      255, 0, 0,
+      0, 255, 0,
       0, 0, 0,
-      0, 0, 255,
+      20, 40, 60,
       200, 200, 200,
     ],
+  );
+  // Full progress must equal the destination exactly (no completion pop).
+  assert.deepEqual(
+    Array.from(transitionFrame(from, to, 2, 2, "push", 1)),
+    Array.from(to),
   );
 });
 

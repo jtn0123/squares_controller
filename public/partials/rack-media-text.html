@@ -1,0 +1,213 @@
+        <section class="rack-section" aria-labelledby="rackTitle03">
+          <div class="rack-title">
+            <h2 id="rackTitle03">03 / MESSAGE LINE</h2>
+            <strong>LOCAL</strong>
+          </div>
+          <label class="input-label" for="messageInput">SCROLL A MESSAGE</label>
+          <div class="message-composer">
+            <input
+              id="messageInput"
+              type="text"
+              maxlength="80"
+              value="HELLO"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="scrollButton" type="button" aria-label="Scroll message">→</button>
+          </div>
+          <button class="wide-button" id="clockButton" type="button">
+            <span>◷</span>
+            RUN LOCAL CLOCK
+          </button>
+          <div class="text-studio">
+            <label>
+              <span>TYPEFACE</span>
+              <select id="fontSelect">
+                <option value="condensed">CONDENSED</option>
+                <option value="pixel">PIXEL MONO</option>
+                <option value="serif">EDITORIAL SERIF</option>
+              </select>
+            </label>
+            <label>
+              <span>SIZE</span>
+              <output id="fontSizeValue" for="fontSize">13px</output>
+              <input class="range range--compact" id="fontSize" type="range" min="6" max="24" value="13" />
+            </label>
+            <label>
+              <span>DIRECTION</span>
+              <select id="textDirection">
+                <option value="left">← LEFT</option>
+                <option value="right">RIGHT →</option>
+              </select>
+            </label>
+            <label class="font-upload">
+              LOAD FONT
+              <input id="fontInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/*" />
+            </label>
+          </div>
+        </section>
+
+        <section class="rack-section" aria-labelledby="rackTitle04">
+          <div class="rack-title">
+            <h2 id="rackTitle04">04 / SCENE DECK</h2>
+            <strong>PROGRAM + LIBRARY</strong>
+          </div>
+          <div class="scene-monitor" id="sceneMonitor" data-state="canvas">
+            <div class="scene-monitor-screen">
+              <canvas
+                id="sceneMonitorCanvas"
+                width="32"
+                height="24"
+                aria-label="Live scene output preview"
+              ></canvas>
+              <div class="local-playback-visual" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </div>
+              <span id="sceneMonitorBadge">LIVE OUTPUT</span>
+            </div>
+            <div class="scene-monitor-copy">
+              <small id="sceneMonitorKicker">PROGRAM MONITOR</small>
+              <strong id="sceneMonitorName">CURRENT CANVAS</strong>
+              <span id="sceneMonitorMeta">32×24 / WHOLE WALL</span>
+              <progress
+                class="scene-progress"
+                id="sceneProgress"
+                aria-label="Playlist scene progress"
+                max="100"
+                value="0"
+              ></progress>
+              <small id="sceneProgressLabel">OUTPUT MIRRORS THE WALL</small>
+            </div>
+          </div>
+          <div class="panel-bake">
+            <div class="panel-bake-heading">
+              <span>PANEL-LOCAL PLAYBACK</span>
+              <strong id="movieCapacityReadout">CHECKING STORAGE</strong>
+            </div>
+            <div class="panel-bake-controls">
+              <input
+                id="bakeMovieName"
+                aria-label="Panel movie name"
+                type="text"
+                maxlength="32"
+                placeholder="MOVIE NAME"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <label>
+                <span>SECONDS</span>
+                <input id="bakeDuration" type="number" min="1" max="15" value="5" />
+              </label>
+              <button id="bakeMovieButton" type="button">BAKE TO PANEL</button>
+            </div>
+            <small>
+              ADDS A NEW LOOP / NEVER OVERWRITES / RUNS WITHOUT THIS BROWSER
+            </small>
+          </div>
+          <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
+          <div class="preset-composer">
+            <input
+              id="presetName"
+              type="text"
+              maxlength="32"
+              placeholder="SCENE NAME"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="savePresetButton" type="button">SAVE</button>
+          </div>
+          <div class="scene-save-metadata">
+            <label>
+              <span>FOLDER</span>
+              <input
+                id="sceneFolder"
+                type="text"
+                maxlength="32"
+                placeholder="UNFILED"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <label>
+              <span>TAGS / COMMA SEPARATED</span>
+              <input
+                id="sceneTags"
+                type="text"
+                maxlength="175"
+                placeholder="AMBIENT, NIGHT"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <label class="scene-favorite-save">
+              <input id="sceneFavorite" type="checkbox" />
+              <span>★ FAVORITE</span>
+            </label>
+          </div>
+          <div class="scene-transition-control">
+            <label>
+              <span>LOAD TRANSITION</span>
+              <select id="sceneTransition">
+                <option value="cut">CUT</option>
+                <option value="crossfade" selected>CROSSFADE</option>
+                <option value="push">PUSH</option>
+                <option value="dissolve">DISSOLVE</option>
+                <option value="wipe">WIPE</option>
+                <option value="shift">SHIFT</option>
+                <option value="radial">RADIAL</option>
+                <option value="pixelate">PIXELATE</option>
+              </select>
+            </label>
+            <label>
+              <span>DURATION</span>
+              <output id="transitionDurationValue" for="transitionDuration">800ms</output>
+              <input
+                class="range range--compact"
+                id="transitionDuration"
+                type="range"
+                min="0"
+                max="3000"
+                step="100"
+                value="800"
+              />
+            </label>
+          </div>
+          <div class="scene-library-toolbar">
+            <label class="scene-search">
+              <span>SEARCH LIBRARY</span>
+              <input
+                id="sceneSearch"
+                type="search"
+                placeholder="NAME, TAG, FOLDER"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>FOLDER</span>
+              <select id="sceneFolderFilter">
+                <option value="ALL">ALL FOLDERS</option>
+              </select>
+            </label>
+            <button
+              id="sceneFavoritesFilter"
+              type="button"
+              aria-pressed="false"
+            >
+              ☆ FAVORITES
+            </button>
+            <output id="sceneFilterCount">4 CORE / 0 SAVED</output>
+          </div>
+          <div class="preset-list" id="presetList"></div>
+          <div class="library-actions">
+            <button id="exportLibraryButton" type="button">BACK UP ALL</button>
+            <select id="importLibraryMode" aria-label="Library restore mode">
+              <option value="merge">MERGE RESTORE</option>
+              <option value="replace">REPLACE LIBRARY</option>
+            </select>
+            <label>
+              RESTORE JSON
+              <input id="importLibraryInput" type="file" accept="application/json,.json" />
+            </label>
+          </div>
+          <small class="local-note">Palettes, folders, tags, favorites, scenes, and playlists are included in each backup.</small>
+        </section>

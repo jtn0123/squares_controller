@@ -40,7 +40,7 @@ def read_current_movie(client: Any) -> dict[str, Any] | None:
 
 
 def list_movies(client: Any) -> dict[str, Any]:
-    result = client.request("/movies")
+    result: dict[str, Any] = client.request("/movies")
     if not isinstance(result.get("movies"), list):
         raise ConnectionError("Twinkly returned an invalid movie list.")
     return result

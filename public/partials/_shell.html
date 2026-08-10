@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="An open, local-first control surface for Twinkly Squares."
+    />
+    <title>Squares Controller</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles-stage.css" />
+    <link rel="stylesheet" href="/styles-media.css" />
+    <link rel="stylesheet" href="/styles-palette.css" />
+    <link rel="stylesheet" href="/styles-composer.css" />
+    <link rel="stylesheet" href="/styles-scenes.css" />
+    <link rel="stylesheet" href="/styles-automation.css" />
+  </head>
+  <body>
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <a class="brand" href="/" aria-label="Squares Controller home">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </span>
+        <span>
+          <strong>SQUARES</strong>
+          <small>OPEN / LOCAL CONTROL</small>
+        </span>
+      </a>
+
+      <div class="connection" id="connectionBadge" data-state="loading">
+        <span class="connection-light"></span>
+        <span>
+          <strong id="connectionLabel">CONTACTING PANEL</strong>
+          <small id="connectionDetail">Checking local controller…</small>
+        </span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <!-- partial: stage.html -->
+
+      <aside class="control-rack" aria-label="Panel controls">
+        <!-- partial: rack-power-effects.html -->
+
+        <!-- partial: rack-media-text.html -->
+
+        <!-- partial: rack-scenes-system.html -->
+      </aside>
+    </main>
+
+    <footer class="project-credit">
+      <span>INDEPENDENT TWINKLY CONTROLLER</span>
+      <span aria-hidden="true">/</span>
+      <span>
+        PRODUCT CONCEPTS INSPIRED IN PART BY
+        <a
+          href="https://github.com/wled/WLED"
+          target="_blank"
+          rel="noopener noreferrer"
+        >WLED</a>
+      </span>
+    </footer>
+
+    <output class="toast" id="toast" aria-live="polite"></output>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

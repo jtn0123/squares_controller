@@ -1,0 +1,220 @@
+      <section class="display-module" aria-labelledby="displayTitle">
+        <div class="module-heading">
+          <div>
+            <span class="eyebrow">LIVE PIXEL STAGE</span>
+            <h1 id="displayTitle">Light, without the cloud.</h1>
+          </div>
+          <div class="telemetry" aria-label="Panel information">
+            <span><b id="resolutionReadout">32×24</b> MATRIX</span>
+            <span><b id="pixelReadout">768</b> NODES</span>
+            <span title="Controller-advertised frame-rate ceiling"><b id="fpsReadout">40</b> DEVICE CAP</span>
+            <span title="Controller-reported capability test; not live telemetry"><b id="measuredFpsReadout">—</b> PANEL TEST</span>
+            <span title="Actual host relay rate; refreshed every two seconds"><b id="relayFpsReadout">—</b> LIVE RELAY</span>
+          </div>
+        </div>
+
+        <div class="stage-frame">
+          <div class="stage-corner stage-corner--tl"></div>
+          <div class="stage-corner stage-corner--tr"></div>
+          <div class="stage-corner stage-corner--bl"></div>
+          <div class="stage-corner stage-corner--br"></div>
+          <canvas
+            id="pixelCanvas"
+            width="960"
+            height="720"
+            aria-label="Interactive 32 by 24 LED canvas"
+          ></canvas>
+          <div class="stage-output-state" id="stageOutputState">
+            <div class="local-playback-visual" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+            <span id="stageOutputBadge">BROWSER PREVIEW</span>
+            <strong id="stageOutputName">CURRENT CANVAS</strong>
+            <small id="stageOutputMeta">PIXEL FRAME / 30% / WHOLE WALL</small>
+            <p id="stageOutputNote">The browser canvas is ready to send.</p>
+          </div>
+          <div class="stage-scan" aria-hidden="true"></div>
+          <div class="live-flag" id="liveFlag">
+            <span></span>
+            PREVIEW
+          </div>
+        </div>
+
+        <div class="draw-tools" aria-label="Drawing tools">
+          <div class="color-well">
+            <input
+              id="colorPicker"
+              type="color"
+              value="#d9ff5b"
+              aria-label="Drawing color"
+            />
+            <div>
+              <small>INK</small>
+              <strong id="colorValue">#D9FF5B</strong>
+            </div>
+          </div>
+
+          <fieldset class="tool-cluster" aria-label="Brush size">
+            <button class="tool-button active" data-brush="1" type="button" aria-pressed="true">
+              <span class="brush-dot brush-dot--1"></span>1
+            </button>
+            <button class="tool-button" data-brush="2" type="button" aria-pressed="false">
+              <span class="brush-dot brush-dot--2"></span>2
+            </button>
+            <button class="tool-button" data-brush="3" type="button" aria-pressed="false">
+              <span class="brush-dot brush-dot--3"></span>3
+            </button>
+          </fieldset>
+
+          <div class="tool-cluster">
+            <button class="tool-button" id="eraserButton" type="button" aria-pressed="false">
+              ERASE
+            </button>
+            <button class="text-button" id="fillButton" type="button">FILL</button>
+            <button class="text-button" id="clearButton" type="button">
+              CLEAR
+            </button>
+            <label class="text-button upload-button">
+              MEDIA
+              <input id="imageInput" type="file" accept="image/*,video/*" />
+            </label>
+          </div>
+        </div>
+
+        <div class="palette-strip" aria-label="Quick colors">
+          <button data-color="#d9ff5b" style="--swatch: #d9ff5b" aria-label="Acid green"></button>
+          <button data-color="#ff6b3d" style="--swatch: #ff6b3d" aria-label="Signal orange"></button>
+          <button data-color="#ffcf54" style="--swatch: #ffcf54" aria-label="Warm yellow"></button>
+          <button data-color="#57e6d5" style="--swatch: #57e6d5" aria-label="Aqua"></button>
+          <button data-color="#4b83ff" style="--swatch: #4b83ff" aria-label="Electric blue"></button>
+          <button data-color="#ec5fff" style="--swatch: #ec5fff" aria-label="Magenta"></button>
+          <button data-color="#fff6df" style="--swatch: #fff6df" aria-label="Warm white"></button>
+          <button data-color="#181818" style="--swatch: #181818" aria-label="Near black"></button>
+          <span>DRAG ON THE MATRIX TO PAINT</span>
+        </div>
+
+        <div class="media-deck">
+          <div class="media-heading">
+            <span>MEDIA LAB / FILE + LIVE INPUTS</span>
+            <strong id="mediaModeReadout">IDLE</strong>
+          </div>
+          <div class="live-input-console">
+            <div class="live-input-actions">
+              <button id="startMicrophoneButton" type="button">
+                <span>◉</span>
+                MICROPHONE
+              </button>
+              <button id="startScreenButton" type="button">
+                <span>▣</span>
+                SHARE SCREEN
+              </button>
+              <small>PERMISSION STAYS IN THIS BROWSER SESSION</small>
+            </div>
+            <div class="audio-controls">
+              <label>
+                <span>AUDIO VISUAL</span>
+                <select id="audioMode">
+                  <option value="spectrum">SPECTRUM</option>
+                  <option value="halo">BASS HALO</option>
+                  <option value="bands">3-BAND FIELD</option>
+                </select>
+              </label>
+              <label>
+                <span>SENSITIVITY</span>
+                <output id="audioSensitivityValue" for="audioSensitivity">1.00×</output>
+                <input
+                  class="range range--compact"
+                  id="audioSensitivity"
+                  type="range"
+                  min="25"
+                  max="400"
+                  value="100"
+                />
+              </label>
+              <label>
+                <span>SMOOTHING</span>
+                <output id="audioSmoothingValue" for="audioSmoothing">72%</output>
+                <input
+                  class="range range--compact"
+                  id="audioSmoothing"
+                  type="range"
+                  min="0"
+                  max="95"
+                  value="72"
+                />
+              </label>
+              <div class="audio-meter" aria-label="Microphone frequency levels">
+                <span>BASS<i id="audioBassMeter"></i></span>
+                <span>MID<i id="audioMidMeter"></i></span>
+                <span>HIGH<i id="audioTrebleMeter"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="media-controls">
+            <label>
+              <span>FIT</span>
+              <select id="mediaFit">
+                <option value="cover">COVER</option>
+                <option value="contain">CONTAIN</option>
+                <option value="stretch">STRETCH</option>
+              </select>
+            </label>
+            <label>
+              <span>SAMPLING</span>
+              <select id="mediaSampling">
+                <option value="smooth">SMOOTH</option>
+                <option value="pixel">PIXEL / NEAREST</option>
+              </select>
+            </label>
+            <label>
+              <span>SATURATION</span>
+              <output id="mediaSaturationValue" for="mediaSaturation">100%</output>
+              <input class="range range--compact" id="mediaSaturation" type="range" min="0" max="200" value="100" />
+            </label>
+            <label>
+              <span>CONTRAST</span>
+              <output id="mediaContrastValue" for="mediaContrast">100%</output>
+              <input class="range range--compact" id="mediaContrast" type="range" min="0" max="200" value="100" />
+            </label>
+            <label>
+              <span>GAMMA</span>
+              <output id="mediaGammaValue" for="mediaGamma">1.00</output>
+              <input class="range range--compact" id="mediaGamma" type="range" min="20" max="200" value="100" />
+            </label>
+            <label>
+              <span>PLAYBACK</span>
+              <output id="mediaSpeedValue" for="mediaSpeed">1.00×</output>
+              <input class="range range--compact" id="mediaSpeed" type="range" min="25" max="200" value="100" />
+            </label>
+          </div>
+          <button class="media-stop" id="stopMediaButton" type="button">STOP INPUT / HOLD LAST FRAME</button>
+        </div>
+        <details class="clip-studio" id="pixelClipStudio">
+          <summary>
+            <span>PIXEL CLIP / FRAME TIMELINE</span>
+            <strong id="clipStatus">0 / 32 FRAMES</strong>
+          </summary>
+          <div class="clip-toolbar">
+            <button id="captureClipFrame" type="button">+ CAPTURE FRAME</button>
+            <button id="updateClipFrame" type="button">UPDATE SELECTED</button>
+            <button id="duplicateClipFrame" type="button">DUPLICATE</button>
+            <button id="deleteClipFrame" type="button">DELETE</button>
+            <button class="clip-play" id="playClip" type="button" aria-pressed="false">▶ PLAY LOOP</button>
+          </div>
+          <div class="clip-duration">
+            <label for="clipFrameDuration">SELECTED FRAME TIME</label>
+            <output id="clipFrameDurationValue" for="clipFrameDuration">250ms</output>
+            <input
+              class="range range--compact"
+              id="clipFrameDuration"
+              type="range"
+              min="25"
+              max="2000"
+              step="25"
+              value="250"
+            />
+          </div>
+          <div class="clip-timeline" id="clipTimeline" aria-label="Pixel clip frames"></div>
+          <small>CAPTURE THE LIVE CANVAS, SET EACH HOLD TIME, THEN PLAY OR BAKE THE LOOP TO THE PANEL.</small>
+        </details>
+      </section>

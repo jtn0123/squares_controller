@@ -139,6 +139,10 @@
 .rotation-control {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  /* Neutralize fieldset chrome; the class carries all visual style. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
   border: 1px solid var(--line);
 }
 
