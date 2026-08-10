@@ -109,6 +109,44 @@ rate does not buy smoothness.
 
 As always these are transport measurements, not optical ones.
 
+## Live-wall capability probe
+
+`scripts/capability_probe.py` puts one question per colour on the wall.
+Observed on the 32×24 wall at 10% hardware brightness, 36 FPS:
+
+| Zone | Test | Result |
+| --- | --- | --- |
+| Red | 24-step gamma ramp | Darkest 4 steps invisible |
+| Green | raw PWM 0…23, one per row | Rows 0–9 invisible |
+| Blue | one row per sent frame | Marches, but visibly cuts out |
+| Amber | full on/off every frame | Visibly flickers |
+
+Two independent conclusions.
+
+**There is a black floor.** At 10% brightness the panel emits no light
+below roughly PWM 10, so the bottom ~4% of the range is dead. Gamma
+correction pushes shadow detail straight into that dead zone, which is
+why the darkest four bands of the gamma ramp vanished. Gamma therefore
+needs a black-floor lift — map non-zero output into `[floor, 255]` and
+keep true zero as true black — and the floor rises as brightness falls,
+so it has to be calibrated at the operating brightness.
+
+**Frames are being lost, and host telemetry cannot see it.** Alternating
+full on/off every frame should fuse into a steady dim glow if every
+frame is displayed; it flickers instead, and the one-row-per-frame
+marker cuts out. The realtime protocol has no acknowledgement, so
+"missed deadlines: 0" only ever proved the host *sent* on time.
+
+### Correction: latency is not loss
+
+An earlier airtime trial measured round-trip latency while streaming at
+12/20/28/36 FPS and found no relationship (55–70 ms average at every
+rate), which was read as "send rate does not matter". That measured the
+wrong quantity. ICMP at 5 packets/second does not stress the panel's
+receive path, whereas realtime streaming costs three UDP packets per
+frame — 108 packets/second at 36 FPS. Displayed-frame integrity has to
+be judged from the panel's output, not from ping.
+
 ## Further optimization threshold
 
 Realtime output now exposes permanent relay telemetry, while finite output can
