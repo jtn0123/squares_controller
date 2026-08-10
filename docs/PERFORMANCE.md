@@ -87,6 +87,28 @@ one millisecond per frame. Moving from 12 to 16 panels increases raw RGB data
 from 2,304 to 3,072 bytes per frame, which is not enough to force a lower
 cadence on a modern Mac or ordinary local Wi-Fi.
 
+## Motion study: delivered cadence by target rate
+
+Run with `python3 scripts/motion_study.py [brightness] [rates...]`. Ten
+seconds of continuous diagonal-sweep motion per rate, measured on the live
+32×24 wall at 10% brightness after the one-clock relay change:
+
+| Target | Delivered | p95 fresh gap | Max fresh gap | Repeats | Late | Missed |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 24 FPS | 24.14 FPS | 45.8 ms | 46.9 ms | 0 | 0 | 0 |
+| 30 FPS | 30.07 FPS | 36.4 ms | 38.4 ms | 0 | 0 | 0 |
+| 33 FPS | 33.07 FPS | 33.6 ms | 36.1 ms | 0 | 0 | 0 |
+| 36 FPS | 35.97 FPS | 29.0 ms | 31.0 ms | 0 | 0 | 0 |
+
+Every rate delivered every fresh frame: no repeats, no late sends, no
+missed deadlines. Measured gaps track the producer's own send spacing
+(within ~1 ms), which means the relay adds no cadence of its own — it
+forwards what it is given, when it is given. Host transport is therefore
+not a source of visible judder at any of these rates, and a lower target
+rate does not buy smoothness.
+
+As always these are transport measurements, not optical ones.
+
 ## Further optimization threshold
 
 Realtime output now exposes permanent relay telemetry, while finite output can
