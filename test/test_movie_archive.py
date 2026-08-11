@@ -103,6 +103,10 @@ class MovieArchiveTest(unittest.TestCase):
         )
         self.assertEqual(restored["name"], "ROUND TRIP")
         self.assertEqual(restored["fps"], 24)
+        # gamma and saturation drive the re-bake; dropping them would
+        # restore a visibly different movie.
+        self.assertEqual(restored["gamma"], 2.2)
+        self.assertEqual(restored["saturation"], 1.0)
         # A re-import is a new local copy, not a claim on the old slot.
         self.assertNotEqual(reimported["id"], original["id"])
 

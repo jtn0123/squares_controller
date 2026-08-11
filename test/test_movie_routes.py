@@ -31,9 +31,29 @@ class FakeClient:
         self.baked: list[dict[str, Any]] = []
 
     def bake_movie(
-        self, name: str, pixels: bytes, **fields: Any
+        self,
+        name: str,
+        pixels: bytes,
+        *,
+        width: int,
+        height: int,
+        frame_count: int,
+        fps: int,
+        gamma: float,
+        saturation: float,
     ) -> dict[str, Any]:
-        self.baked.append({"name": name, "pixels": pixels, **fields})
+        # Mirrors TwinklyClient.bake_movie's keyword-only signature so a
+        # renamed route argument fails here instead of on hardware.
+        self.baked.append({
+            "name": name,
+            "pixels": pixels,
+            "width": width,
+            "height": height,
+            "frame_count": frame_count,
+            "fps": fps,
+            "gamma": gamma,
+            "saturation": saturation,
+        })
         return {"bakedMovie": {"id": 7}, "status": {"mode": "movie"}}
 
 
