@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import re
 import time
@@ -61,6 +62,11 @@ class MovieArchive:
             # and zero or negative geometry would otherwise satisfy the
             # byte-count check and fail much later, at restore time.
             raise ValueError("Movie geometry and timing must be positive.")
+        if not (math.isfinite(gamma) and math.isfinite(saturation)):
+            # float() accepts "NaN" and "Infinity", but json.dump would
+            # then write tokens the browser's JSON.parse rejects — the
+            # entry would save fine and fail only at download time.
+            raise ValueError("Movie colour values must be finite.")
         expected = width * height * 3 * frame_count
         if len(pixels) != expected:
             raise ValueError(

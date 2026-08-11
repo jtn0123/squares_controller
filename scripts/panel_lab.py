@@ -52,9 +52,9 @@ class PanelSession:
         # pinning one developer's panel into the tooling.
         self.client = TwinklyClient(ip or load_device_ip())
         self.brightness = brightness
-        # Until __enter__ reads the real value, assume full brightness —
-        # a wrong restore-to-100 beats stranding a study's dim setting.
-        self.previous_brightness = 100
+        # Filled in by __enter__; None means "never learned it", and
+        # exit then leaves brightness alone rather than guessing.
+        self.previous_brightness: int | None = None
         self.restore_mode = restore_mode
         self.socket: socket.socket | None = None
 
@@ -103,18 +103,22 @@ class PanelSession:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        # Each restore is guarded on its own: a failed brightness write
+        # must not stop the mode restore, and neither may mask the
+        # original error while unwinding. ConnectionError (and
+        # TwinklyHTTPError under it) are OSError subclasses.
         try:
-            self.set_brightness(self.previous_brightness)
+            if self.previous_brightness is not None:
+                self.set_brightness(self.previous_brightness)
+        except OSError:
+            pass
+        try:
             self.set_mode(self.restore_mode)
         except OSError:
-            # ConnectionError (and TwinklyHTTPError under it) are OSError
-            # subclasses. Already unwinding; a failed restore must not
-            # mask the original error.
             pass
-        finally:
-            if self.socket is not None:
-                self.socket.close()
-                self.socket = None
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
 
     # -- frames -----------------------------------------------------
 

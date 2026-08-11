@@ -133,6 +133,19 @@ class MovieArchiveTest(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 self.archive.import_entry(payload)
 
+    def test_save_rejects_non_finite_colour_values(self) -> None:
+        for field, value in (("gamma", float("nan")), ("saturation", float("inf"))):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, "finite"):
+                    self.save_one(**{field: value})
+
+    def test_import_rejects_non_finite_colour_strings(self) -> None:
+        entry = self.archive.read(self.save_one()["id"])
+        entry["gamma"] = "Infinity"
+
+        with self.assertRaisesRegex(ValueError, "finite"):
+            self.archive.import_entry(entry)
+
     def test_import_reports_bad_colour_fields_readably(self) -> None:
         entry = self.archive.read(self.save_one()["id"])
         entry["gamma"] = "abc"
