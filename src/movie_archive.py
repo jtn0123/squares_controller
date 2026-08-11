@@ -102,7 +102,13 @@ class MovieArchive:
         width = int(entry["width"])
         height = int(entry["height"])
         frame_bytes = width * height * 3
-        pixels = base64.b64decode(entry["pixelsBase64"])
+        # Decode only enough base64 to cover the first frame: the list
+        # route calls this once per entry, and decoding a whole 8 MB
+        # movie to keep 2 KB of it would make listing needlessly heavy.
+        # Base64 maps 3 bytes to 4 characters, so round the slice up to
+        # a whole 4-character group past the frame boundary.
+        encoded_prefix = entry["pixelsBase64"][: -(-frame_bytes // 3) * 4]
+        pixels = base64.b64decode(encoded_prefix)
         return {
             "id": entry["id"],
             "name": entry["name"],
@@ -165,10 +171,13 @@ class MovieArchive:
             height = int(payload["height"])
             frame_count = int(payload["frameCount"])
             fps = int(payload["fps"])
+            gamma = float(payload.get("gamma", 2.2))
+            saturation = float(payload.get("saturation", 1.0))
         except (KeyError, TypeError, ValueError) as error:
             # A bare KeyError would surface to the browser as just 'width'.
             raise ValueError(
-                "Archive file is missing its size or timing fields."
+                "Archive file has missing or invalid size, timing, or "
+                "colour fields."
             ) from error
         return self.save(
             name=str(payload.get("name", "IMPORTED"))[:32],
@@ -177,6 +186,6 @@ class MovieArchive:
             height=height,
             frame_count=frame_count,
             fps=fps,
-            gamma=float(payload.get("gamma", 2.2)),
-            saturation=float(payload.get("saturation", 1.0)),
+            gamma=gamma,
+            saturation=saturation,
         )

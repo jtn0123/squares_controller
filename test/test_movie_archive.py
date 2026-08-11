@@ -129,6 +129,14 @@ class MovieArchiveTest(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 self.archive.import_entry(payload)
 
+    def test_import_reports_bad_colour_fields_readably(self) -> None:
+        entry = self.archive.read(self.save_one()["id"])
+        entry["gamma"] = "abc"
+
+        with self.assertRaises(ValueError) as caught:
+            self.archive.import_entry(entry)
+        self.assertNotIn("convert", str(caught.exception))
+
     def test_import_rejects_frame_data_that_is_not_base64(self) -> None:
         entry = self.archive.read(self.save_one()["id"])
         entry["pixelsBase64"] = "not base64 at all!!"
