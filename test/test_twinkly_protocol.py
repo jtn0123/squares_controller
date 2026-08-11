@@ -74,31 +74,28 @@ class TwinklyProtocolTests(unittest.TestCase):
 
     def test_rotates_entire_raster_before_device_mapping(self) -> None:
         layout = Layout(3, 2, 6, tuple(range(6)))
-        landscape = bytes(
-            channel
-            for pixel_id in range(1, 7)
-            for channel in (pixel_id, 0, 0)
-        )
-        portrait = bytes(
+        # One buffer throughout: rotation reinterprets the same bytes
+        # under swapped width/height, it does not require new content.
+        frame = bytes(
             channel
             for pixel_id in range(1, 7)
             for channel in (pixel_id, 0, 0)
         )
 
         self.assertEqual(
-            oriented_raster_to_device_frame(landscape, 3, 2, layout, 0)[::3],
+            oriented_raster_to_device_frame(frame, 3, 2, layout, 0)[::3],
             bytes([1, 2, 3, 4, 5, 6]),
         )
         self.assertEqual(
-            oriented_raster_to_device_frame(portrait, 2, 3, layout, 90)[::3],
+            oriented_raster_to_device_frame(frame, 2, 3, layout, 90)[::3],
             bytes([2, 4, 6, 1, 3, 5]),
         )
         self.assertEqual(
-            oriented_raster_to_device_frame(landscape, 3, 2, layout, 180)[::3],
+            oriented_raster_to_device_frame(frame, 3, 2, layout, 180)[::3],
             bytes([6, 5, 4, 3, 2, 1]),
         )
         self.assertEqual(
-            oriented_raster_to_device_frame(portrait, 2, 3, layout, 270)[::3],
+            oriented_raster_to_device_frame(frame, 2, 3, layout, 270)[::3],
             bytes([5, 3, 1, 6, 4, 2]),
         )
 

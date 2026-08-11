@@ -61,7 +61,7 @@ class MovieArchiveTest(unittest.TestCase):
     ) -> None:
         short_buffer = build_pixels(frames=2)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "RGB bytes"):
             self.save_one(pixels=short_buffer)
 
     def test_save_rejects_non_positive_geometry_and_timing(self) -> None:
@@ -80,7 +80,7 @@ class MovieArchiveTest(unittest.TestCase):
         self.assertEqual([item["id"] for item in listed], [healthy["id"]])
 
     def test_save_rejects_a_movie_larger_than_the_ceiling(self) -> None:
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "too large"):
             self.save_one(
                 pixels=b"\x00" * 9_000_000,
                 width=1,

@@ -200,6 +200,9 @@ class ServerRouteTests(unittest.TestCase):
         for bad in ({"id": -1}, {"id": "7"}, {"id": True}, {}):
             status, _ = self.request("POST", "/api/movies/select", body=bad)
             self.assertEqual(status, 400, f"accepted a bad movie id: {bad}")
+        # Validation must run before the panel is contacted: still only
+        # the one valid call from above.
+        self.client.select_movie.assert_called_once_with(7)
 
     def test_frame_accepts_base64_pixels(self) -> None:
         import base64
