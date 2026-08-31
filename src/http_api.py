@@ -20,15 +20,18 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from src.automation_store import AutomationStore
+from src.color_pipeline import DEFAULT_GAMMA, DEFAULT_SATURATION
 from src.command_api import API_VERSION, capability_payload, execute_command
 from src.library_store import LibraryStore
+from src.movie_archive import MAX_PIXEL_BYTES, MovieArchive
 from src.movie_payload import MAX_MOVIE_FRAMES, decode_movie_payload
+from src.movie_routes import handle as handle_movie_route
 from src.runtime_policy import FrameActivity, RuntimePolicyStore
 from src.state_broker import StateBroker, StateEvent
+from src.state_events import serve as serve_state_events
 
 MAX_BODY_BYTES = 2_000_000
 BAKE_BODY_OVERHEAD_BYTES = 65_536
-STATE_HEARTBEAT_SECONDS = 15.0
 # A frame source that stays silent this long has stopped producing; any
 # other tab may then start streaming without an explicit takeover.
 FRAME_SOURCE_IDLE_SECONDS = 2.0
@@ -61,6 +64,7 @@ class AppContext:
     library_store: LibraryStore
     automation_store: AutomationStore
     runtime_policy_store: RuntimePolicyStore
+    movie_archive: MovieArchive
     frame_activity: FrameActivity
     shutting_down: threading.Event
     client: Any | None = None
@@ -170,6 +174,10 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         return body
 
     def _body_limit(self, path: str) -> int:
+        if path == "/api/movies/import":
+            # An import carries a whole archive entry; size the cap to
+            # the largest entry the archive itself will accept.
+            return MAX_PIXEL_BYTES * 4 // 3 + BAKE_BODY_OVERHEAD_BYTES
         if path != "/api/movies/bake":
             return MAX_BODY_BYTES
         # A full-length bake is MAX_MOVIE_FRAMES frames of base64 RGB
@@ -184,70 +192,31 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         encoded_movie_bytes = MAX_MOVIE_FRAMES * int(layout.led_count) * 4
         return max(MAX_BODY_BYTES, encoded_movie_bytes + BAKE_BODY_OVERHEAD_BYTES)
 
-    def send_state_event(self, event: StateEvent) -> None:
-        message = json.dumps(
-            {
-                "source": event.source,
-                "status": event.payload,
-            },
-            separators=(",", ":"),
-        )
-        body = (
-            f"id: {self.ctx.boot_id}-{event.version}\n"
-            "event: state\n"
-            f"data: {message}\n\n"
-        ).encode("utf-8")
-        self.wfile.write(body)
-        self.wfile.flush()
-
-    def _last_seen_version(self) -> int:
-        """Resume position from Last-Event-ID, ignoring other boots.
-
-        Versions restart at 1 whenever the server restarts, so ids carry a
-        per-process boot epoch. A resume id from a previous boot would
-        otherwise silently starve the client until the version counter
-        caught up.
-        """
-        raw = self.headers.get("Last-Event-ID", "")
-        epoch, _, version_text = raw.rpartition("-")
-        if epoch != self.ctx.boot_id:
-            return 0
+    def _archive_route(self, method: str, body: dict[str, Any]) -> bool:
+        """Local movie-archive routes, shared by GET/POST/DELETE."""
+        path = urlsplit(self.path).path
         try:
-            return int(version_text)
-        except ValueError:
-            return 0
-
-    def serve_state_events(self) -> None:
-        status = self.ctx.get_client().refresh_status()
-        event = self.ctx.publish(status, "snapshot")
-        last_seen = self._last_seen_version()
-
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-
-        try:
-            if event.version > last_seen:
-                self.send_state_event(event)
-                last_seen = event.version
-            while not self.ctx.shutting_down.is_set():
-                update = self.ctx.state_broker.wait_after(
-                    last_seen, timeout=STATE_HEARTBEAT_SECONDS
-                )
-                if update is None:
-                    self.wfile.write(b": keep-alive\n\n")
-                    self.wfile.flush()
-                    continue
-                self.send_state_event(update)
-                last_seen = update.version
-        except OSError:
-            return
+            handled = handle_movie_route(self.ctx, method, path, body)
+        except ConnectionError as error:
+            self.send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
+            )
+            return True
+        except (KeyError, OSError, TypeError, ValueError) as error:
+            # do_GET has no error wrapper of its own, and a corrupt or
+            # hand-edited archive file must not take the page down.
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return True
+        if handled is None:
+            return False
+        status, payload = handled
+        self.send_json(status, payload)
+        return True
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if self._archive_route("GET", {}):
+            return
         if self._get_local_route(path) or self._get_controller_route(path):
             return
         super().do_GET()
@@ -325,7 +294,7 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             return True
         if path == "/api/events":
             try:
-                self.serve_state_events()
+                serve_state_events(self)
             except (ConnectionError, KeyError, ValueError) as error:
                 self.send_json(
                     HTTPStatus.SERVICE_UNAVAILABLE, {"error": str(error)}
@@ -419,6 +388,8 @@ class SquaresHandler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         try:
             body = self.read_json(self._body_limit(path))
+            if self._archive_route("POST", body):
+                return
             if self._post_store_route(path, body):
                 return
             if self._post_controller_route(path, body):
@@ -490,6 +461,25 @@ class SquaresHandler(SimpleHTTPRequestHandler):
             # realtime relay mid-bake.
             with self.ctx.frame_mode_lock:
                 baked = self.ctx.get_client().bake_movie(**movie)
+            # The controller will not hand frame data back, so this is
+            # the only chance to keep a copy that can be previewed,
+            # exported, or restored later.
+            try:
+                baked["archived"] = self.ctx.movie_archive.save(
+                    name=movie["name"],
+                    pixels=bytes(movie["pixels"]),
+                    width=movie["width"],
+                    height=movie["height"],
+                    frame_count=movie["frame_count"],
+                    fps=int(movie["fps"]),
+                    gamma=DEFAULT_GAMMA,
+                    saturation=DEFAULT_SATURATION,
+                    device_movie_id=baked["bakedMovie"].get("id"),
+                )
+            except (OSError, ValueError) as error:
+                # The bake already succeeded on the panel; reporting it
+                # as failed would hide a movie that now exists there.
+                baked["archiveError"] = str(error)
             self.ctx.publish(baked["status"], "movie:bake")
             self.send_json(HTTPStatus.OK, baked)
             return True
@@ -517,6 +507,8 @@ class SquaresHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         try:
+            if self._archive_route("DELETE", {}):
+                return
             path = urlsplit(self.path).path
             if path.startswith("/api/scenes/"):
                 item_id = path.removeprefix("/api/scenes/")

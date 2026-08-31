@@ -103,9 +103,9 @@ seconds of continuous diagonal-sweep motion per rate, measured on the live
 Every rate delivered every fresh frame: no repeats, no late sends, no
 missed deadlines. Measured gaps track the producer's own send spacing
 (within ~1 ms), which means the relay adds no cadence of its own — it
-forwards what it is given, when it is given. Host transport is therefore
-not a source of visible judder at any of these rates, and a lower target
-rate does not buy smoothness.
+forwards what it is given, when it is given. Whatever judder remains
+enters after the host hands the frame off; these numbers say nothing
+about what the panel displays.
 
 As always these are transport measurements, not optical ones.
 
@@ -190,10 +190,11 @@ selected or played the result.
 
 ### Known gap
 
-There is still no route for selecting an already-stored movie — the app
-can only play what it just baked. A bake-centred workflow needs both
-that and a way to remove movies, since the XLED v1 API exposes only a
-delete-everything call.
+Selecting an already-stored movie is supported now (`POST
+/api/movies/select`), so the app can recall any bake rather than only
+the one it just made. Removing a movie is still missing, and cannot be
+added the same way: the XLED v1 API exposes only a delete-everything
+call, which would take the user's own Twinkly-app movies with it.
 
 ## Further optimization threshold
 

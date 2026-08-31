@@ -6,6 +6,7 @@ import { renderMediaPixels } from "./media_input.js";
 import { effectPainters } from "./effect_painters.js";
 import { renderGeneratedFrame } from "./effects_ui.js";
 import { applyStatus, loadMovies } from "./status_view.js";
+import { renderArchive } from "./movie_archive.js";
 import { clipFrameIndex } from "./clip_model.js";
 import { controllerMovieFps, movieFrameCount, packMovieFrames } from "./movie_model.js";
 import type { ControllerStatus } from "./types.js";
@@ -158,6 +159,7 @@ async function bakeCurrentLook(): Promise<void> {
     });
     applyStatus(result.status);
     await loadMovies();
+  await renderArchive();
     toast(`${name} is now looping from the panel controller.`);
   } catch (error) {
     toast((error as Error).message, true);

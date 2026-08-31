@@ -26,10 +26,12 @@ import math
 # Rec. 601 luma weights, scaled to integers to keep the hot loop in ints.
 _LUMA_R, _LUMA_G, _LUMA_B = 299, 587, 114
 DEFAULT_GAMMA = 2.2
-# Chosen on the wall: 1.25 read as barely-corrected, 3.0 as
-# near-pure hues; 2.2 is where colour pops without collapsing
-# distinct palette stops into the same primary.
-DEFAULT_SATURATION = 2.2
+# Saturation happens in the browser now, inside sampleGradient, so the
+# previews show the colour the wall will show and realtime output gets
+# it too (public/palette_model.ts, PALETTE_SATURATION = 2.2, chosen on
+# the wall). Boosting again here would apply it twice to anything baked.
+# Callers can still pass a value for content that arrives unsaturated.
+DEFAULT_SATURATION = 1.0
 
 
 @functools.lru_cache(maxsize=16)
@@ -53,6 +55,11 @@ def gamma_table(gamma: float, black_floor: int = 0) -> bytes:
 
 def saturate_frame(frame: bytes, amount: float) -> bytes:
     """Push each pixel away from its own luma. 1.0 leaves it untouched."""
+    if len(frame) % 3:
+        # A trailing 1-2 byte fragment would be silently replaced with
+        # black by the zero-initialized output buffer, and correct_movie
+        # would hand that corruption straight to the baker.
+        raise ValueError("Frame byte count must be a whole number of RGB pixels.")
     # Float equality is unreliable; treat anything within a rounding
     # error of 1.0 as "leave it alone".
     if math.isclose(amount, 1.0, rel_tol=1e-9, abs_tol=1e-9):

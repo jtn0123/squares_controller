@@ -1,3 +1,4 @@
+import { hsvToRgb, rgbToHsv, saturateRgb } from "./color_utils.js";
 import type { Palette, Rgb, SavedPalette } from "./types.js";
 
 export const CURATED_PALETTES: readonly SavedPalette[] = Object.freeze([
@@ -66,6 +67,21 @@ export function normalizeSavedPalette(value: unknown): SavedPalette | null {
   };
 }
 
+// How hard palette colours are pushed away from their own luma. Chosen
+// on the wall (see docs/PERFORMANCE.md). It lives here, not at the
+// device boundary, so the browser previews show the colour the wall
+// will show — and realtime output gets it too.
+export const PALETTE_SATURATION = 2.2;
+
+/** Shortest way round the hue circle, so a blend never detours through
+ *  the opposite side of the wheel. */
+function blendHue(from: number, to: number, amount: number): number {
+  let delta = to - from;
+  if (delta > 0.5) delta -= 1;
+  if (delta < -0.5) delta += 1;
+  return from + delta * amount;
+}
+
 export function sampleGradient(rawColors: unknown, rawPosition: number): Rgb {
   const { colors } = normalizePalette({ id: "sample", colors: rawColors });
   const position = ((Number(rawPosition) % 1) + 1) % 1;
@@ -74,7 +90,24 @@ export function sampleGradient(rawColors: unknown, rawPosition: number): Rgb {
   const blend = scaled - index;
   const first = rgbFromHex(colors[index]);
   const second = rgbFromHex(colors[index + 1]);
-  return first.map((channel, channelIndex) =>
-    Math.round(channel + (second[channelIndex] - channel) * blend),
+
+  // Straight RGB interpolation drags every midpoint toward grey: blend
+  // acid green into cyan and the halfway colour is a washed pale green.
+  // Interpolating hue, saturation, and value separately keeps the
+  // transition as vivid as the two stops it runs between.
+  const [firstHue, firstSaturation, firstValue] = rgbToHsv(first);
+  const [secondHue, secondSaturation, secondValue] = rgbToHsv(second);
+  // A grey stop has no meaningful hue, and black has no meaningful hue
+  // OR saturation. Borrow the other stop's so a ramp out of black stays
+  // a pure dark red rather than fading up through pink.
+  const fromHue = firstSaturation === 0 ? secondHue : firstHue;
+  const toHue = secondSaturation === 0 ? firstHue : secondHue;
+  const fromSaturation = firstValue === 0 ? secondSaturation : firstSaturation;
+  const toSaturation = secondValue === 0 ? firstSaturation : secondSaturation;
+  const mixed = hsvToRgb(
+    blendHue(fromHue, toHue, blend),
+    fromSaturation + (toSaturation - fromSaturation) * blend,
+    firstValue + (secondValue - firstValue) * blend,
   );
+  return saturateRgb(mixed, PALETTE_SATURATION);
 }

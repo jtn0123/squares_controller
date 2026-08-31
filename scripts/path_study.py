@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import src.twinkly_movies as twinkly_movies  # noqa: E402
 from panel_lab import PanelSession, frames_from  # noqa: E402
+from src.color_pipeline import correct_frame  # noqa: E402
 from server import load_device_ip  # noqa: E402
 from src.twinkly_client import TwinklyClient  # noqa: E402
 
@@ -60,7 +61,10 @@ def ensure_baked(client: TwinklyClient, frames: list[bytes]) -> dict | None:
     movies = client.list_movies()
     existing = next(
         (movie for movie in movies["movies"]
-         if str(movie.get("name", "")).strip().upper() == MOVIE_NAME),
+         if str(movie.get("name", "")).strip().upper() == MOVIE_NAME
+         # Name alone is not identity: a stale movie from an older run
+         # with different geometry would poison the comparison.
+         and movie.get("frames_number") == LOOP_FRAMES),
         None,
     )
     if existing is not None:
@@ -85,16 +89,45 @@ def main(argv: list[str]) -> int:
     frames = [loop_frame(index) for index in range(LOOP_FRAMES)]
     client = TwinklyClient(load_device_ip())
     client.connect()
+    # The study dims the wall for its whole run — baked blocks included —
+    # so remember the user's brightness here, before the first override.
+    # PanelSession only spans the streamed blocks and would capture the
+    # already-dimmed value.
+    original = client.request("/led/out/brightness").get("value")
     client.set_brightness(brightness)
     baked = ensure_baked(client, frames)
     if baked is None:
         print(f"not enough movie storage for {MOVIE_NAME}; "
               "skipping the baked block")
 
-    render = frames_from(frames)
-    # Spread fragments across the WHOLE interval, not a fraction of it.
-    spacing = (1.0 / MOVIE_FPS) / FRAGMENTS_PER_FRAME
+    # bake_movie corrects before upload, so the streamed blocks have to
+    # carry the same correction or this compares colour, not delivery.
+    render = frames_from([correct_frame(frame) for frame in frames])
+    # The panel may store a lower fps than requested (it caps at its
+    # measured rate); pace the streamed blocks at what actually plays.
+    live_fps = int(baked.get("fps", MOVIE_FPS)) if baked else MOVIE_FPS
+    # A frame's fragments and the gap to the next frame's first
+    # fragment all get the same spacing: interval / fragment count.
+    # Dividing by one less would land the last fragment exactly on the
+    # next frame's first send.
+    spacing = (1.0 / live_fps) / FRAGMENTS_PER_FRAME
 
+    try:
+        run_cycles(client, baked, render, brightness, seconds, cycles,
+                   lead_in, spacing)
+    finally:
+        if isinstance(original, int):
+            client.set_brightness(original)
+
+    if baked is not None:
+        twinkly_movies.play_stored_movie(client, int(baked["id"]))
+    print("\ndone — panel back on stored playback")
+    return 0
+
+
+def run_cycles(client: TwinklyClient, baked: dict | None, render,
+               brightness: int, seconds: float, cycles: int,
+               lead_in: float, spacing: float) -> None:
     for cycle in range(1, cycles + 1):
         if baked is not None:
             print(f"cycle {cycle}: BAKED — panel storage, no network",
@@ -113,11 +146,6 @@ def main(argv: list[str]) -> int:
                   f"{spacing * 1000:.1f}ms apart", flush=True)
             panel.stream(render, fps=MOVIE_FPS, seconds=seconds,
                          spacing=spacing)
-
-    if baked is not None:
-        twinkly_movies.play_stored_movie(client, int(baked["id"]))
-    print("\ndone — panel back on stored playback")
-    return 0
 
 
 if __name__ == "__main__":

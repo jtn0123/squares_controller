@@ -22,6 +22,7 @@ from src.background import automation_loop, execute_runtime_action, frame_loss_l
 from src.command_api import validate_bind_security
 from src.http_api import AppContext, SquaresHandler, SquaresServer
 from src.library_store import LibraryStore
+from src.movie_archive import MovieArchive
 from src.runtime_policy import (
     FrameActivity,
     RuntimePolicyStore,
@@ -42,6 +43,9 @@ AUTOMATION_PATH = Path(
 )
 RUNTIME_POLICY_PATH = Path(
     os.environ.get("SQUARES_RUNTIME_POLICY", ROOT / ".squares" / "runtime.json")
+)
+MOVIE_ARCHIVE_PATH = Path(
+    os.environ.get("SQUARES_MOVIE_ARCHIVE", ROOT / ".squares" / "movies")
 )
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4312"))
@@ -105,6 +109,7 @@ def build_context() -> AppContext:
         library_store=library_store,
         automation_store=automation_store,
         runtime_policy_store=runtime_policy_store,
+        movie_archive=MovieArchive(MOVIE_ARCHIVE_PATH),
         frame_activity=FrameActivity(),
         shutting_down=threading.Event(),
         client=client,

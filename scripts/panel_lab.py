@@ -52,6 +52,9 @@ class PanelSession:
         # pinning one developer's panel into the tooling.
         self.client = TwinklyClient(ip or load_device_ip())
         self.brightness = brightness
+        # Filled in by __enter__; None means "never learned it", and
+        # exit then leaves brightness alone rather than guessing.
+        self.previous_brightness: int | None = None
         self.restore_mode = restore_mode
         self.socket: socket.socket | None = None
 
@@ -79,8 +82,19 @@ class PanelSession:
     def __enter__(self) -> PanelSession:
         self.client.connect()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.set_mode("rt")
-        self.set_brightness(self.brightness)
+        try:
+            # Remember the user's brightness so exit can put it back;
+            # a diagnostic run must not permanently redim the wall.
+            current = self.api("/led/out/brightness").get("value")
+            if isinstance(current, int):
+                self.previous_brightness = current
+            self.set_mode("rt")
+            self.set_brightness(self.brightness)
+        except BaseException:
+            # __exit__ never runs if __enter__ raises, so a failure here
+            # would strand the panel in realtime with the socket open.
+            self.__exit__(None, None, None)
+            raise
         return self
 
     def __exit__(
@@ -89,18 +103,22 @@ class PanelSession:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        # Each restore is guarded on its own: a failed brightness write
+        # must not stop the mode restore, and neither may mask the
+        # original error while unwinding. ConnectionError (and
+        # TwinklyHTTPError under it) are OSError subclasses.
         try:
-            self.set_brightness(self.brightness)
+            if self.previous_brightness is not None:
+                self.set_brightness(self.previous_brightness)
+        except OSError:
+            pass
+        try:
             self.set_mode(self.restore_mode)
         except OSError:
-            # ConnectionError (and TwinklyHTTPError under it) are OSError
-            # subclasses. Already unwinding; a failed restore must not
-            # mask the original error.
             pass
-        finally:
-            if self.socket is not None:
-                self.socket.close()
-                self.socket = None
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
 
     # -- frames -----------------------------------------------------
 

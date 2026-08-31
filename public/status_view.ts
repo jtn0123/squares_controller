@@ -7,6 +7,7 @@ import {
   toast,
   waitForFrameSender,
 } from "./net.js";
+import { controllerMovieFps } from "./movie_model.js";
 import { stopAnimation, stopMedia } from "./playback.js";
 import { render } from "./render_core.js";
 import { setOutputContext, updateBrightnessVisual } from "./monitor.js";
@@ -178,7 +179,17 @@ export async function loadStreamTelemetry(): Promise<void> {
   updateStreamTelemetry(response.streamTelemetry);
 }
 
+// Selection changes what the panel plays, so overlapping requests race:
+// an older one can land last and leave the wall playing something the
+// UI is not showing. Ignoring the statusEpoch is not enough — that only
+// discards the stale *response*. One at a time is the honest fix.
+let movieSelectionInFlight = false;
+
 export async function playStoredMovie(movieId: number): Promise<void> {
+  if (movieSelectionInFlight) return;
+  movieSelectionInFlight = true;
+  const list = $("#panelMovieList");
+  list.classList.add("busy");
   const epoch = beginUserAction();
   try {
     const status = await api<ControllerStatus>("/api/movies/select", {
@@ -190,6 +201,9 @@ export async function playStoredMovie(movieId: number): Promise<void> {
     toast(`Playing ${status.currentMovie?.name ?? "panel movie"}.`);
   } catch (error) {
     toast((error as Error).message, true);
+  } finally {
+    movieSelectionInFlight = false;
+    list.classList.remove("busy");
   }
 }
 
@@ -198,12 +212,22 @@ export async function playStoredMovie(movieId: number): Promise<void> {
 // any stored look be recalled, not only the one just baked.
 function renderPanelMovies(library: MovieLibrary): void {
   const list = $("#panelMovieList");
-  list.replaceChildren();
+  // The rebuild destroys the button the user just activated; remember
+  // which one held focus so keyboard users are not dropped to <body>.
+  const focusedId =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement.dataset["movieId"]
+      : undefined;
+  // The legend is the fieldset's accessible name; keep it through the
+  // rebuild or the group goes nameless after the first render.
+  const legend = list.querySelector("legend");
+  list.replaceChildren(...(legend ? [legend] : []));
   const currentId = state.controllerStatus?.currentMovie?.id;
   library.movies.forEach((movie) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "panel-movie";
+    button.dataset["movieId"] = String(movie.id);
     const playing =
       movie.id === currentId && state.controllerStatus?.mode === "movie";
     button.classList.toggle("active", playing);
@@ -216,6 +240,7 @@ function renderPanelMovies(library: MovieLibrary): void {
     button.append(name, detail);
     button.addEventListener("click", () => void playStoredMovie(movie.id));
     list.append(button);
+    if (focusedId === String(movie.id)) button.focus();
   });
 }
 
@@ -225,8 +250,13 @@ export async function loadMovies(): Promise<MovieLibrary> {
   const used = Math.max(0, library.maxCapacity - library.availableFrames);
   const free = Math.max(0, library.availableFrames);
   // Free space is what decides whether the next bake fits, so lead with
-  // it; the used/total pair stays for context.
-  const seconds = Math.floor(free / 38);
+  // it; the used/total pair stays for context. The duration estimate
+  // uses the same helper the bake flow uses, so the two never disagree
+  // about what rate a movie will store at.
+  const bakeFps = controllerMovieFps(
+    Number(state.controllerStatus?.measuredFrameRate),
+  );
+  const seconds = Math.floor(free / bakeFps);
   $("#movieCapacityReadout").textContent =
     `${free} FRAMES FREE / ~${seconds}s · ${used} OF ${library.maxCapacity} USED`;
   renderPanelMovies(library);

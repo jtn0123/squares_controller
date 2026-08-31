@@ -33,6 +33,7 @@ import {
   stopPlaylist,
 } from "./playlists.js";
 import { initializeMovieBaking } from "./movies_bake.js";
+import { initializeMovieArchive } from "./movie_archive.js";
 import {
   initializeAutomations,
   initializeRuntimePolicy,
@@ -74,6 +75,7 @@ initializeSceneOrganizer();
 initializeSceneSaving();
 initializePlaylists();
 initializeMovieBaking();
+initializeMovieArchive();
 initializeLibraryTransfer();
 initializeStatusControls();
 renderPresets();

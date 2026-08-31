@@ -103,11 +103,31 @@
             <small>
               ADDS A NEW LOOP / NEVER OVERWRITES / RUNS WITHOUT THIS BROWSER
             </small>
-            <fieldset
-              class="panel-movie-list"
-              id="panelMovieList"
-              aria-label="Movies stored on the panel"
-            ></fieldset>
+            <fieldset class="panel-movie-list" id="panelMovieList">
+              <legend class="hidden-legend">Movies stored on the panel</legend>
+            </fieldset>
+            <div class="panel-archive">
+              <div class="panel-bake-heading">
+                <span>LOCAL ARCHIVE</span>
+                <label class="archive-import" for="archiveImport">
+                  <span>IMPORT FILE</span>
+                  <input
+                    id="archiveImport"
+                    type="file"
+                    accept="application/json,.json"
+                  />
+                </label>
+              </div>
+              <fieldset class="panel-archive-list" id="panelArchiveList">
+                <legend class="hidden-legend">
+                  Movies archived on this computer
+                </legend>
+              </fieldset>
+              <small>
+                THE PANEL CANNOT SEND MOVIES BACK / ONLY BAKES MADE HERE
+                CAN BE SAVED OR RESTORED
+              </small>
+            </div>
           </div>
           <label class="input-label" for="presetName">SAVE CURRENT LOOK</label>
           <div class="preset-composer">
