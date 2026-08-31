@@ -18,7 +18,7 @@
     "test": "npm run build && python3 -m unittest discover -s test -p 'test_*.py' && node --test test/*.test.mjs"
   },
   "devDependencies": {
-    "typescript": "~5.9.2"
+    "typescript": "~7.0.2"
   },
   "engines": {
     "node": ">=20"
